@@ -767,5 +767,3 @@ void write_thread() {
 void loop() {
   haptics_loop();// calling haptic loop thread here is my main thread
 }
-
-
