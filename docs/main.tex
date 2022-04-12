@@ -1,0 +1,43 @@
+\documentclass[12pt,a4paper]{report}
+\usepackage[a4paper,top=3cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+\usepackage[utf8x]{inputenc}
+%----------------------------------------------------------------
+\usepackage[dvipsnames]{xcolor}
+\usepackage[english]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{bm}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{svg}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{amsfonts}
+\usepackage{enumerate}
+\renewcommand{\vec}[1]{\mathbf{#1}}
+\usepackage{pythonhighlight}
+\usepackage{titlesec}
+\usepackage{minted}
+\newminted{matlab}{frame=lines,framerule=2pt}
+\titleformat{\subsubsection}[runin]{}{}{}{}[]
+\usepackage{rotating}
+
+\hypersetup{colorlinks=true}
+
+%----------------------------------------------------------------
+
+\title{Steer-by-Wire bicycle \\ Documentation}
+\author{Simonas Draukšas}
+\date{April 2022}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+
+\chapter{Electronics box at the rear of the bicycle}
+\input{Chapters/EBox}
+
+
+\end{document}
