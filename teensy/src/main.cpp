@@ -1,49 +1,24 @@
-#include <SD.h> // SD library used for data logging
+#include <Arduino.h>
+#include <SD.h>
 #include <TeensyThreads.h> // https://github.com/ftrias/TeensyThreads
-#include <SPI.h>  // include the SPI library to initiate the clock signal for absolute encoders and IMU
-#include <Encoder.h> // include the encoder library to calculate encoder counts for wheel and pedal encoder
-#include "MPU9250.h" // https://github.com/bolderflight/MPU9250
+#include <SPI.h> 
+#include <Encoder.h>
+#include "mpu9250.h" // https://github.com/bolderflight/MPU9250
 
-//----------------------------------------------------------------Functions used for debugging and for threading-------------------------------------------------------------------------
+//=========================== Function definitions ===========================//
+void setup();
+void loop();
+void haptics_setup();
+void haptics_loop();
+void write_thread();
+void block_for_us(unsigned long delta_time_us);
+void block_until_us(unsigned long continue_time_us);
+void yield_for_us(unsigned long delta_time_us);
+void yield_until_us(unsigned long continue_time_us);
+float clamp_f32(float value, float minv, float maxv);
+int clamp_i32(int value, int minv, int maxv);
 
-void block_for_us(unsigned long delta_time_us) {
-  block_until_us(micros() + delta_time_us);
-}
-
-void block_until_us(unsigned long continue_time_us) {
-  while (micros() < continue_time_us) {
-    // Do nothing but check the condition.
-  }
-}
-
-void yield_for_us(unsigned long delta_time_us) {
-  yield_until_us(micros() + delta_time_us);
-}
-
-void yield_until_us(unsigned long continue_time_us) {
-  while (micros() < continue_time_us) {
-    threads.yield();
-  }
-}
-
-float clamp_f32(float value, float minv, float maxv) {
-  if (value <= minv) {
-    return minv;
-  } else if (value >= maxv) {
-    return maxv;
-  }
-  return value;
-}
-
-int clamp_i32(int value, int minv, int maxv) {
-  if (value <= minv) {
-    return minv;
-  } else if (value >= maxv) {
-    return maxv;
-  }
-  return value;
-}
-//----------------------------------------------------------------Pin assighment---------------------------------------------------------------------------------------
+//=================================== Pins ===================================//
 const int ssimu = 10; // slave selection enable is Low
 const int sshand = 24; // pin of logic gate setting LOW is active
 const int ssfork = 25;
@@ -60,10 +35,9 @@ const int analog_force_transducer = 20; // analog output of force tranducer
 float val_force_transducer = 0;
 Encoder wheel_counter(2, 3); //declaring wheel encoder pins for encoder library
 Encoder pedal_counter(23, 22); //declaring pedal encoder pins for encoder library
-MPU9250 IMU(SPI, 10); // an MPU9250 object with the MPU-9250 sensor on SPI bus 0 and chip select pin 10
+bfs::Mpu9250 IMU(&SPI, 10); // an MPU9250 object with the MPU-9250 sensor on SPI bus 0 and chip select pin 10
 
-//----------------------------------------------------------------- Declaring global variables------------------------------------------------------------------------------
-
+//============================= Global variables =============================//
 //wheel encoder variables
 const uint32_t WHEEL_COUNTS_LENGTH = 200;
 int32_t wheel_counts[WHEEL_COUNTS_LENGTH] = {0};
@@ -131,7 +105,7 @@ Threads::Mutex message_buffer_mutex;
 volatile HapticsMessage * haptics_thread_message_buffer;
 volatile uint32_t haptics_thread_message_count;
 
-
+//============================== Main Setup ==================================//
 void setup() {
   SPI.begin(); // intializing SPI
   Serial1.begin(9600); // begin serial communication;
@@ -158,9 +132,9 @@ void setup() {
   unsigned long time2;
   time_start_program = micros();
   time1 = micros();
-  status = IMU.begin();
-  IMU.setAccelRange(MPU9250::ACCEL_RANGE_4G); //This function sets the accelerometer full scale range to the given value
-  IMU.setGyroRange(MPU9250::GYRO_RANGE_250DPS);//This function sets the gyroscope full scale range to the given value
+  status = IMU.Begin();
+  IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); //This function sets the accelerometer full scale range to the given value
+  IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS);//This function sets the gyroscope full scale range to the given value
   time2 = micros();
   Serial.print(time1);
   Serial.print(",");
@@ -178,7 +152,12 @@ void setup() {
   
 }
 
-//---------------------------------------------------------------------------haptic loop---------------------------------------------------------------------------------------
+//================================ Main Loop =================================//
+void loop() {
+  haptics_loop();// calling haptic loop thread here is my main thread
+}
+
+//=============================== Haptic Setup ===============================//
 void haptics_setup() {
   next_run_time = micros();
   // set the slaveSelectpins and power pin of absolute encoders and IMU as outputs:
@@ -198,6 +177,7 @@ void haptics_setup() {
   threads.setTimeSlice(threads.id(), 10);
 }
 
+//================================ Haptic Loop ===============================//
 void haptics_loop() {
   unsigned long start_time = micros();
   unsigned long state = digitalRead(gain_switch); // read HIGH and LOW state of handlebat toggle switch
@@ -525,16 +505,16 @@ void haptics_loop() {
 
   // -----------------------------------------------Reading Imu------------------------------------------------------------------------
 
-  IMU.readSensor();
+  IMU.Read();
   // display the data
 
-  accelY = IMU.getAccelX_mss(); //change the axis to match the orientation according to the Whipple Carvallo Model.
-  accelX = -IMU.getAccelY_mss();//change the axis and direction to match the orientation according to the Whipple Carvallo Model.
-  accelZ = -IMU.getAccelZ_mss();//change the axis and direction to match the orientation according to the Whipple Carvallo Model.
-  gyroY = -IMU.getGyroX_rads();//change the axis and direction to match the orientation according to the Whipple Carvallo Model.
-  gyroX = IMU.getGyroY_rads();//change the axis to match the orientation according to the Whipple Carvallo Model.
-  gyroZ = IMU.getGyroZ_rads();////change the axis to match the orientation according to the Whipple Carvallo Model.
-  temp = IMU.getTemperature_C();
+  accelY = IMU.accel_x_mps2(); //change the axis to match the orientation according to the Whipple Carvallo Model.
+  accelX = -IMU.accel_y_mps2();//change the axis and direction to match the orientation according to the Whipple Carvallo Model.
+  accelZ = -IMU.accel_z_mps2();//change the axis and direction to match the orientation according to the Whipple Carvallo Model.
+  gyroY = -IMU.gyro_x_radps();//change the axis and direction to match the orientation according to the Whipple Carvallo Model.
+  gyroX = IMU.gyro_y_radps();//change the axis to match the orientation according to the Whipple Carvallo Model.
+  gyroZ = IMU.gyro_z_radps();////change the axis to match the orientation according to the Whipple Carvallo Model.
+  temp = IMU.die_temp_c();
 
   // -----------------------------------------------Printing to serial port------------------------------------------------------------------------
   // Limit the printing rate.
@@ -641,6 +621,7 @@ void haptics_loop() {
   haptics_iteration_counter += 1;
 }
 
+//============================== Log data to SD ==============================//
 void write_thread() {
   randomSeed(analogRead(33));
   long randNumber = random(300);
@@ -764,6 +745,43 @@ void write_thread() {
   }
 }
 
-void loop() {
-  haptics_loop();// calling haptic loop thread here is my main thread
+//================ Functions for debugging and for threading =================//
+void block_for_us(unsigned long delta_time_us) {
+  block_until_us(micros() + delta_time_us);
+}
+
+void block_until_us(unsigned long continue_time_us) {
+  while (micros() < continue_time_us) {
+    // Do nothing but check the condition.
+  }
+}
+
+void yield_for_us(unsigned long delta_time_us) {
+  yield_until_us(micros() + delta_time_us);
+}
+
+void yield_until_us(unsigned long continue_time_us) {
+  while (micros() < continue_time_us) {
+    threads.yield();
+  }
+}
+
+float clamp_f32(float value, float minv, float maxv) {
+  if (value <= minv) {
+    return minv;
+  } 
+  else if (value >= maxv) {
+    return maxv;
+  }
+  return value;
+}
+
+int clamp_i32(int value, int minv, int maxv) {
+  if (value <= minv) {
+    return minv;
+  } 
+  else if (value >= maxv) {
+    return maxv;
+  }
+  return value;
 }
