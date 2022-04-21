@@ -10,6 +10,7 @@
 void setup();
 void loop();
 void haptics();
+float return_scaling(int iteration);
 //void write_thread();
 //void block_for_us(unsigned long delta_time_us);
 //void block_until_us(unsigned long continue_time_us);
@@ -53,15 +54,11 @@ const uint32_t PEDAL_COUNTS_LENGTH = 500;
 int32_t pedal_counts[PEDAL_COUNTS_LENGTH] = {0};
 uint32_t pedal_counts_index = 0;
 // Haptics
-long current_time;
-unsigned long next_run_time;
 float error_prev = 0;
 float error_time_prev = 0;
 unsigned int haptics_iteration_counter = 0;
 // Time
-unsigned long time_start_program;
-unsigned long current_time_program;
-elapsedMicros sinceLast;
+elapsedMicros sinceLast; // How long has passed since last loop execution
 // IMU
 float accelX;
 float accelY;
@@ -85,7 +82,6 @@ float Kd_f = 0.029;
 float Kp_h = 0.9;
 float Kd_h = 0.012;
 // Other
-int status;
 int hand_switch_state = 0;
 
 //============================== Main Setup ==================================//
@@ -98,7 +94,6 @@ void setup() {
     Serial.println("Please insert SD card!");
     while (1);
   }
-  next_run_time = micros(); // Get some random time stamp to begin
   // Setup OUTPUT pins
   pinMode (cs_imu, OUTPUT);
   pinMode (cs_hand, OUTPUT);
@@ -111,11 +106,13 @@ void setup() {
   pinMode (switch_hand, OUTPUT);
     digitalWrite(switch_hand, HIGH); // Set HIGH to enable motor
   // Setup PWM pins
+  analogWriteResolution(15);
   pinMode (pwm_pin_fork, OUTPUT);
     analogWriteFrequency(pwm_pin_fork, 4577.64);
+    analogWrite(pwm_pin_fork, 16384);
   pinMode (pwm_pin_hand, OUTPUT);
     analogWriteFrequency(pwm_pin_hand, 4577.64);
-  analogWriteResolution(15);
+    analogWrite(pwm_pin_hand, 16384);
   // Setup INPUT pins
   pinMode (hand_switch, INPUT); // making handlebar switch high changes fork controller gains
   // Disable SPI communication with encoders
@@ -128,8 +125,7 @@ void setup() {
   }
   IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); // +- 4g
   IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS); // +- 250 deg/s
-  // Note the start time
-  time_start_program = micros();
+  sinceLast = 0;
 }
 
 //============================== Main Loop ===================================//
@@ -195,8 +191,7 @@ void haptics(){
   if (angle_fork < -180.0f) // CW fork rotation gives -360 deg-> -310 deg
     angle_fork = angle_fork + 360.0f; // Add 360 to get 0-180 deg CCW
 
-  //=================== Fork feedback tracking controller ====================//
-  //--------------------- Calculation of derivative part ---------------------//
+  //---------------------- Calculate error derivative ------------------------//
   // Set the very first handlebar and fork encoder values to 0
   if (haptics_iteration_counter < 10) { 
     angle_hand = 0.0f;
@@ -211,109 +206,35 @@ void haptics(){
   float error = (error_curr - error_prev) / error_time_diff;
   error_prev = error_curr;
 
-  //------------- Reduction of torque in the first 14 seconds ----------------//
-  float command_fork = 0;
-  if (haptics_iteration_counter > 0 && haptics_iteration_counter <= 6000)
-  {
-    command_fork = (Kp_f*(angle_hand - angle_fork) + Kd_f*error) / 35;
-  }
-  else if (haptics_iteration_counter > 6000 && haptics_iteration_counter <= 7000)
-  {
-    command_fork = (Kp_f*(angle_hand - angle_fork) + Kd_f*error) / 30;
-  }
-  else if (haptics_iteration_counter > 7000 && haptics_iteration_counter <= 8000)
-  {
-    command_fork = (Kp_f*(angle_hand - angle_fork) + Kd_f*error) / 25;
-  }
-  else if (haptics_iteration_counter > 8000 && haptics_iteration_counter <= 9000)
-  {
-    command_fork = (Kp_f*(angle_hand - angle_fork) + Kd_f*error) / 20;
-  }
-  else if (haptics_iteration_counter > 9000 && haptics_iteration_counter <= 10000)
-  {
-    command_fork = (Kp_f*(angle_hand - angle_fork) + Kd_f*error) / 15;
-  }
-  else if (haptics_iteration_counter > 10000 && haptics_iteration_counter <= 11000)
-  {
-    command_fork = (Kp_f*(angle_hand - angle_fork) + Kd_f*error) / 10;
-  }
-  else if (haptics_iteration_counter > 11000 && haptics_iteration_counter <= 12000)
-  {
-    command_fork = (Kp_f*(angle_hand - angle_fork) + Kd_f*error) / 5;
-  }
-  else if (haptics_iteration_counter > 12000 && haptics_iteration_counter <= 13000)
-  {
-    command_fork = (Kp_f*(angle_hand - angle_fork) + Kd_f*error) / 2.5;
-  }
-  // Full torque
-  else if (haptics_iteration_counter > 13000)
-  {
-    command_fork = (Kp_f * (angle_hand - angle_fork) + Kd_f*error);
-  }
+  //------------------------ Calculate fork torque ---------------------------//
+  float command_fork = (Kp_f*(angle_hand - angle_fork) + Kd_f*error);
 
-  //------------------------ Find the PWM command ----------------------------//
-  int pwm_command_fork;
-  pwm_command_fork = (command_fork * -842.795 + 16384);
+  //------------- Reduction of torque in the first 14 seconds ----------------//
+  command_fork = command_fork / return_scaling(haptics_iteration_counter);
+  
+  //---------------------- Find the fork PWM command -------------------------//
+  int pwm_command_fork = (command_fork * -842.795 + 16384);
   pwm_command_fork = constrain(pwm_command_fork, 0, 32768);
   analogWrite(pwm_pin_fork, pwm_command_fork);
 
-  //================ Handlebar feedback tracking controller ==================//
+  //----------------------- Calculate handlebar torque -----------------------//
+  float command_hand = (Kp_h*(angle_hand - angle_fork) + Kd_h*error);
+
   //------------- Reduction of torque in the first 14 seconds ----------------//
-  float command_hand = 0;
-  if (haptics_iteration_counter > 0 && haptics_iteration_counter <= 6000) // 1st of reduction
-  {
-    command_hand = (Kp_h*(angle_hand - angle_fork) + Kd_h*error) / 35;
+  if (haptics_iteration_counter < 13000) {
+    command_hand = command_hand / return_scaling(haptics_iteration_counter);
   }
-  else if (haptics_iteration_counter > 6000 && haptics_iteration_counter <= 7000)
-  {
-    command_hand = (Kp_h*(angle_hand - angle_fork) + Kd_h*error) / 30;
-  }
-  else if (haptics_iteration_counter > 7000 && haptics_iteration_counter <= 8000)
-  {
-    command_hand = (Kp_h*(angle_hand - angle_fork) + Kd_h*error) / 25;
-  }
-  else if (haptics_iteration_counter > 8000 && haptics_iteration_counter <= 9000)
-  {
-    command_hand = (Kp_h*(angle_hand - angle_fork) + Kd_h*error) / 20;
-  }
-  else if (haptics_iteration_counter > 9000 && haptics_iteration_counter <= 10000)
-  {
-    command_hand = (Kp_h*(angle_hand - angle_fork) + Kd_h*error) / 15;
-  }
-  else if (haptics_iteration_counter > 10000 && haptics_iteration_counter <= 11000)
-  {
-    command_hand = (Kp_h*(angle_hand - angle_fork) + Kd_h*error) / 10;
-  }
-  else if (haptics_iteration_counter > 11000 && haptics_iteration_counter <= 12000)
-  {
-    command_hand = (Kp_h*(angle_hand - angle_fork) + Kd_h*error) / 5;
-  }
-  else if (haptics_iteration_counter > 12000 && haptics_iteration_counter <= 13000)
-  {
-    command_hand = (Kp_h*(angle_hand - angle_fork) + Kd_h*error) / 2.5;
-  }
-  // Full torque
-  else if (haptics_iteration_counter > 13000 && (hand_switch_state) == 0)
-  {
-    command_hand = Kp_h*(angle_hand - angle_fork) + Kd_h*error;
-    digitalWrite(hand_led, HIGH);
-  }
-  // Use switch to turn off haptics
-  else if ((haptics_iteration_counter) > 13000 && (hand_switch_state) == 1)
-  {
-    command_hand = 0;
-    digitalWrite(hand_led, HIGH);
+  else if (haptics_iteration_counter >= 13000) {
+    digitalWrite(hand_led, HIGH); // Turn on the LED to show that bike is ready
+    if (hand_switch_state == 1) { // Turn off the haptics with the switch
+      command_hand = 0;
+    }
   }
 
-  //------------------------ Find the PWM command ----------------------------//
-  int pwm_command_hand;
-  pwm_command_hand = (command_hand * -842.795 + 16384);
+  //-------------------- Find the handlebar PWM command ----------------------//
+  int pwm_command_hand = (command_hand * -842.795 + 16384);
   pwm_command_hand = constrain(pwm_command_hand, 0, 32768);
   analogWrite(pwm_pin_hand, pwm_command_hand);
-
-  //---------------------- Get ready for the next loop -----------------------//
-  unsigned long end_time = micros();
-  next_run_time = next_run_time + 1000; // Each loop takes 1000 microseconds
 
   //------------------------ Printing to serial port -------------------------//
   // Limit the printing rate
@@ -334,12 +255,45 @@ void haptics(){
     Serial.print(hand_dac);
     Serial.print(",Fork(Counts)= ");
     Serial.print(fork_dac);
+    Serial.print(",Time Taken= ");
+    Serial.print(sinceLast);
     Serial.println();
   }
 
   //------------------------ Move to the next loop ---------------------------//
-  if (end_time >= next_run_time) {
+  if (sinceLast > 1000) {
     Serial.println("MISSED HAPTICS DEADLINE");
   }
   haptics_iteration_counter += 1;
+}
+
+float return_scaling(int iteration) {
+  if (iteration <= 1000)
+    return 1000;
+  if (iteration <= 2000)
+    return 500;
+  if (iteration <= 3000)
+    return 250;
+  if (iteration <= 4000)
+    return 100;
+  if (iteration <= 5000)
+    return 50;
+  if (iteration <= 6000) 
+    return 35;
+  if (iteration <= 7000)
+    return 30;
+  if (iteration <= 8000)
+    return 25;
+  if (iteration <= 9000)
+    return 20;
+  if (iteration <= 10000)
+    return 15;
+  if (iteration <= 11000)
+    return 10;
+  if (iteration <= 12000)
+    return 5;
+  if (iteration <= 13000)
+    return 2.5;
+  
+  return 1;
 }
