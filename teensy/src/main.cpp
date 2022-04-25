@@ -10,6 +10,7 @@ void setup();
 void loop();
 void haptics();
 float return_scaling(uint64_t iteration);
+float moving_avg(float new_value);
 //void write_thread();
 //void block_for_us(unsigned long delta_time_us);
 //void block_until_us(unsigned long continue_time_us);
@@ -54,16 +55,14 @@ uint32_t pedal_counts_index = 0;
 float error_prev = 0.0f;
 uint32_t error_time_prev = 0.0f;
 uint64_t haptics_iteration_counter = 0; // Ensure it never overflows
+// Steering rate
+const uint8_t avg_filter_size = 10;
+uint8_t avg_index = 0;
+float avg_sum = 0.0f;
+float avg_array[avg_filter_size] = {0};
+float angle_prev = 0.0f; 
 // Time
 elapsedMicros sinceLast; // How long has passed since last loop execution
-// IMU
-/*float accelX;
-float accelY;
-float accelZ;
-float gyroX;
-float gyroY;
-float gyroZ;
-float temp;*/
 // Analog
 float val_fork = 0.0f;
 float val_hand = 0.0f;
@@ -84,8 +83,9 @@ uint8_t hand_switch_state = 0;
 //============================== Main Setup ==================================//
 void setup() {
   SPI.begin();
-  Serial.begin(9600);
-  while (!Serial); // Wait for Serial port to connect
+  Serial.begin(9600); // Communication with PC through micro-USB
+  Serial1.begin(115200); // Bluetooth module
+  //while (!Serial); // Wait for Serial port to connect
   // Setup SD card
   if (!SD.begin(BUILTIN_SDCARD)) {
     Serial.println("Please insert SD card!");
@@ -123,6 +123,7 @@ void setup() {
   }
   IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); // +- 4g
   IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS); // +- 250 deg/s
+  delay(5000);
   sinceLast = 0;
 }
 
@@ -204,6 +205,12 @@ void haptics(){
   float error = (error_curr - error_prev) / error_time_diff;
   error_prev = error_curr;
 
+  //----------------------- Calculate steering rate --------------------------//
+  float angle_diff = angle_hand - angle_prev;
+  float angle_rate = (float) (angle_diff / error_time_diff);
+  float filtered_angle_rate = moving_avg(angle_rate);
+  angle_prev = angle_hand;
+  
   //------------------------ Calculate fork torque ---------------------------//
   float command_fork = (Kp_f*(angle_hand - angle_fork) + Kd_f*error);
 
@@ -226,6 +233,10 @@ void haptics(){
     digitalWrite(hand_led, HIGH); // Turn on the LED to show that bike is ready
     if (hand_switch_state == 1) { // Turn off the haptics with the switch
       command_hand = 0;
+      digitalWrite(switch_hand, LOW);
+    }
+    else {
+      digitalWrite(switch_hand, HIGH);
     }
   }
 
@@ -247,25 +258,30 @@ void haptics(){
   //------------------------ Printing to serial port -------------------------//
   // Limit the printing rate
   if (haptics_iteration_counter % 100 == 0) {
-    Serial.print("Status: ");
-    Serial.print(status);
+    //Serial.print("Status: ");
+    //Serial.print(status);
     // Angles
-    //Serial.print(",Hand(deg)=");
-    //Serial.print(angle_hand);
-    //Serial.print(",Fork(deg)=");
-    //Serial.print(angle_fork);
+    /*
+    Serial.print(",Hand(deg)=");
+    Serial.print(angle_hand);
+    Serial.print(",Fork(deg)=");
+    Serial.print(angle_fork);
+    */
     // Torque
-    //Serial.print(",Torque_handlebar(Nm)=");
-    //Serial.print(command_hand);
-    //Serial.print(",Torque_fork(Nm)=");
-    //Serial.print(command_fork);
-    //Serial.print(",Hand(Counts)= ");
-    //Serial.print(hand_dac);
-    //Serial.print(",Fork(Counts)= ");
-    //Serial.print(fork_dac);
-    //Serial.print(",Time Taken= ");
-    //Serial.print(sinceLast);
-    // IMU
+    /*
+    Serial.print(",Torque_handlebar(Nm)=");
+    Serial.print(command_hand);
+    Serial.print(",Torque_fork(Nm)=");
+    Serial.print(command_fork);
+    Serial.print(",Hand(Counts)= ");
+    Serial.print(hand_dac);
+    Serial.print(",Fork(Counts)= ");
+    Serial.print(fork_dac);
+    Serial.print(",Time Taken= ");
+    Serial.print(sinceLast);
+    */
+    // IMU 
+    /*
     Serial.print(",AccelX= ");
     Serial.print(accelX);
     Serial.print(",AccelY= ");
@@ -280,8 +296,25 @@ void haptics(){
     Serial.print(gyroZ);
     Serial.print(",Temp= ");
     Serial.print(temp);
+    */
     // New line
-    Serial.println();
+    //Serial.println();
+  }
+
+  //------------------------ Printing to Bluetooth -------------------------//
+  // Limit the printing rate
+  if (haptics_iteration_counter % 5 == 0) {
+    Serial1.print(hand_switch_state);
+    Serial1.print(",");
+    Serial1.print(angle_hand, 4);
+    Serial1.print(",");
+    Serial1.print(filtered_angle_rate, 4);
+    Serial1.print(",");
+    Serial1.print(gyroX, 4);
+    Serial1.print(",");
+    //Serial1.print(vel, 4);
+    //Serial1.print(",");
+    Serial1.println(sinceLast);
   }
 
   //------------------------ Move to the next loop ---------------------------//
@@ -310,4 +343,13 @@ float return_scaling(uint64_t iteration) {
     return 2.5f;
   
   return 1.0f;
+}
+
+float moving_avg(float new_value) {
+  avg_sum = avg_sum - avg_array[avg_index];
+  avg_array[avg_index] = new_value;
+  avg_sum = avg_sum + new_value;
+  avg_index = (avg_index+1) % avg_filter_size;
+
+  return (float) (avg_sum / avg_filter_size);
 }
