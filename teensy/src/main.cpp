@@ -12,10 +12,6 @@ void haptics();
 float return_scaling(uint64_t iteration);
 float moving_avg(float new_value);
 //void write_thread();
-//void block_for_us(unsigned long delta_time_us);
-//void block_until_us(unsigned long continue_time_us);
-//void yield_for_us(unsigned long delta_time_us);
-//void yield_until_us(unsigned long continue_time_us);
 
 //=================================== Pins ===================================//
 // SPI
@@ -245,6 +241,33 @@ void haptics(){
   pwm_command_hand = constrain(pwm_command_hand, 0, 32768);
   analogWrite(pwm_pin_hand, pwm_command_hand);
 
+  //------------------------ Calculate bicycle speed -------------------------//
+  int32_t current_wheel_count = wheel_counter.read();
+  int32_t previous_wheel_count = wheel_counts[wheel_counts_index];
+  wheel_counts[wheel_counts_index] = current_wheel_count;
+  wheel_counts_index += 1;
+  if (wheel_counts_index >= WHEEL_COUNTS_LENGTH) {
+    wheel_counts_index = 0;
+  }
+  // There are 192 counts/revolution, the radius of the wheel is 3.6m
+  float rps_wheel = ((float) (current_wheel_count - previous_wheel_count)) 
+    / 192.0f * 1000.0f / ((float) WHEEL_COUNTS_LENGTH); 
+  float velocity_ms = -rps_wheel * 6.28f * 0.33f 
+    / 1000.0f * 3600.0f * 0.277778;
+
+  //--------------------------- Calculate cadence ----------------------------//
+  int32_t current_pedal_count = pedal_counter.read();
+  int32_t previous_pedal_count = pedal_counts[pedal_counts_index];
+  pedal_counts[pedal_counts_index] = current_pedal_count;
+  pedal_counts_index += 1;
+  if (pedal_counts_index >= PEDAL_COUNTS_LENGTH) {
+    pedal_counts_index = 0;
+  }
+  // There are 192 counts/revolution
+  float cadence_rads = ((float) (current_pedal_count - previous_pedal_count)) 
+    / 192.0f * 60.0f * 1000.0f 
+    / ((float) PEDAL_COUNTS_LENGTH) * 0.10471975511970057;
+
   //----------------------------- Read IMU data ------------------------------//
   bool status = IMU.Read();
   float accelY = IMU.accel_x_mps2();
@@ -258,8 +281,8 @@ void haptics(){
   //------------------------ Printing to serial port -------------------------//
   // Limit the printing rate
   if (haptics_iteration_counter % 100 == 0) {
-    //Serial.print("Status: ");
-    //Serial.print(status);
+    //Serial.print("Switch: ");
+    //Serial.print(hand_switch_state);
     // Angles
     /*
     Serial.print(",Hand(deg)=");
@@ -297,6 +320,13 @@ void haptics(){
     Serial.print(",Temp= ");
     Serial.print(temp);
     */
+    // Encoders
+    /*
+    Serial.print(",Velocity= ");
+    Serial.print(velocity_ms);
+    Serial.print(",Cadence= ");
+    Serial.print(cadence_rads);
+    */
     // New line
     //Serial.println();
   }
@@ -312,8 +342,8 @@ void haptics(){
     Serial1.print(",");
     Serial1.print(gyroX, 4);
     Serial1.print(",");
-    //Serial1.print(vel, 4);
-    //Serial1.print(",");
+    Serial1.print(velocity_ms, 4);
+    Serial1.print(",");
     Serial1.println(sinceLast);
   }
 
