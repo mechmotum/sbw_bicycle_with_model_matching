@@ -11,6 +11,8 @@ void loop();
 void haptics();
 float return_scaling(uint64_t iteration);
 float moving_avg(float new_value);
+void bt_read();
+void bt_parse();
 //void write_thread();
 
 //=================================== Pins ===================================//
@@ -73,17 +75,22 @@ float Kp_f = 2.0f;
 float Kd_f = 0.029f;
 float Kp_h = 0.9f;
 float Kd_h = 0.012f;
+// Bluetooth Receive
+const byte bt_message_length = 32; // Length of the message
+char bt_message_string[bt_message_length]; // Message array
+double bt_message_double = 0.0; // Message
+bool bt_message_new = false;
 // Other
 uint8_t hand_switch_state = 0;
 
 //============================== Main Setup ==================================//
-void setup() {
+void setup(){
+  // Initialize communications
   SPI.begin();
   Serial.begin(9600); // Communication with PC through micro-USB
   Serial1.begin(115200); // Bluetooth module
-  //while (!Serial); // Wait for Serial port to connect
   // Setup SD card
-  if (!SD.begin(BUILTIN_SDCARD)) {
+  if (!SD.begin(BUILTIN_SDCARD)){
     Serial.println("Please insert SD card!");
     while (1);
   }
@@ -112,10 +119,9 @@ void setup() {
   // Setup INPUT pins
   pinMode (hand_switch, INPUT); // making handlebar switch high changes fork controller gains
   // Initialize IMU
-  if (!IMU.Begin()) {
+  if (!IMU.Begin()){
     Serial.println("IMU initialization unsuccessful");
     Serial.println("Check IMU wiring or try cycling power");
-
   }
   IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); // +- 4g
   IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS); // +- 250 deg/s
@@ -126,14 +132,22 @@ void setup() {
 //============================== Main Loop ===================================//
 void loop(){
   if (sinceLast >= 1000){
+    // Reset the counter
     sinceLast = sinceLast - 1000;
+    // Turn on LED when bike is ready
+    if (haptics_iteration_counter >= 13000) digitalWrite(hand_led, HIGH); 
+    // Read Bluetooth, see if there's a new message
+    bt_read();
+    bt_parse();
+    // Read the switch state
+    hand_switch_state = digitalRead(hand_switch);
+    // Run PID (+MPC if switch is 1)
     haptics();
   }
 }
 
 //============================== Haptics =====================================//
 void haptics(){
-  hand_switch_state = digitalRead(hand_switch);
   //---------------- SPI communication with Handlebar encoder ----------------//
   digitalWrite(cs_imu, HIGH); // HIGH to disable IMU communication
   digitalWrite(cs_fork, HIGH); // HIGH to disable fork encoder communication
@@ -188,7 +202,7 @@ void haptics(){
 
   //---------------------- Calculate error derivative ------------------------//
   // Set the very first handlebar and fork encoder values to 0
-  if (haptics_iteration_counter < 10) { 
+  if (haptics_iteration_counter < 10){ 
     angle_hand = 0.0f;
     angle_fork = 0.0f;
   }
@@ -207,34 +221,26 @@ void haptics(){
   float filtered_angle_rate = moving_avg(angle_rate);
   angle_prev = angle_hand;
   
-  //------------------------ Calculate fork torque ---------------------------//
-  float command_fork = (Kp_f*(angle_hand - angle_fork) + Kd_f*error);
-
-  //------------- Reduction of torque in the first 14 seconds ----------------//
+  //---------------------- Calculate PID fork torque -------------------------//
+  double command_fork = (Kp_f*(angle_hand - angle_fork) + Kd_f*error);
+  //Reduce torque in the first 14 seconds
   command_fork = command_fork / return_scaling(haptics_iteration_counter);
+  // Add MPC if the switch is 1
+  if (haptics_iteration_counter >= 13000 && hand_switch_state == 1)
+    command_fork = command_fork + bt_message_double;
   
   //---------------------- Find the fork PWM command -------------------------//
   uint64_t pwm_command_fork = (command_fork * -842.795 + 16384);
   pwm_command_fork = constrain(pwm_command_fork, 0, 32768);
   analogWrite(pwm_pin_fork, pwm_command_fork);
 
-  //----------------------- Calculate handlebar torque -----------------------//
-  float command_hand = (Kp_h*(angle_hand - angle_fork) + Kd_h*error);
-
-  //------------- Reduction of torque in the first 14 seconds ----------------//
-  if (haptics_iteration_counter < 13000) {
-    command_hand = command_hand / return_scaling(haptics_iteration_counter);
-  }
-  else if (haptics_iteration_counter >= 13000) {
-    digitalWrite(hand_led, HIGH); // Turn on the LED to show that bike is ready
-    if (hand_switch_state == 1) { // Turn off the haptics with the switch
-      command_hand = 0;
-      digitalWrite(switch_hand, LOW);
-    }
-    else {
-      digitalWrite(switch_hand, HIGH);
-    }
-  }
+  //--------------------- Calculate PID handlebar torque ---------------------//
+  double command_hand = (Kp_h*(angle_hand - angle_fork) + Kd_h*error);
+  // Reduce torque in the first 14 seconds
+  command_hand = command_hand / return_scaling(haptics_iteration_counter);
+  // Add MPC if the swith is 1
+  if (haptics_iteration_counter >= 13000 && hand_switch_state == 1)
+    command_hand = command_hand + bt_message_double;
 
   //-------------------- Find the handlebar PWM command ----------------------//
   uint64_t pwm_command_hand = (command_hand * -842.795 + 16384);
@@ -246,9 +252,7 @@ void haptics(){
   int32_t previous_wheel_count = wheel_counts[wheel_counts_index];
   wheel_counts[wheel_counts_index] = current_wheel_count;
   wheel_counts_index += 1;
-  if (wheel_counts_index >= WHEEL_COUNTS_LENGTH) {
-    wheel_counts_index = 0;
-  }
+  if (wheel_counts_index >= WHEEL_COUNTS_LENGTH) wheel_counts_index = 0;
   // There are 192 counts/revolution, the radius of the wheel is 3.6m
   float rps_wheel = ((float) (current_wheel_count - previous_wheel_count)) 
     / 192.0f * 1000.0f / ((float) WHEEL_COUNTS_LENGTH); 
@@ -260,9 +264,7 @@ void haptics(){
   int32_t previous_pedal_count = pedal_counts[pedal_counts_index];
   pedal_counts[pedal_counts_index] = current_pedal_count;
   pedal_counts_index += 1;
-  if (pedal_counts_index >= PEDAL_COUNTS_LENGTH) {
-    pedal_counts_index = 0;
-  }
+  if (pedal_counts_index >= PEDAL_COUNTS_LENGTH) pedal_counts_index = 0;
   // There are 192 counts/revolution
   float cadence_rads = ((float) (current_pedal_count - previous_pedal_count)) 
     / 192.0f * 60.0f * 1000.0f 
@@ -280,7 +282,7 @@ void haptics(){
 
   //------------------------ Printing to serial port -------------------------//
   // Limit the printing rate
-  if (haptics_iteration_counter % 100 == 0) {
+  if (haptics_iteration_counter % 100 == 0){
     //Serial.print("Switch: ");
     //Serial.print(hand_switch_state);
     // Angles
@@ -333,7 +335,7 @@ void haptics(){
 
   //------------------------ Printing to Bluetooth -------------------------//
   // Limit the printing rate
-  if (haptics_iteration_counter % 5 == 0) {
+  if (haptics_iteration_counter % 5 == 0){
     Serial1.print(hand_switch_state);
     Serial1.print(",");
     Serial1.print(angle_hand, 4);
@@ -348,13 +350,11 @@ void haptics(){
   }
 
   //------------------------ Move to the next loop ---------------------------//
-  if (sinceLast > 1000) {
-    Serial.println("MISSED HAPTICS DEADLINE");
-  }
+  if (sinceLast > 1000) Serial.println("MISSED HAPTICS DEADLINE");
   haptics_iteration_counter += 1;
 }
 
-float return_scaling(uint64_t iteration) {
+float return_scaling(uint64_t iteration){
   if (iteration <= (uint64_t) 6000) 
     return 35.0f;
   if (iteration <= (uint64_t) 7000)
@@ -375,11 +375,41 @@ float return_scaling(uint64_t iteration) {
   return 1.0f;
 }
 
-float moving_avg(float new_value) {
+float moving_avg(float new_value){
   avg_sum = avg_sum - avg_array[avg_index];
   avg_array[avg_index] = new_value;
   avg_sum = avg_sum + new_value;
   avg_index = (avg_index+1) % avg_filter_size;
 
   return (float) (avg_sum / avg_filter_size);
+}
+
+void bt_read(){
+  static byte ndx = 0;
+  char endMarker = '\n';
+  char rc;
+
+  while (Serial.available() > 0 && bt_message_new == false){
+    rc = Serial.read();
+    if (rc != endMarker){
+      bt_message_string[ndx] = rc;
+      ndx++;
+      if (ndx >= bt_message_length){
+        ndx = bt_message_length - 1;
+      }
+    }
+    else{
+      bt_message_string[ndx] = '\0'; // terminate the string
+      ndx = 0;
+      bt_message_new = true;
+    }
+  }
+}
+
+void bt_parse(){
+  if (bt_message_new == true){
+    bt_message_double = atof(bt_message_string);
+    Serial.println(bt_message_double);
+    bt_message_new = false;
+  }
 }
