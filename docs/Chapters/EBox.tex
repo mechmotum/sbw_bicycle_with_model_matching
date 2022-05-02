@@ -45,9 +45,9 @@ However, now a Teensy is used instead of the STM32-H405, therefore, most of the 
 The PCB schematic can be found in either \href{https://github.com/oliverlee/gyropcb}{GitHub/oliverlee/gyropcb} or its fork \href{https://github.com/gdialynas/gyropcb}{GitHub/gdialynas/gyropcb} under the name \verb|mc_pcb|.
 
 \subsection{Board's Pinout}
-This board features two 26-pin headers \verb|EXT1| and \verb|EXT2| in the middle of the board. These headers were made for the \href{https://www.olimex.com/Products/ARM/ST/STM32-H405/}{OLIMEX STM32-H405}\footnote{https://www.olimex.com/Products/ARM/ST/STM32-H405/} microcontroller. There are also seven 2-pin headers (from \verb|J10| to \verb|J16|), three 4-pin headers (\verb|J3, J4, J5|), two 6-pin headers (\verb|J8, J9|), and two 8-pin headers (\verb|J6, J7|) along the sides of the board. For the Steer-by-Wire application, four more wires are soldered to the pads on the PCB in the location, where a \verb|U4| IC chip should be soldered. These are the functions of each header:
+This board features two 26-pin headers \verb|EXT1| and \verb|EXT2| in the middle of the board. These headers were made for the \href{https://www.olimex.com/Products/ARM/ST/STM32-H405/}{OLIMEX STM32-H405}\footnote{\href{https://www.olimex.com/Products/ARM/ST/STM32-H405/}{https://www.olimex.com/Products/ARM/ST/STM32-H405/}} microcontroller. There are also seven 2-pin headers (from \verb|J10| to \verb|J16|), three 4-pin headers (\verb|J3, J4, J5|), two 6-pin headers (\verb|J8, J9|), and two 8-pin headers (\verb|J6, J7|) along the sides of the board. For the Steer-by-Wire application, four more wires are soldered to the pads on the PCB in the location, where a \verb|U4| IC chip should be soldered. These are the functions of each header:
 
-\verb|EXT1| (Pin numbering according to the \href{https://www.olimex.com/Products/ARM/ST/STM32-H405/resources/STM32-H405_UM.pdf}{OLIMEX User Guide, page 9}\footnote{https://www.olimex.com/Products/ARM/ST/STM32-H405/resources/STM32-H405_UM.pdf}):
+\verb|EXT1| (Pin numbering according to the \href{https://www.olimex.com/Products/ARM/ST/STM32-H405/resources/STM32-H405_UM.pdf}{OLIMEX User Guide, page 9}\footnote{\href{https://www.olimex.com/Products/ARM/ST/STM32-H405/resources/STM32-H405_UM.pdf}{https://www.olimex.com/Products/ARM/ST/STM32-H405/resources/STM32-H405_UM.pdf}}):
 \begin{itemize}[noitemsep]
   \item Pin 2 (PA8) -- Connected to Pin 8 of the Teensy.
   \item Pin 4 (PA9) -- Connected to Pin 9 of the Teensy.
@@ -109,7 +109,7 @@ This board features two 26-pin headers \verb|EXT1| and \verb|EXT2| in the middle
 \end{itemize}
 
 \section{Power Board}
-This is a custom made PCB that was designed by Oliver Lee, Georgios Dialynas, and Andrew Berry. This PCB is used in both the Steer-by-Wire bicycle and the fixed-base Bicycle Simulator. It is a power supply board that interfaces with two \href{https://www.maxongroup.com/maxon/view/product/control/4-Q-Servokontroller/438725}{Maxon ESCON 50/5}\footnote{https://www.maxongroup.com/maxon/view/product/control/4-Q-Servokontroller/438725} servo controller modules.
+This is a custom made PCB that was designed by Oliver Lee, Georgios Dialynas, and Andrew Berry. This PCB is used in both the Steer-by-Wire bicycle and the fixed-base Bicycle Simulator. It is a power supply board that interfaces with two \href{https://www.maxongroup.com/maxon/view/product/control/4-Q-Servokontroller/438725}{Maxon ESCON 50/5}\footnote{\href{https://www.maxongroup.com/maxon/view/product/control/4-Q-Servokontroller/438725}{https://www.maxongroup.com/maxon/view/product/control/4-Q-Servokontroller/438725}} servo controller modules.
 
 The PCB schematic can be found in either \href{https://github.com/oliverlee/gyropcb}{GitHub/oliverlee/gyropcb} or its fork \href{https://github.com/gdialynas/gyropcb}{GitHub/gdialynas/gyropcb} under the name \verb|power_pcb|.
 
@@ -151,7 +151,7 @@ Glued 4-pin headers:
 \end{itemize}
 
 \section{Protoboard}
-There is a protoboard containing two IC chips, 2 capacitors and a couple of resistors. The two ICs are \href{https://www.ti.com/lit/ds/symlink/ina125.pdf}{INA125P}\footnote{https://www.ti.com/lit/ds/symlink/ina125.pdf} amplifiers. The analog torque sensor and force transducer go through these amplifiers. Each chip has 16 pins.
+There is a protoboard containing two IC chips, 2 capacitors and a couple of resistors. The two ICs are \href{https://www.ti.com/lit/ds/symlink/ina125.pdf}{INA125P}\footnote{\href{https://www.ti.com/lit/ds/symlink/ina125.pdf}{https://www.ti.com/lit/ds/symlink/ina125.pdf}} amplifiers. The analog torque sensor and force transducer go through these amplifiers. Each chip has 16 pins.
 
 These are the connections:
 \begin{itemize}[noitemsep]
