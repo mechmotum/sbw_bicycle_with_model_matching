@@ -10,9 +10,11 @@ Current inventory of spare parts and components that can be found in the cardboa
 - 2x INA125P Instrumentation amplifiers
 - 3x L7824CV Linear voltage regulators (24V 1.5A)
 - 1x L78S10CV Linear voltage regulator (10V 2A)
-- 2x nRF24L01 2.4GHz transceivers
+- 2x nRF24L01 2.4GHz transceivers (lent to Leila)
 - 1x 10A 30VDC Relay module for Arduino
 - 1x DC-DC Buck Converter HW-411 with LM2596
+- 1x HC-05 Bluetooth Module (used for make-shift Bluetooth transciever for desktop PC)
+- 1x USB-TTL converter (used for make-shift Bluetooth transciever for desktop PC)
 
 ### Components:
 - 10x 2N3904 Switching transistors
@@ -36,6 +38,9 @@ Current inventory of spare parts and components that can be found in the cardboa
 - Cable with USB on one side
 - 19AWG wire (Blue, orange, white, black, yellow, grey, pink, brown and purple-ish colours)
 - Spool of Green/Yellow 24/0.2mm wire
+- 9x 8-pin Molex Milligrid connectors
+- 10x 6-pin Molex Milligrid connectors
+- 200+x Molex Milligrid crimps
 
 ### PCB Boards:
 - 1x Microcontroller PCB board with all chips in place and no modifications
