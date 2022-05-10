@@ -10,4 +10,10 @@ Building on Georgios Dialynas' work:
 
 `inventory/` - Hosts the inventory of the spare parts for the hardware.
 
+`libsurvive-udp/` - Hosts the files to enable HTC Vive Tracker communication through UDP.
+
+`simulink/` - Hosts the MATLAB scripts and Simulink model for the MPC controller.
+
 `teensy/` - Contains the Teensy code that acts as the brain of the bicycle.
+
+`unity/SbW-game/` - Contains the visualisation of the reference line that needs to be tracked. Built in Unity.
