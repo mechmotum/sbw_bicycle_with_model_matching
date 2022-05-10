@@ -125,7 +125,7 @@ void setup(){
   }
   IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); // +- 4g
   IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS); // +- 250 deg/s
-  delay(5000);
+  delay(2000);
   sinceLast = 0;
 }
 
@@ -239,9 +239,11 @@ void haptics(){
   // Reduce torque in the first 14 seconds
   command_hand = command_hand / return_scaling(haptics_iteration_counter);
   // Add MPC if the swith is 1
+  // Sign of bt_message_double needs to be flipped to ensure both motors rotate
+  // the same way and according to Whipple-Carvallo
   if (haptics_iteration_counter >= 13000 && hand_switch_state == 1)
-    command_hand = command_hand + bt_message_double;
-
+    command_hand = command_hand - bt_message_double;
+    
   //-------------------- Find the handlebar PWM command ----------------------//
   uint64_t pwm_command_hand = (command_hand * -842.795 + 16384);
   pwm_command_hand = constrain(pwm_command_hand, 0, 32768);
@@ -389,8 +391,8 @@ void bt_read(){
   char endMarker = '\n';
   char rc;
 
-  while (Serial.available() > 0 && bt_message_new == false){
-    rc = Serial.read();
+  while (Serial1.available() > 0 && bt_message_new == false){
+    rc = Serial1.read();
     if (rc != endMarker){
       bt_message_string[ndx] = rc;
       ndx++;
@@ -409,7 +411,6 @@ void bt_read(){
 void bt_parse(){
   if (bt_message_new == true){
     bt_message_double = atof(bt_message_string);
-    Serial.println(bt_message_double);
     bt_message_new = false;
   }
 }
