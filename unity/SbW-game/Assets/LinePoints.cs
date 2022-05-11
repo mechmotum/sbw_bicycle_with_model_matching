@@ -5,7 +5,7 @@ using System.IO;
 public class LinePoints : MonoBehaviour
 {	
    static int numOfPoints = 160;
-   static int numOfReferenceLines = 1601;
+   static int numOfReferenceLines = 2321;
    float[] zOfPoints = {0.0000f, 0.0063f, 0.0126f, 0.0189f, 0.0252f,
    			       0.0314f, 0.0377f, 0.0440f, 0.0503f, 0.0566f, 
    			       0.0629f, 0.0692f, 0.0755f, 0.0818f, 0.0881f, 
@@ -43,7 +43,8 @@ public class LinePoints : MonoBehaviour
     void Start() 
     {
     	LineRenderer lineRenderer = GetComponent<LineRenderer>();
-		StreamReader reader = new StreamReader("./Assets/Resources/reference_strings.txt");
+		string referenceFileLocation = Path.Combine(Application.streamingAssetsPath, "reference_strings.txt");
+		StreamReader reader = new StreamReader(referenceFileLocation);
 		// Read the file and save all reference path
     	for (int i = 0; i < numOfReferenceLines; i++) 
     	{
