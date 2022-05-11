@@ -11,7 +11,7 @@ Here are the MATLAB scripts and Simulink models needed to compile and run the MP
 ## Usage
 1. Run MATLAB script `ready_simulink_model.m`, which is going to export and compile the MPC controller using ACADO.
 2. After compilation, two Simulink windows will come up. `Untitled.slx` can be safely closed without saving, while `sbw_treadmill.slx` is the model of interest.
-3. (If using Unity) Running the MATLAB script will also generate a `reference_strings.txt` file, which should be copied to Unity's project (`/unity/SbW-game/Assets/StreamingAssets/` if running the game from the editor, or `/unity/SbW-game-built/SbW-game_Data/StreamingAssets` if runnign the game standalone),  as it contains the data for the reference line visualization and lets the rider see the same reference the controller sees.
+3. (If using Unity) Running the MATLAB script will also generate a `reference_strings.txt` file, which should be copied to Unity's project (`/unity/SbW-game/Assets/StreamingAssets/` if running the game from the editor, or `/unity/SbW-game-built/SbW-game_Data/StreamingAssets/` if running the game standalone),  as it contains the data for the reference line visualization and lets the rider see the same reference the controller sees.
 4. Set the required length of the simulation and run the model. The outputs will be saved in the `out` structure in MATLAB's workspace.
 
 ## Options
