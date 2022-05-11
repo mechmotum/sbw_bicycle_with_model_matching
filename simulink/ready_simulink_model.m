@@ -14,9 +14,9 @@ g = 9.81;               % Gravitational constant [m/s^2]
 T_phi = 0;              % Generalised lean torque [Nm]
 
 Tstart = 0;             % Start time of the reference [s]
-Tend = 20;              % Length of one maneouvre  [s]
+Tend = 29;              % Length of one maneouvre  [s]
 width = 0.5;            % Width of the lane-change [m]
-slope = 0.2;            % Slope of the lane-change [-]
+slope = 0.02;            % Slope of the lane-change [-]
 v = 5.5;                % Bicycle velocity during the experiment [m/s]
 
 par = get_bikePars(bicycle_name);
