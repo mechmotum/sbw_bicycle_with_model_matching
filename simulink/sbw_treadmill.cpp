@@ -52,6 +52,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
       mexErrMsgTxt("This problem expects 0 right hand side argument(s) since you have defined 0 MexInput(s)");
     } 
  
+    TIME autotime;
     DifferentialState x_P;
     DifferentialState y_P;
     DifferentialState psi;
@@ -82,12 +83,6 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
     acadodata_f3 << delta;
     acadodata_f3 << d_phi;
     acadodata_f3 << d_delta;
-    OCP ocp1(0, 2, 160);
-    ocp1.minimizeLSQ(acadodata_M1, acadodata_f2);
-    ocp1.minimizeLSQEndTerm(acadodata_M2, acadodata_f3);
-    ocp1.subjectTo((-3.49065850398865895610e-01) <= phi <= 3.49065850398865895610e-01);
-    ocp1.subjectTo((-6.98131700797731791219e-01) <= delta <= 6.98131700797731791219e-01);
-    ocp1.subjectTo((-7.00000000000000000000e+00) <= T_delta <= 7.00000000000000000000e+00);
     DifferentialEquation acadodata_f1;
     acadodata_f1 << dot(x_P) == 5.50000000000000000000e+00*cos(psi);
     acadodata_f1 << dot(y_P) == 5.50000000000000000000e+00*sin(psi);
@@ -97,6 +92,12 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
     acadodata_f1 << dot(d_phi) == ((-1.05729096715719061983e+00)*9.81000000000000049738e+00*delta-(-2.18955339435227443801e+02)*phi+(-2.66346580551956613192e+01)*phi-(-4.38456797022881317183e-01)*9.81000000000000049738e+00*delta+(-6.94584047861678710589e-01)*5.50000000000000000000e+00*d_phi-1.54700650219234758787e+00*T_delta+1.61666722759546455102e+00*5.50000000000000000000e+00*d_delta-1.85362781790660484660e+01*3.02500000000000000000e+01*delta+2.44738176966301512749e+00*3.02500000000000000000e+01*delta-5.50000000000000000000e+00*6.60545241203853095158e+00*d_delta)/2.32931485945728944387e+01;
     acadodata_f1 << dot(d_delta) == ((-1.35583503367983962562e+03)*phi-(-1.77017834263987515442e+03)*phi+(-2.71505178952045467256e+00)*9.81000000000000049738e+00*delta-(-4.61630720439466841754e+01)*5.50000000000000000000e+00*d_phi-(-7.02691045648822125713e+01)*9.81000000000000049738e+00*delta+1.02816315510000009681e+02*T_delta-1.07446069238605758756e+02*5.50000000000000000000e+00*d_delta+1.14782016341956406791e+02*3.02500000000000000000e+01*delta-1.62656573095520286643e+02*3.02500000000000000000e+01*delta+4.09028791745735134100e+01*5.50000000000000000000e+00*d_delta)/2.32931485945728944387e+01;
 
+    OCP ocp1(0, 2, 160);
+    ocp1.minimizeLSQ(acadodata_M1, acadodata_f2);
+    ocp1.minimizeLSQEndTerm(acadodata_M2, acadodata_f3);
+    ocp1.subjectTo((-3.49065850398865895610e-01) <= phi <= 3.49065850398865895610e-01);
+    ocp1.subjectTo((-6.98131700797731791219e-01) <= delta <= 6.98131700797731791219e-01);
+    ocp1.subjectTo((-7.00000000000000000000e+00) <= T_delta <= 7.00000000000000000000e+00);
     ocp1.setModel( acadodata_f1 );
 
 
@@ -126,9 +127,6 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] )
     if(options_flag != 0) mexErrMsgTxt("ACADO export failed when setting the following option: GENERATE_SIMULINK_INTERFACE");
     options_flag = ExportModule1.set( GENERATE_MATLAB_INTERFACE, NO );
     if(options_flag != 0) mexErrMsgTxt("ACADO export failed when setting the following option: GENERATE_MATLAB_INTERFACE");
-    uint export_flag;
-    export_flag = ExportModule1.exportCode( "sbw_export" );
-    if(export_flag != 0) mexErrMsgTxt("ACADO export failed because of the above error(s)!");
 
 
     clearAllStaticCounters( ); 

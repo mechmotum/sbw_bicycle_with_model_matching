@@ -4,7 +4,7 @@ close all;
 start = tic;
 BEGIN_ACADO;
 %% Settings and parameters
-EXPORT = 1;
+EXPORT = 0;
 COMPILE = 1;
 Ts = 1/80;              % Sampling time 1/Hz [s]
 Thorizon = 2;           % Time horizon [s]
@@ -15,9 +15,10 @@ T_phi = 0;              % Generalised lean torque [Nm]
 
 Tstart = 0;             % Start time of the reference [s]
 Tend = 29;              % Length of one maneouvre  [s]
-width = 0.5;            % Width of the lane-change [m]
-slope = 0.02;            % Slope of the lane-change [-]
+width = 0.4;            % Width of the lane-change [m]
+slope = 0.02;           % Slope of the lane-change [-]
 v = 5.5;                % Bicycle velocity during the experiment [m/s]
+tracker_height = 0.9;   % Height of the tracker relative to ground [m]
 
 par = get_bikePars(bicycle_name);
 [ M_pp, M_pd, M_dp, M_dd, K0_pp, K0_pd, K0_dp, K0_dd, ...
