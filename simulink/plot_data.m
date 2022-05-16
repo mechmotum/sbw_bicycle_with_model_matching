@@ -1,7 +1,7 @@
 %clear;
 %clc;
 %close all;
-%load("simonas.mat");
+load("participant2_MPC_1sttry.mat");
 
 %% Convert to timetable
 mpc_output = timeseries2timetable(out.SteerTorque);
@@ -62,3 +62,7 @@ title("mpc time");
 subplot(1,3,3);
 plot(mpc_statistics.Time, mpc_statistics.kktValue);
 title("kkt value");
+
+figure;
+hold on;
+plot(bicycle_data.Time, bicycle_data.Switch_State);

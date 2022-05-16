@@ -13,6 +13,7 @@ float return_scaling(uint64_t iteration);
 float moving_avg(float new_value);
 void bt_read();
 void bt_parse();
+uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
 //void write_thread();
 
 //=================================== Pins ===================================//
@@ -53,6 +54,7 @@ uint32_t pedal_counts_index = 0;
 float error_prev = 0.0f;
 uint32_t error_time_prev = 0.0f;
 uint64_t haptics_iteration_counter = 0; // Ensure it never overflows
+uint64_t mpc_iteration_counter = 0;
 // Steering rate
 const uint8_t avg_filter_size = 10;
 uint8_t avg_index = 0;
@@ -81,7 +83,10 @@ char bt_message_string[bt_message_length]; // Message array
 double bt_message_double = 0.0; // Message
 bool bt_message_new = false;
 // Other
+uint8_t hand_switch_value = 0;
+uint8_t hand_switch_array[10] = {0};
 uint8_t hand_switch_state = 0;
+uint8_t hand_switch_state_prev = 0;
 
 //============================== Main Setup ==================================//
 void setup(){
@@ -140,7 +145,11 @@ void loop(){
     bt_read();
     bt_parse();
     // Read the switch state
-    hand_switch_state = digitalRead(hand_switch);
+    hand_switch_state_prev = hand_switch_state;
+    hand_switch_value = digitalRead(hand_switch);
+    hand_switch_state = checkSwitch(hand_switch_value, 
+                  hand_switch_array, 
+                  sizeof(hand_switch_array)/sizeof(hand_switch_array[0]));
     // Run PID (+MPC if switch is 1)
     haptics();
   }
@@ -148,6 +157,12 @@ void loop(){
 
 //============================== Haptics =====================================//
 void haptics(){
+  //----------------------- Increase counters --------------------------------//
+  if (hand_switch_state == 1 && hand_switch_state_prev == 0) 
+    mpc_iteration_counter = 0;
+  else if (hand_switch_state == 1) mpc_iteration_counter += 1;
+  haptics_iteration_counter += 1;
+
   //---------------- SPI communication with Handlebar encoder ----------------//
   digitalWrite(cs_imu, HIGH); // HIGH to disable IMU communication
   digitalWrite(cs_fork, HIGH); // HIGH to disable fork encoder communication
@@ -226,8 +241,10 @@ void haptics(){
   //Reduce torque in the first 14 seconds
   command_fork = command_fork / return_scaling(haptics_iteration_counter);
   // Add MPC if the switch is 1
-  if (haptics_iteration_counter >= 13000 && hand_switch_state == 1)
-    command_fork = command_fork + bt_message_double;
+  if (haptics_iteration_counter >= 13000 && hand_switch_state == 1) {
+    command_fork = command_fork + 
+        bt_message_double / return_scaling(mpc_iteration_counter);
+  }
   
   //---------------------- Find the fork PWM command -------------------------//
   uint64_t pwm_command_fork = (command_fork * -842.795 + 16384);
@@ -241,8 +258,10 @@ void haptics(){
   // Add MPC if the swith is 1
   // Sign of bt_message_double needs to be flipped to ensure both motors rotate
   // the same way and according to Whipple-Carvallo
-  if (haptics_iteration_counter >= 13000 && hand_switch_state == 1)
-    command_hand = command_hand - bt_message_double;
+  if (haptics_iteration_counter >= 13000 && hand_switch_state == 1) {
+    command_hand = command_hand - 
+        bt_message_double / return_scaling(mpc_iteration_counter);
+  }
     
   //-------------------- Find the handlebar PWM command ----------------------//
   uint64_t pwm_command_hand = (command_hand * -842.795 + 16384);
@@ -353,7 +372,6 @@ void haptics(){
 
   //------------------------ Move to the next loop ---------------------------//
   if (sinceLast > 1000) Serial.println("MISSED HAPTICS DEADLINE");
-  haptics_iteration_counter += 1;
 }
 
 float return_scaling(uint64_t iteration){
@@ -413,4 +431,19 @@ void bt_parse(){
     bt_message_double = atof(bt_message_string);
     bt_message_new = false;
   }
+}
+
+uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size){
+  // Taking raw switch value is not reliable as the value can sometimes jump to
+  // 0 even if the switch is on. This function tracks the last array_size
+  // switch values and outputs 1 if at least 70% (rounded down) of them were 
+  // 1. Otherwise, returns 0.
+  for (uint8_t i = 0; i < array_size - 1; i++) val_array[i] = val_array[i+1];
+  val_array[array_size - 1] = curr_value;
+
+  uint16_t val_sum = 0;
+  for (uint8_t i = 0; i < array_size; i++) val_sum += val_array[i];
+
+  if (val_sum >= (uint8_t)(array_size*0.7)) return 1;
+  return 0;
 }
