@@ -4,7 +4,7 @@ close all;
 start = tic;
 BEGIN_ACADO;
 %% Settings and parameters
-EXPORT = 0;
+EXPORT = 1;
 COMPILE = 1;
 Ts = 1/80;              % Sampling time 1/Hz [s]
 Thorizon = 2;           % Time horizon [s]
@@ -15,7 +15,7 @@ T_phi = 0;              % Generalised lean torque [Nm]
 
 Tstart = 0;             % Start time of the reference [s]
 Tend = 29;              % Length of one maneouvre  [s]
-width = 0.4;            % Width of the lane-change [m]
+width = 0.36;            % Width of the lane-change [m]
 slope = 0.02;           % Slope of the lane-change [-]
 v = 5.5;                % Bicycle velocity during the experiment [m/s]
 tracker_height = 0.9;   % Height of the tracker relative to ground [m]
@@ -121,7 +121,7 @@ tic;
     input.u = uref';
     input.y = [repmat(x0, Nhorizon, 1) uref]';
     input.yN = x0';
-    input.W  = diag([0 1e5 0 0 1e4 1 10 100]); % STAGE COST 1e5
+    input.W  = diag([0 100 0 0 0 0 0 1]); % STAGE COST 1e5
     input.WN = diag([0 0 0 0 0 0 0]); % TERMINAL COST
     input.x0 = x0.';
     init.x   = input.x(:).';
