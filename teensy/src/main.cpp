@@ -19,18 +19,18 @@ uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
 //=================================== Pins ===================================//
 // SPI
 // Pins 11, 12, and 13 are used as MOSI, MISO, and SCK by default for SPI0.
-const uint8_t cs_imu = 10; // Chip Select for MPU9250
+//const uint8_t cs_imu = 10; // Chip Select for MPU9250
 const uint8_t cs_hand = 24; // Chip Select for handlebar encoder
 const uint8_t cs_fork = 25; // Chip Select for fork encoder
-bfs::Mpu9250 IMU(&SPI, cs_imu); // MPU9250 object
+//bfs::Mpu9250 IMU(&SPI, cs_imu); // MPU9250 object
 // Analog
-const uint8_t a_force = 20; // Analog output of the force transducer
-const uint8_t a_torque = 21; // Analog output of the torque sensor
-const uint8_t a_fork = 40; // Analog output of the fork motor drive
-const uint8_t a_hand = 41; // Analog output of the handlebar motor drive
+//const uint8_t a_force = 20; // Analog output of the force transducer
+//const uint8_t a_torque = 21; // Analog output of the torque sensor
+//const uint8_t a_fork = 40; // Analog output of the fork motor drive
+//const uint8_t a_hand = 41; // Analog output of the handlebar motor drive
 // Encoders
-Encoder wheel_counter(2, 3); // Rear wheel speed encoder
-Encoder pedal_counter(23, 22); // Pedal cadence encoder
+// Encoder wheel_counter(2, 3); // Rear wheel speed encoder
+// Encoder pedal_counter(23, 22); // Pedal cadence encoder
 // Motor control
 const uint8_t pwm_pin_hand = 8; // Send PWM signals to the handlebar motor
 const uint8_t pwm_pin_fork = 9; // Send PWM signals to the fork motor
@@ -43,13 +43,13 @@ const uint8_t hand_switch = 28; // A switch installed on the handlebars
 
 //============================= Global variables =============================//
 // Rear wheel encoder
-const uint32_t WHEEL_COUNTS_LENGTH = 200;
-int32_t wheel_counts[WHEEL_COUNTS_LENGTH] = {0};
-uint32_t wheel_counts_index = 0;
+// const uint32_t WHEEL_COUNTS_LENGTH = 200;
+// int32_t wheel_counts[WHEEL_COUNTS_LENGTH] = {0};
+// uint32_t wheel_counts_index = 0;
 // Pedal encoder
-const uint32_t PEDAL_COUNTS_LENGTH = 500;
-int32_t pedal_counts[PEDAL_COUNTS_LENGTH] = {0};
-uint32_t pedal_counts_index = 0;
+// const uint32_t PEDAL_COUNTS_LENGTH = 500;
+// int32_t pedal_counts[PEDAL_COUNTS_LENGTH] = {0};
+// uint32_t pedal_counts_index = 0;
 // Haptics
 float error_prev = 0.0f;
 uint32_t error_time_prev = 0.0f;
@@ -100,8 +100,8 @@ void setup(){
     while (1);
   }
   // Setup OUTPUT pins
-  pinMode (cs_imu, OUTPUT);
-    digitalWrite(cs_imu, HIGH);
+  //pinMode (cs_imu, OUTPUT);
+  //  digitalWrite(cs_imu, HIGH);
   pinMode (cs_hand, OUTPUT);
     digitalWrite(cs_hand, HIGH);
   pinMode (cs_fork, OUTPUT);
@@ -122,14 +122,14 @@ void setup(){
     analogWriteFrequency(pwm_pin_hand, 4577.64);
     analogWrite(pwm_pin_hand, 16384);
   // Setup INPUT pins
-  pinMode (hand_switch, INPUT); // making handlebar switch high changes fork controller gains
+  pinMode (hand_switch, INPUT); // If switch is HIGH - MPC is on
   // Initialize IMU
-  if (!IMU.Begin()){
-    Serial.println("IMU initialization unsuccessful");
-    Serial.println("Check IMU wiring or try cycling power");
-  }
-  IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); // +- 4g
-  IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS); // +- 250 deg/s
+  //if (!IMU.Begin()){
+  //  Serial.println("IMU initialization unsuccessful");
+  //  Serial.println("Check IMU wiring or try cycling power");
+  //}
+  //IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); // +- 4g
+  //IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS); // +- 250 deg/s
   delay(2000);
   sinceLast = 0;
 }
@@ -164,7 +164,7 @@ void haptics(){
   haptics_iteration_counter += 1;
 
   //---------------- SPI communication with Handlebar encoder ----------------//
-  digitalWrite(cs_imu, HIGH); // HIGH to disable IMU communication
+  //digitalWrite(cs_imu, HIGH); // HIGH to disable IMU communication
   digitalWrite(cs_fork, HIGH); // HIGH to disable fork encoder communication
   // Set frequency to 125 Khz-4 Mhz 
   // encoder transmit first the MSB
@@ -269,37 +269,37 @@ void haptics(){
   analogWrite(pwm_pin_hand, pwm_command_hand);
 
   //------------------------ Calculate bicycle speed -------------------------//
-  int32_t current_wheel_count = wheel_counter.read();
-  int32_t previous_wheel_count = wheel_counts[wheel_counts_index];
-  wheel_counts[wheel_counts_index] = current_wheel_count;
-  wheel_counts_index += 1;
-  if (wheel_counts_index >= WHEEL_COUNTS_LENGTH) wheel_counts_index = 0;
-  // There are 192 counts/revolution, the radius of the wheel is 3.6m
-  float rps_wheel = ((float) (current_wheel_count - previous_wheel_count)) 
-    / 192.0f * 1000.0f / ((float) WHEEL_COUNTS_LENGTH); 
-  float velocity_ms = -rps_wheel * 6.28f * 0.33f 
-    / 1000.0f * 3600.0f * 0.277778;
+  // int32_t current_wheel_count = wheel_counter.read();
+  // int32_t previous_wheel_count = wheel_counts[wheel_counts_index];
+  // wheel_counts[wheel_counts_index] = current_wheel_count;
+  // wheel_counts_index += 1;
+  // if (wheel_counts_index >= WHEEL_COUNTS_LENGTH) wheel_counts_index = 0;
+  // // There are 192 counts/revolution, the radius of the wheel is 3.6m
+  // float rps_wheel = ((float) (current_wheel_count - previous_wheel_count)) 
+  //   / 192.0f * 1000.0f / ((float) WHEEL_COUNTS_LENGTH); 
+  // float velocity_ms = -rps_wheel * 6.28f * 0.33f 
+  //   / 1000.0f * 3600.0f * 0.277778;
 
   //--------------------------- Calculate cadence ----------------------------//
-  int32_t current_pedal_count = pedal_counter.read();
-  int32_t previous_pedal_count = pedal_counts[pedal_counts_index];
-  pedal_counts[pedal_counts_index] = current_pedal_count;
-  pedal_counts_index += 1;
-  if (pedal_counts_index >= PEDAL_COUNTS_LENGTH) pedal_counts_index = 0;
-  // There are 192 counts/revolution
-  float cadence_rads = ((float) (current_pedal_count - previous_pedal_count)) 
-    / 192.0f * 60.0f * 1000.0f 
-    / ((float) PEDAL_COUNTS_LENGTH) * 0.10471975511970057;
+  // int32_t current_pedal_count = pedal_counter.read();
+  // int32_t previous_pedal_count = pedal_counts[pedal_counts_index];
+  // pedal_counts[pedal_counts_index] = current_pedal_count;
+  // pedal_counts_index += 1;
+  // if (pedal_counts_index >= PEDAL_COUNTS_LENGTH) pedal_counts_index = 0;
+  // // There are 192 counts/revolution
+  // float cadence_rads = ((float) (current_pedal_count - previous_pedal_count)) 
+  //   / 192.0f * 60.0f * 1000.0f 
+  //   / ((float) PEDAL_COUNTS_LENGTH) * 0.10471975511970057;
 
   //----------------------------- Read IMU data ------------------------------//
-  bool status = IMU.Read();
-  float accelY = IMU.accel_x_mps2();
-  float accelX = IMU.accel_y_mps2();
-  float accelZ = IMU.accel_z_mps2();
-  float gyroY = IMU.gyro_x_radps();
-  float gyroX = IMU.gyro_y_radps();
-  float gyroZ = IMU.gyro_z_radps();
-  float temp = IMU.die_temp_c();
+  // bool status = IMU.Read();
+  // float accelY = IMU.accel_x_mps2();
+  // float accelX = IMU.accel_y_mps2();
+  // float accelZ = IMU.accel_z_mps2();
+  // float gyroY = IMU.gyro_x_radps();
+  // float gyroX = IMU.gyro_y_radps();
+  // float gyroZ = IMU.gyro_z_radps();
+  // float temp = IMU.die_temp_c();
 
   //------------------------ Printing to serial port -------------------------//
   // Limit the printing rate

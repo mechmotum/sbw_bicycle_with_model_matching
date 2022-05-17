@@ -15,7 +15,7 @@ T_phi = 0;              % Generalised lean torque [Nm]
 
 Tstart = 0;             % Start time of the reference [s]
 Tend = 29;              % Length of one maneouvre  [s]
-width = 0.36;            % Width of the lane-change [m]
+width = 0.30;            % Width of the lane-change [m]
 slope = 0.02;           % Slope of the lane-change [-]
 v = 5.5;                % Bicycle velocity during the experiment [m/s]
 tracker_height = 0.9;   % Height of the tracker relative to ground [m]

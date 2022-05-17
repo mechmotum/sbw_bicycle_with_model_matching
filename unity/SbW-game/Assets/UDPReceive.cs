@@ -19,6 +19,9 @@ public class UDPReceive : MonoBehaviour
 
   [Header("Position")]
   [SerializeField] public float vivePos;
+
+  [Header("Rotation")]
+  [SerializeField] public float viveRot;
   
   [Header("Current Line")]
   [SerializeField] public int currLine;
@@ -48,6 +51,7 @@ public class UDPReceive : MonoBehaviour
     if (newUdpData != "") {
       currLine = int.Parse(splitData[0]);
       vivePos = float.Parse(splitData[1]);
+      viveRot = float.Parse(splitData[2]);
     }
   }
 

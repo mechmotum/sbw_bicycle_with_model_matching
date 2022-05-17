@@ -6,7 +6,7 @@ public class LinePoints : MonoBehaviour
 {	
    static int numOfPoints = 160;
    static int numOfReferenceLines = 2321;
-   float[] zOfPoints = {0.0000f, 0.0063f, 0.0126f, 0.0189f, 0.0252f,
+   float[] yOfPoints = {0.0000f, 0.0063f, 0.0126f, 0.0189f, 0.0252f,
    			       0.0314f, 0.0377f, 0.0440f, 0.0503f, 0.0566f, 
    			       0.0629f, 0.0692f, 0.0755f, 0.0818f, 0.0881f, 
    			       0.0943f, 0.1006f, 0.1069f, 0.1132f, 0.1195f, 
@@ -56,9 +56,9 @@ public class LinePoints : MonoBehaviour
     	Vector3[] linePoints = new Vector3[numOfPoints];
     	for (int i = 0; i < numOfPoints; i++) 
     	{
-    		float z = zOfPoints[i];
+    		float y = yOfPoints[i];
         	float x = float.Parse(xOfPoints[i]);
-        	linePoints[i].Set(x,0.1f,z);
+        	linePoints[i].Set(x,y,0.0f);
     	}
 		lineRenderer.positionCount = linePoints.Length;
     	lineRenderer.SetPositions(linePoints);
@@ -73,9 +73,9 @@ public class LinePoints : MonoBehaviour
     	Vector3[] linePoints = new Vector3[numOfPoints];
     	for (int i = 0; i < numOfPoints; i++) 
     	{
-    		float z = zOfPoints[i];
+    		float y = yOfPoints[i];
         	float x = float.Parse(xOfPoints[i]);
-        	linePoints[i].Set(x,0.1f,z);
+        	linePoints[i].Set(x,y,0.0f);
     	}
 		lineRenderer.positionCount = linePoints.Length;
     	lineRenderer.SetPositions(linePoints);

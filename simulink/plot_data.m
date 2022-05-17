@@ -1,7 +1,7 @@
 %clear;
 %clc;
 %close all;
-load("participant2_MPC_1sttry.mat");
+%load("simonas.mat");
 
 %% Convert to timetable
 mpc_output = timeseries2timetable(out.SteerTorque);
