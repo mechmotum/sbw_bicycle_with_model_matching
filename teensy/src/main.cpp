@@ -361,13 +361,7 @@ void haptics(){
     Serial1.print(",");
     Serial1.print(angle_hand, 4);
     Serial1.print(",");
-    Serial1.print(filtered_angle_rate, 4);
-    Serial1.print(",");
-    Serial1.print(gyroX, 4);
-    Serial1.print(",");
-    Serial1.print(velocity_ms, 4);
-    Serial1.print(",");
-    Serial1.println(sinceLast);
+    Serial1.println(filtered_angle_rate, 4);
   }
 
   //------------------------ Move to the next loop ---------------------------//
