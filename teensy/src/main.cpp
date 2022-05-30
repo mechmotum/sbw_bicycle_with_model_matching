@@ -1,9 +1,17 @@
 #include <Arduino.h>
-#include <SD.h>
-#include <TeensyThreads.h> // https://github.com/ftrias/TeensyThreads
 #include <SPI.h> 
 #include <Encoder.h>
 #include "mpu9250.h" // https://github.com/bolderflight/MPU9250
+#include "SdFat.h"
+#include "RingBuf.h"
+
+//=============================== Definitions ================================//
+// Use Teensy 4.1's faster SDIO bus instead of SPI
+#define SD_CONFIG SdioConfig(FIFO_SDIO)
+// One sample is 100 bytes, sample rate is 1 kHz, 10 minutes worth of samples 
+#define LOG_FILE_SIZE 100*1000*600
+// Buffer up to 2 seconds of data in a buffer
+#define RING_BUF_CAPACITY 100*2000
 
 //=========================== Function definitions ===========================//
 void setup();
@@ -14,15 +22,16 @@ float moving_avg(float new_value);
 void bt_read();
 void bt_parse();
 uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
+void openFile();
 //void write_thread();
 
 //=================================== Pins ===================================//
 // SPI
 // Pins 11, 12, and 13 are used as MOSI, MISO, and SCK by default for SPI0.
-//const uint8_t cs_imu = 10; // Chip Select for MPU9250
+const uint8_t cs_imu = 10; // Chip Select for MPU9250
 const uint8_t cs_hand = 24; // Chip Select for handlebar encoder
 const uint8_t cs_fork = 25; // Chip Select for fork encoder
-//bfs::Mpu9250 IMU(&SPI, cs_imu); // MPU9250 object
+bfs::Mpu9250 IMU(&SPI, cs_imu); // MPU9250 object
 // Analog
 //const uint8_t a_force = 20; // Analog output of the force transducer
 //const uint8_t a_torque = 21; // Analog output of the torque sensor
@@ -82,6 +91,17 @@ const byte bt_message_length = 32; // Length of the message
 char bt_message_string[bt_message_length]; // Message array
 double bt_message_double = 0.0; // Message
 bool bt_message_new = false;
+// SD card logging
+SdExFat sd;
+ExFile root; // Used to count the number of files
+ExFile countFile; // Used to count the number of files
+ExFile logFile; // Used for logging
+String fileName = "SbW_log_";
+String fileExt = ".csv";
+RingBuf<ExFile, RING_BUF_CAPACITY> rb; // Set up the buffer
+int fileCount = 0; // Number of files already on the SD
+bool isOpen = false; // Is file already open?
+bool isFull = false; // Is the file full?
 // Other
 uint8_t hand_switch_value = 0;
 uint8_t hand_switch_array[10] = {0};
@@ -95,13 +115,18 @@ void setup(){
   Serial.begin(9600); // Communication with PC through micro-USB
   Serial1.begin(115200); // Bluetooth module
   // Setup SD card
-  if (!SD.begin(BUILTIN_SDCARD)){
-    Serial.println("Please insert SD card!");
-    while (1);
+  if (!sd.begin(SD_CONFIG)){
+    Serial.println("Please check SD card!");
+    while (1) {
+      digitalWrite(hand_led, HIGH);
+      delay(500);
+      digitalWrite(hand_led, LOW);
+      delay(500);
+    }
   }
   // Setup OUTPUT pins
-  //pinMode (cs_imu, OUTPUT);
-  //  digitalWrite(cs_imu, HIGH);
+  pinMode (cs_imu, OUTPUT);
+    digitalWrite(cs_imu, HIGH);
   pinMode (cs_hand, OUTPUT);
     digitalWrite(cs_hand, HIGH);
   pinMode (cs_fork, OUTPUT);
@@ -124,18 +149,25 @@ void setup(){
   // Setup INPUT pins
   pinMode (hand_switch, INPUT); // If switch is HIGH - MPC is on
   // Initialize IMU
-  //if (!IMU.Begin()){
-  //  Serial.println("IMU initialization unsuccessful");
-  //  Serial.println("Check IMU wiring or try cycling power");
-  //}
-  //IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); // +- 4g
-  //IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS); // +- 250 deg/s
+  if (!IMU.Begin()){
+    Serial.println("IMU initialization unsuccessful");
+    Serial.println("Check IMU wiring or try cycling power");
+  }
+  IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); // +- 4g
+  IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS); // +- 250 deg/s
+  // Count files on SD card
+  root.open("/");
+  while (countFile.openNext(&root, O_RDONLY)) {
+    if (!countFile.isHidden()) fileCount++;
+    countFile.close();
+  }
   delay(2000);
   sinceLast = 0;
 }
 
 //============================== Main Loop ===================================//
 void loop(){
+  if (!isOpen) openFile();
   if (sinceLast >= 1000){
     // Reset the counter
     sinceLast = sinceLast - 1000;
@@ -164,7 +196,7 @@ void haptics(){
   haptics_iteration_counter += 1;
 
   //---------------- SPI communication with Handlebar encoder ----------------//
-  //digitalWrite(cs_imu, HIGH); // HIGH to disable IMU communication
+  digitalWrite(cs_imu, HIGH); // HIGH to disable IMU communication
   digitalWrite(cs_fork, HIGH); // HIGH to disable fork encoder communication
   // Set frequency to 125 Khz-4 Mhz 
   // encoder transmit first the MSB
@@ -292,14 +324,14 @@ void haptics(){
   //   / ((float) PEDAL_COUNTS_LENGTH) * 0.10471975511970057;
 
   //----------------------------- Read IMU data ------------------------------//
-  // bool status = IMU.Read();
-  // float accelY = IMU.accel_x_mps2();
-  // float accelX = IMU.accel_y_mps2();
-  // float accelZ = IMU.accel_z_mps2();
-  // float gyroY = IMU.gyro_x_radps();
-  // float gyroX = IMU.gyro_y_radps();
-  // float gyroZ = IMU.gyro_z_radps();
-  // float temp = IMU.die_temp_c();
+  IMU.Read();
+  //float accelY = IMU.accel_x_mps2();
+  //float accelX = IMU.accel_y_mps2();
+  //float accelZ = IMU.accel_z_mps2();
+  float gyroY = IMU.gyro_x_radps();
+  float gyroX = IMU.gyro_y_radps();
+  float gyroZ = IMU.gyro_z_radps();
+  //float temp = IMU.die_temp_c();
 
   //------------------------ Printing to serial port -------------------------//
   // Limit the printing rate
@@ -354,7 +386,7 @@ void haptics(){
     //Serial.println();
   }
 
-  //------------------------ Printing to Bluetooth -------------------------//
+  //------------------------- Printing to Bluetooth --------------------------//
   // Limit the printing rate
   if (haptics_iteration_counter % 5 == 0){
     Serial1.print(hand_switch_state);
@@ -364,8 +396,56 @@ void haptics(){
     Serial1.println(filtered_angle_rate, 4);
   }
 
+  //-------------------------- Printing to SD card ---------------------------//
+  size_t n = rb.bytesUsed();
+  // Check if there is free space
+  if ((n + logFile.curPosition()) > (LOG_FILE_SIZE - 100)) {
+    digitalWrite(hand_led, LOW);
+    isFull = true;
+  }
+  if (!isFull) {
+    // If the file is not busy, write out one sector of data
+    if (n >= 512 && !logFile.isBusy()) rb.writeOut(512);
+    // Write data to buffer
+    rb.print(haptics_iteration_counter);
+    rb.write(',');
+    rb.print(mpc_iteration_counter);
+    rb.write(',');
+    rb.print(sinceLast);
+    rb.write(',');
+    rb.print(hand_switch_state);
+    rb.write(',');
+    rb.print(angle_hand,2);
+    rb.write(',');
+    rb.print(angle_fork,2);
+    rb.write(',');
+    rb.print(angle_rate,2);
+    rb.write(',');
+    rb.print(filtered_angle_rate,2);
+    rb.write(',');
+    rb.print(error,2);
+    rb.write(',');
+    rb.print(command_fork,2);
+    rb.write(',');
+    rb.print(command_hand,2);
+    rb.write(',');
+    rb.print(bt_message_double,2);
+    rb.write(',');
+    rb.print(gyroX,3);
+    rb.write(',');
+    rb.print(gyroY,3);
+    rb.write(',');
+    rb.print(gyroZ,3);
+    rb.write('\n');
+  }
+  // Flush the data from buffer to file. Try to do it at rarely as possible.
+  // Flushing takes a couple of milliseconds (around 3-4), which makes the next
+  // 3 or 4 PID controller iterations slightly out-of-time.
+  // Since the normal flush-less iteration takes significantly less than 1ms, 
+  // the controller gets back in time quickly.
+  if (haptics_iteration_counter % 1500 == 0) logFile.flush();
   //------------------------ Move to the next loop ---------------------------//
-  if (sinceLast > 1000) Serial.println("MISSED HAPTICS DEADLINE");
+  //if (sinceLast > 1000) Serial.println("MISSED HAPTICS DEADLINE");
 }
 
 float return_scaling(uint64_t iteration){
@@ -440,4 +520,28 @@ uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size){
 
   if (val_sum >= (uint8_t)(array_size*0.7)) return 1;
   return 0;
+}
+
+void openFile() {
+  String fullFileName = fileName + String(fileCount) + fileExt;
+  if (!logFile.open(fullFileName.c_str(), O_RDWR | O_CREAT | O_TRUNC)) {
+    Serial.println("Open failed");
+    while (1) {
+      digitalWrite(hand_led, HIGH);
+      delay(1000);
+      digitalWrite(hand_led, LOW);
+      delay(200);
+    }
+  }
+  if (!logFile.preAllocate(LOG_FILE_SIZE)) {
+    Serial.println("Preallocate failed");
+    while (1) {
+      digitalWrite(hand_led, HIGH);
+      delay(200);
+      digitalWrite(hand_led, LOW);
+      delay(1000);
+    }
+  }
+  rb.begin(&logFile);
+  isOpen = true;
 }
