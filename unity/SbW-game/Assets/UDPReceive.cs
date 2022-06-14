@@ -51,7 +51,6 @@ public class UDPReceive : MonoBehaviour
     if (newUdpData != "") {
       currLine = int.Parse(splitData[0]);
       vivePos = float.Parse(splitData[1]);
-      viveRot = float.Parse(splitData[2]);
     }
   }
 
