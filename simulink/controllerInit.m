@@ -4,7 +4,7 @@ start = tic;
 Ts_mpc = 1/80;          % Sampling time controller 1/Hz [s]
 Ts_udp = 1/160;         % Sampling time UDP 1/Hz [s]
 Ts_ser = 1/200;         % Sampling time serial 1/Hz [s]
-Thorizon = 2;           % Time horizon [s]
+Thorizon = 2.3125;      % Time horizon [s]
 nH = Thorizon/Ts_mpc; % Number of steps in the horizon [-]
 % Bicycle settings
 tracker_height = 0.9;   % Height of the tracker relative to ground [m]
@@ -56,7 +56,11 @@ for i=1:nH
         B_full(i*nX+1 : (i+1)*nX, (i-j-1)*nU+1 : (i-j)*nU) = A_ss^j*B_ss;
     end
     % Q
-    Q_full((i-1)*nX+1 : i*nX, (i-1)*nX+1 : i*nX) = Q;
+    if i < 40
+        Q_full((i-1)*nX+1 : i*nX, (i-1)*nX+1 : i*nX) = zeros(nX);
+    else
+        Q_full((i-1)*nX+1 : i*nX, (i-1)*nX+1 : i*nX) = Q;
+    end
     % R
     R_full((i-1)*nU+1 : i*nU, (i-1)*nU+1 : i*nU) = R;
     % ub_x lb_x
