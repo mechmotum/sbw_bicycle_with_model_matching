@@ -4,48 +4,47 @@ Here are the MATLAB scripts and Simulink models needed to compile and run the MP
 
 ## Requirements
 1. Windows 10 computer with MATLAB 2022a (that was the version used, your mileage may vary using other versions)
-2. [ACADO toolkit with MATLAB interface](https://acado.github.io/matlab_overview.html)
-3. [Simulink Desktop Real-Time](https://nl.mathworks.com/products/simulink-desktop-real-time.html) toolbox to run the controller in real time and communicate with libsurvive and the bicycle
+2. [qpOASES v.3.2.1 with Simulink interface](https://github.com/coin-or/qpOASES)
+3. [Simulink Desktop Real-Time](https://nl.mathworks.com/products/simulink-desktop-real-time.html) toolbox with the kernel installed to run the controller in real time and communicate with libsurvive and the bicycle
 4. [Aerospace Blockset](https://nl.mathworks.com/products/aerospace-blockset.html) toolbox to convert quaternions to Euler angles
+5. [DSP System](https://www.mathworks.com/products/dsp-system.html) toolbox to calculate the moving average
 
 ## Usage
-1. Run MATLAB script `ready_simulink_model.m`, which is going to export and compile the MPC controller using ACADO.
-2. After compilation, two Simulink windows will come up. `Untitled.slx` can be safely closed without saving, while `sbw_treadmill.slx` is the model of interest.
+1. Run MATLAB script `controllerInit.m`, which is going to set all the required variables.
+2. At the end, a Simulink model `controllerModel.slx` will open. 
 3. (If using Unity) Running the MATLAB script will also generate a `reference_strings.txt` file, which should be copied to Unity's project (`/unity/SbW-game/Assets/StreamingAssets/` if running the game from the editor, or `/unity/SbW-game-built/SbW-game_Data/StreamingAssets/` if running the game standalone),  as it contains the data for the reference line visualization and lets the rider see the same reference the controller sees.
-4. Set the required length of the simulation and run the model. The outputs will be saved in the `out` structure in MATLAB's workspace.
+4. (If using HTC Vive Tracker) Start the `libsurvive-udp` program on the Raspberry Pi (or other machine that communicates with the Tracker).
+5. Plug the Teensy acting as a Bluetooth receiver into the PC.
+6. Set the required length of the simulation and run the model. The outputs will be saved in the `out` structure in MATLAB's workspace.
+7. Turn on the Steer-by-Wire bicycle. The controller's inputs are only sent to the motors if the switch on the handlebars is on its right-most position.
 
 ## Options
-The main MATLAB script `ready_simulink_model.m` has a couple of options for the user.
+The main MATLAB script `controllerInit.m` has a couple of options for the user.
 
 The user can adjust some simple options, such as:
-- `Ts` - the sampling time for the controller, in seconds.
+- `Ts_mpc` - the sampling time for the controller, in seconds.
+- `Ts_udp` - the sampling time for the UDP ports, in seconds.
+- `Ts_ser` - the sampling time for the serial ports, in seconds.
 - `Thorizon` - the length of the MPC horizon, in seconds.
-- `bicycle_name` - a part of the file name in the `bicycles/` folder, which contains the bicycle parameters.
-- `g` - gravitational constant, in meters/second^2.
-- `T_phi` - the generalised lean torque, in Newton-meters. Generally set to 0.
-- `Tstart` - time for the start of the `t_ref` field in the generated reference trajectory, in seconds. Generally set to 0.
-- `Tend` - time for the end of the `t_ref` field in the generated reference trajectory, can be used to generate a single lane-change instead of a double lane-change.
+- `tracker_height` - the height of the HTC Vive Tracker, relative to the rear wheel contact point.
+- `steerTorqLim` - maximum allowed torque coming from the controller.
+- `ub_[x,u], lb_[x,u]` - upper and lower bounds for the states and the control commands.
+- `Q, R` - weight matrices for the states and control commands.
 - `width` - the width of the lane change, in meters.
 - `slope` - the slope of the lane change, in seconds. Bigger number means a more aggressive lane-change.
 - `v` - the speed of the bicycle, in meters/second. Assumed to be constant throughout the experiment.
-- `input.W` - the stage cost of the MPC controller. An `8x8` matrix with the diagonal members corresponding to the weights. Contains the costs for the states (`x_P`, `y_P`, `psi`, `phi`, `delta`, `d_phi`, `d_delta`) and the inputs (`T_delta`).
-- `input.WN` - the terminal cost of the MPC controller. A `7x7` matrix with the diagonal members corresponding to the weight. Cotains the costs for the states (`x_P`, `y_P`, `psi`, `phi`, `delta`, `d_phi`, `d_delta`).
-
-More advanced options can be also be found in the script, such as changing the `OCPexport` options for how ACADO needs to export and compiler the MPC controller.
+- `Tend` - time for the end of the `t_ref` field in the generated reference trajectory, can be used to generate a single lane-change instead of a double lane-change.
 
 ## File structure
-`bicycles/` - This folder contains files with bicycle+rider parameters. The files need to be in `.txt` format, named `$BICYCLENAME_bicycle.txt`, where `$BICYCLENAME` can be chosen by you to tell the bicycles apart and is used in the MATLAB script `ready_simulink_model.m` as the `bicycle_name` option.
 
-`sbw_export/` - This folder hosts the files generated by ACADO during code export. The user only needs to provide the `qpoases3/` folder and place it here before running `ready_simulink_model.m`.
+`controllerInit.m` - The main MATLAB script, responsible for setting up the MPC controller's variables, generating a reference trajectory.
 
-`slprj/` - This folder is a cache for the Simulink model and is auto-generated by Simulink.
+`controllerModel.slx` - The Simulink model. It uses UDP to communicate with libsurvive and Unity, uses Serial to communicate with the steer-by-wire bicycle, and uses the qpOASES to solve the linear QP problem.
 
-`generate_reference.m` - This MATLAB function generates the reference trajectory for the double lane-change manoeuvre. The function takes in 6 parameters: `tStart`, `tEnd`, `tSample`, `tChange`, `speed`, and `lWidth`. The function returns an array with the first column being time `t_ref`, second column is the coordinate in the longitudinal direction `x_ref`, and the third column is the coordinate in the lateral direction `y_ref`. The first lane-change starts after 5 seconds since `tStart`, the second one starts 10 seconds after the first one ends. The `tChange` parameter is used to set the aggressiveness of the lane-change: the bigger the `tChange` is, the slower the lane change will be. This function can also generate a single lane-change reference if `tEnd` is shorter than `15 + tStart + tChange`. The parameter `lWidth` adjusts how big of the lane change will be and only affects `y_ref`, while the parameter `speed` only affects `x_ref`.
+`generateReference.m` - This MATLAB function generates the reference trajectory for the double lane-change manoeuvre. The function takes in 5 parameters: `tEnd`, `tSample`, `tChange`, `speed`, and `lWidth`. The function returns an array with the first column being time `t_ref`, second column is the coordinate in the longitudinal direction `x_ref`, and the third column is the coordinate in the lateral direction `y_ref`. The first lane-change starts after 5 seconds, the second one starts 10 seconds after the first one ends. The `tChange` parameter is used to set the aggressiveness of the lane-change: the bigger the `tChange` is, the slower the lane change will be. This function can also generate a single lane-change reference if `tEnd` is shorter than `15 + tChange`. The parameter `lWidth` adjusts how big of the lane change will be and only affects `y_ref`, while the parameter `speed` only affects `x_ref`.
 
-`get_bikePars.m` - This MATLAB function reads the bicycle parameters and puts them into a structure. The input is `$BICYCLENAME` as a string, which is then used to search for a `$BICYCLENAME_bicycle.txt` file in the `bicycles/` folder. The output is a structure `bikePar` where the field names are according to J. P. Meijaard et al., 2007.
+`qpOASES_QProblem.[cpp, mexw64], qpOASES_simulink_utils.cpp` - Files required to solve the QP using qpOASES.
 
-`get_matrices.m` - This MATLAB function calculates the Whipple-Carvallo bicycle model's matrices given a set of bicycle parameters. The input is a `bikePar` structure and the output is the matrices.
+`README.md` - This file.
 
-`ready_simulink_model.m` - The main MATLAB script, responsible for setting up the MPC controller, compiling it, generating a reference trajectory and setting other variables neccessary for the Simulink model to run.
-
-`sbw_treadmill.slx` - The Simulink model. It uses UDP to communicate with libsurvive and Unity, uses Serial to communicate with the steer-by-wire bicycle, and uses the ACADO's compiled s-function to run the MPC controller.
+`rigidRiderStateSpace.mat` - File containing the state space model of the Rigid Rider bicycle. Obtained by using the scripts of [Jason K. Moore](https://github.com/moorepants/HumanControl).

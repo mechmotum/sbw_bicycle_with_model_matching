@@ -82,14 +82,17 @@ int main(int argc, char **argv) {
 			FLT timecode = pose_event->time;
 			SurviveVelocity vel = pose_event->velocity;
 
-			int n = sprintf(msg, "%7.3f,%4.3f,%4.3f,%4.3f,%4.3f,%4.3f,%4.3f,%4.3f,%4.3f,%4.3f,%4.3f\n",
+			int n = sprintf(msg, "%7.3f,%4.3f,%4.3f,%4.3f,%4.3f,%4.3f,%4.3f,%4.3f\n",
 				timecode, 
-				vel.AxisAngleRot[0], vel.AxisAngleRot[1], vel.AxisAngleRot [2],
 				pose.Pos[0], pose.Pos[1], pose.Pos[2],
 				pose.Rot[0], pose.Rot[1], pose.Rot[2], pose.Rot[3]);
 
 			sendto(sockfd, msg, n, 0, p->ai_addr, p->ai_addrlen);
-			printf("(%7.3f) %4.3f %4.3f %4.3f\n", timecode, pose.Pos[0], pose.Pos[1], pose.Pos[2]);
+			if (count == 500) {
+				printf("(%7.3f) %4.3f %4.3f %4.3f\n", timecode, pose.Pos[0], pose.Pos[1], pose.Pos[2]);
+				count = 0;
+			}
+			count++;
 			break;
 		}
 		case SurviveSimpleEventType_ButtonEvent: {

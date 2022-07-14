@@ -4,8 +4,8 @@ using System.IO;
 
 public class LinePoints : MonoBehaviour
 {	
-   static int numOfPoints = 100; //160
-   static int numOfReferenceLines = 1201; //2321
+   static int numOfPoints = 161; //160
+   static int numOfReferenceLines = 1931; //2321
 	string[] allReference = new string[numOfReferenceLines];
    			       
     void Start() 
