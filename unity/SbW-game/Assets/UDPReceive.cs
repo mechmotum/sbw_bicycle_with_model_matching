@@ -19,12 +19,12 @@ public class UDPReceive : MonoBehaviour
 
   [Header("Position")]
   [SerializeField] public float vivePos;
-
-  [Header("Rotation")]
-  [SerializeField] public float viveRot;
   
   [Header("Current Line")]
   [SerializeField] public int currLine;
+
+  [Header("End of Trial flag")]
+  [SerializeField] public int endTrial;
 
   // Create necessary UdpClient objects
   UdpClient client;
@@ -51,6 +51,7 @@ public class UDPReceive : MonoBehaviour
     if (newUdpData != "") {
       currLine = int.Parse(splitData[0]);
       vivePos = float.Parse(splitData[1]);
+      endTrial = int.Parse(splitData[2]);
     }
   }
 
