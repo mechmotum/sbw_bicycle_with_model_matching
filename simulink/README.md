@@ -10,41 +10,82 @@ Here are the MATLAB scripts and Simulink models needed to compile and run the MP
 5. [DSP System](https://www.mathworks.com/products/dsp-system.html) toolbox to calculate the moving average
 
 ## Usage
-1. Run MATLAB script `controllerInit.m`, which is going to set all the required variables.
-2. At the end, a Simulink model `controllerModel.slx` will open. 
-3. (If using Unity) Running the MATLAB script will also generate a `reference_strings.txt` file, which should be copied to Unity's project (`/unity/SbW-game/Assets/StreamingAssets/` if running the game from the editor, or `/unity/SbW-game-built/SbW-game_Data/StreamingAssets/` if running the game standalone),  as it contains the data for the reference line visualization and lets the rider see the same reference the controller sees.
-4. (If using HTC Vive Tracker) Start the `libsurvive-udp` program on the Raspberry Pi (or other machine that communicates with the Tracker).
-5. Plug the Teensy acting as a Bluetooth receiver into the PC.
-6. Set the required length of the simulation and run the model. The outputs will be saved in the `out` structure in MATLAB's workspace.
-7. Turn on the Steer-by-Wire bicycle. The controller's inputs are only sent to the motors if the switch on the handlebars is on its right-most position.
+0. Make sure all external hardware is connected: 
+   - Raspberry Pi should be connected to the PC using an Ethernet cable.
+   - Teensy (or other Arduino with two hardware Serial ports) acting as a Bluetooth receiver should be connected to the PC using a USB cable. 
+   - Neokey TrinKey (or other microcontroller with two buttons) shuold be connected to the PC using a USB cable.
+0. Place the bicycle in the middle of the treadmill, turn on the HTC Vive Tracker on the bicycle and start the `survive-udp` program on the Raspberry Pi with the `--force-calibrate` flag.
+0. Run MATLAB script `main.m`.
+   - It will set all the required variables for the controller.
+   - The controller will asume that the first trial will be "Familiarization + Baseline 1".
+   - It will open `getAngleBias.slx` Simulink model which will calculate the yaw and lean angle biases coming from HTC vive that are there due to the Tracker's positioning on the bicycle. The calibration takes 60 seconds.
+   - It will open `mpcController.slx` Simulink model, which is where the controller is implemented.
+0. Start the Unity game located in `../unity/SbW-game-built` which is the visualisation of the task.
+0. Set the simulation time to `inf` and press "Run in Real-Time".
+0. Turn on the bicycle.
+0. In order to start the trial, press the capacitive button on the Neokey TrinKey (or its equivalent on another microcontroller). The gates should now start to appear in the visualisation.
+0. When the trial ends, the visualisation will display `END` at the top of the screen.
+0. Stop the simulation, save the `out` variable from the MATLAB workspace as this is where all the data is stored.
+0. Turn off the bicycle.
+0. Run the appropriate script from `./functions/` before the next trial.
+0. Repeat steps 5-11 for the other trials.
 
 ## Options
-The main MATLAB script `controllerInit.m` has a couple of options for the user.
+The MATLAB script `main.m` loads `./mat_files/opts.mat` file which contains a structure with required options. If this file is not found, it is generated with default values using `./functions/generateOptionsFile.m` function.
 
-The user can adjust some simple options, such as:
-- `Ts_mpc` - the sampling time for the controller, in seconds.
-- `Ts_udp` - the sampling time for the UDP ports, in seconds.
-- `Ts_ser` - the sampling time for the serial ports, in seconds.
-- `Thorizon` - the length of the MPC horizon, in seconds.
-- `tracker_height` - the height of the HTC Vive Tracker, relative to the rear wheel contact point.
-- `steerTorqLim` - maximum allowed torque coming from the controller.
-- `ub_[x,u], lb_[x,u]` - upper and lower bounds for the states and the control commands.
-- `Q, R` - weight matrices for the states and control commands.
-- `width` - the width of the lane change, in meters.
-- `slope` - the slope of the lane change, in seconds. Bigger number means a more aggressive lane-change.
-- `v` - the speed of the bicycle, in meters/second. Assumed to be constant throughout the experiment.
-- `Tend` - time for the end of the `t_ref` field in the generated reference trajectory, can be used to generate a single lane-change instead of a double lane-change.
+The options are:
+- `Ts_mpc` - the sampling time for the controller, in seconds. Default value - `1/75`
+- `Ts_udp` - the sampling time for the UDP ports, in seconds. Default value - `1/320`
+- `Ts_ser` - the sampling time for the serial ports, in seconds. Default value - `1/200`
+- `Tinterval` - the time distance between the gates, in seconds. Default value - `6`
+- `TShorizon` - the length of the MPC (Simulink) horizon, in seconds. Default value - `2`
+- `TUhorizon` - the length of the visualisation (Unity) horizon, in seconds. Default value - `5`
+- `Tpreview` - how soon the controller is made aware of the upcoming gate, in seconds. Default value - '4'
+- `Tafter` - how long the controller should remember the location of the previous gate, in seconds. Default value - '2'
+  - `Tpreview + Tafter` needs to be equal to or less than `Tinterval`
+  - `Tafter` stabilises the controller as the controller will try to pass the gate in a straight line
+- `blockLength` - trials are split into blocks, each of which consists of `blockLength` number of gates. Default value - `10`
+- `gateNumber` - the number of different possible positions of the gates. Default value - `7`
+- `maxWidth` - the furthest lateral position of the centre of the gate, relative to the centre of the treadmill, in meters. Default value - `0.2`
+- `randSeed` - the seed to generate pseudo-random gate positions. Default value - `20220705`
+- `trackerHeight` - the height of the HTC Vive Tracker, relative to the rear wheel contact point, in meters. Default value - `0.9`
+- `steerTorqueLim` - maximum allowed torque coming from the controller, in Newton-meters. Default value - `3`
+- `fCutoff` - the cutoff frequency for the low-pass filter, in Hertz. Default value - `8`
+- `ub_[x,u], lb_[x,u]` - upper and lower bounds for the states and the control commands, respectively. Default values -
+  - `ub_x = [0.5; inf; deg2rad(20); deg2rad(40); inf; inf]`
+  - `lb_x = -ub_x`
+  - `ub_u = steerTorqueLim`
+  - `lb_u = -ub_u`
+- `Q1` - maximum value of the MPC weight for the lateral position. Default value - `4`
+- `Q2` - maximum value of the MPC weight for the yaw. Default value - `10`
+- `Q3` - maximum value of the MPC weight for the lean. Default value - `5`
+- `R` - MPC weight on the control command. Default value - `1`
+- `Tend` - length of one block, in seconds. Calculated from `Tinterval * blockLength`
+- `nSH` - number of steps in the MPC (Simulink) horizon. Calculated from `TShorizon / Ts_mpc`
+- `nUH` - number of steps in the visualisation (Unity) horizon. Calculated from `TUhorizon / Ts_mpc`
+- `nX` - number of states in the bicycle model. Default value - `6`
+- `nU` - number of control inputs in the bicycle model. Default value - `1`
 
 ## File structure
 
-`controllerInit.m` - The main MATLAB script, responsible for setting up the MPC controller's variables, generating a reference trajectory.
+`./functions/` - Contains MATLAB functions:
+  - To calculate and generate required variables for the MPC controller (`generateOptionsFile.m`, `generateMatrices.m`, `generateReference.m`);
+  - To set up other experiment trials (`readyBaseline.m`, `readyTraining1.m`, `readyTraining2.m`, `readyRetention.m`);
+  - To calculate the average score in a trial (`getBaselineScore.m`).
 
-`controllerModel.slx` - The Simulink model. It uses UDP to communicate with libsurvive and Unity, uses Serial to communicate with the steer-by-wire bicycle, and uses the qpOASES to solve the linear QP problem.
+`./mat_files/` - Contains `.mat` files needed by `main.m`:
+  - `bike_ss.mat` contains a continuous state space model of the bicycle. By default it uses the "Rigid Rider bicycle" model. Obtained by using the scripts of [Jason K. Moore](https://github.com/moorepants/HumanControl).
+  - `gate_locations.txt` file is generated by `generateReference.m` and contains the gate location data for the visualisation. Should be copied to `../unity/SbW-game-built/SbW-game_Data/StreamingAssets/`.
+  - `matrices.mat` contains the required matrices for MPC/QP. Generated by `generateMatrices.m` according to the options and a discrete state space model.
+  - `opts.mat` contains the options described above. Default options are generated by `generateOptionsFile.m`.
+  - `structs.mat` contains the structs required by the Simulink model. Generated by `generateReference.m` according to the options.
+  
+ `./qp/` - Contains `qpOASES_SQProblem.[cpp, mexw64]` and `qpOASES_simulink_utils.cpp` which are required by the Simulink model to solve QP problems.
 
-`generateReference.m` - This MATLAB function generates the reference trajectory for the double lane-change manoeuvre. The function takes in 5 parameters: `tEnd`, `tSample`, `tChange`, `speed`, and `lWidth`. The function returns an array with the first column being time `t_ref`, second column is the coordinate in the longitudinal direction `x_ref`, and the third column is the coordinate in the lateral direction `y_ref`. The first lane-change starts after 5 seconds, the second one starts 10 seconds after the first one ends. The `tChange` parameter is used to set the aggressiveness of the lane-change: the bigger the `tChange` is, the slower the lane change will be. This function can also generate a single lane-change reference if `tEnd` is shorter than `15 + tChange`. The parameter `lWidth` adjusts how big of the lane change will be and only affects `y_ref`, while the parameter `speed` only affects `x_ref`.
+`main.m` - The main MATLAB script, responsible for setting up the MPC controller's variables, launching Simulink.
 
-`qpOASES_QProblem.[cpp, mexw64], qpOASES_simulink_utils.cpp` - Files required to solve the QP using qpOASES.
+`mpcController.slx` - The MPC controller implementation as a Simulink model. It uses UDP to communicate with libsurvive and Unity, uses Serial to communicate with the steer-by-wire bicycle, and uses the qpOASES to solve the linear QP problem.
+
+`getAngleBias.slx` - This Simulink model uses UDP to communicate with libsurvive. It runs for 60 seconds and calculates the average of the yaw and lean angles from the HTC Vive Tracker. This is needed since the Tracker is not mounted at exactly 0 yaw or lean angle compared to the bicycle and can move between participants. Therefore the calculated average is used to correct for this in `mpcController.slx`.
 
 `README.md` - This file.
-
-`rigidRiderStateSpace.mat` - File containing the state space model of the Rigid Rider bicycle. Obtained by using the scripts of [Jason K. Moore](https://github.com/moorepants/HumanControl).
