@@ -247,15 +247,15 @@ void loop(){
       }
     #endif
 
-    // Turn on LED when bike is ready
-    if (haptics_iteration_counter >= 13000) 
-      digitalWrite(hand_led, HIGH); 
-    
     #if USE_BT
       // Read Bluetooth, see if there's a new message
       bt_read();
       bt_parse();
     #endif
+
+    // Turn on LED when bike is ready
+    if (haptics_iteration_counter >= 13000) 
+      digitalWrite(hand_led, HIGH);
 
     // Read the switch state
     hand_switch_state_prev = hand_switch_state;
