@@ -1,13 +1,13 @@
 \section{Microcontroller Board}
 \begin{itemize}[noitemsep]
-  \item Adjust the board to accommodate the Teensy instead of STM32-H405. This would get rid of a big part of wires, make the electronics box cleaner and more presentable, reduce the amount of space needed, and also possibly reducing the risk of wires coming loose.
+  \item Adjust the board to accommodate the Teensy instead of STM32-H405. This would get rid of a big part of wires, make the electronics box cleaner and more presentable, reduce the amount of space needed, and possibly reduce interference between long wires.
   \item Four wires are soldered to the PCB instead of using a header. Adjusting the PCB for this would make the PCB look more presentable.
 \end{itemize}
 
 \section{Power Board}
 \begin{itemize}[noitemsep]
   \item Some cables running to/from this board might need extending and replacing the connectors.
-  \item The cables carrying power to the fork motor are the ones requiring some care the most.
+  \item The cables carrying power to the fork motor are the ones requiring the most care.
 \end{itemize}
 
 \section{Protoboard}
@@ -19,8 +19,11 @@
 
 \section{Bicycle}
 \begin{itemize}[noitemsep]
-  \item Adjust front brakes to not rub, if the bicycle is to be used outside on the road.\footnote{The brakes should be disabled while riding on the treadmill.}
-  \item Weather-proof the motors.
+  \item Adjust front brakes to not rub, if the bicycle is to be used outside on the road.\footnote{The brakes and the electric motor should be disabled while riding on the treadmill.}
+  \item Weather-proof the steering motors.
   \item Fix the kick-stand. Currently it is not stable.
   \item Slick tires are not very suitable for riding outside on the road.
+  \item Fix the wheel speed sensor.
+  \item Adjust the rear chain derailleur.
+  \item Implement a better data-logging functionality that can work in parallel to the PD controller.
 \end{itemize}

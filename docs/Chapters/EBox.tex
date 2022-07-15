@@ -1,34 +1,99 @@
+\section{Connections}
+
+The rear electronics box contains two PCBs and a microcontroller. Originally, Teensy 3.6 was used, however, it is a discontinued model. Therefore, the controller was upgraded to a Teensy 4.1. One of the PCBs, from now on referred to as "Power board", is housing the two Maxon ESCON 50/5 motor drives and converts the battery's voltage of 37V to other required voltages. The other PCB interfaces with the microcontroller and is referred to as "MC board".
+
+Table \ref{tab:teensy_mc} lists the connections between Teensy and MC board. Table \ref{tab:mc_power} lists the connections between MC and Power boards.
+
+\begin{table}
+\centering
+\caption{Teensy and MC board connections}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{llccl}
+\toprule
+\multicolumn{1}{c}{\textbf{Variable name in the code}} & \multicolumn{1}{c}{\textbf{Device}} & \textbf{Teensy 4.1 Pin} & \textbf{MC Board Pin} & \multicolumn{1}{c}{\textbf{Teensy pin requirements}}  \\
+\midrule
+Serial1.begin();                                       & Bluetooth TX                        & 0                       & -                     & Hardware Serial RX                                    \\
+Serial1.begin();                                       & Bluetooth RX                        & 1                       & -                     & Hardware Serial TX                                    \\
+Encoder wheel\_counter(2,3);                           & Rear wheel gear encoder             & 2, 3                    & PA0, PA1              & Digital with Interrupt                                \\
+pwm\_pin\_hand                                         & PWM signal to handlebar motor       & 8                       & PA8                   & PWM                                                   \\
+pwm\_pin\_fork                                         & PWM signal to the fork motor        & 9                       & PA9                   & PWM                                                   \\
+cs\_imu                                                & Chip Select for the IMU             & 10                      & PB0                   & Digital                                               \\
+SPI.begin();                                           & MOSI for hardware SPI0              & 11                      & PA7                   & MOSI                                                  \\
+SPI.begin();                                           & MISO for hardware SPI0              & 12                      & PA6                   & MISO                                                  \\
+SPI.begin();                                           & SCK for hardware SPI0               & 13                      & PA5                   & SCK                                                   \\
+a\_force                                               & Force transducer                    & 20                      & -                     & Analog                                                \\
+a\_torque                                              & Torque sensor                       & 21                      & PC2                     & Analog                                                \\
+Encoder pedal\_counter(23, 22);                        & Pedal gear encoder                  & 22, 23                  & PC6, PC7              & Digital with Interrupt                                \\
+cs\_hand                                               & Chip Select for handlebar encoder   & 24                      & PA4                   & Digital                                               \\
+cs\_fork                                               & Chip Select for fork encoder        & 25                      & PA3                   & Digital                                               \\
+SPI1.begin();                                          & MOSI for hardware SPI1              & 26                      & -                     & MOSI1                                                 \\
+SPI1.begin();                                          & SCK for hardware SPI1               & 27                      & -                     & SCK1                                                  \\
+hand\_switch                                           & Handlebar switch                    & 28                      & -                     & Digital                                               \\
+enable\_hand                                           & Enable handlebar motor              & 29                      & PB12                  & Digital                                               \\
+enable\_fork                                           & Enable fork motor                   & 30                      & PB13                  & Digital                                               \\
+enable\_encoder                                        & Enable handlebar and fork encoders  & 31                      & PA10                  & Digital                                               \\
+hand\_led                                              & Handlebar LED                       & 32                      & -                     & Digital                                               \\
+enable\_radio                                          & Enable nRF24L01 radio               & 37                      & -                     & Digital                                               \\
+cs\_radio                                              & Chip Select for nRF24L01 radio      & 38                      & -                     & Digital                                               \\
+SPI1.begin(); SPI1.setMISO(39);                        & MISO for hardware SPI1              & 39                      & -                     & MISO1                                                 \\
+a\_fork                                                & Read torque of the fork motor       & 40                      & PC1                   & Analog                                                \\
+a\_hand                                                & Read torque of the handlebar motor  & 41                      & PC0                   & Analog                                                \\
+-                                                      & 3.3V supply to the MC board         & 3.3V (between 12 and 24)& 3.3V VDD (EXT1)       & -                                                     \\
+-                                                      & Ground pin                          & GND (above 23)          & GND (EXT1)            & -                                                     \\
+-                                                      & Ground pin                          & GND (above 0)           & GND (EXT2)            & -                                                     \\
+-                                                      & Micro-USB Power Supply to Teensy    & Micro-USB GND           & GND\_VSS (EXT2)        & -                                                     \\
+-                                                      & Micro-USB Power Supply to Teensy    & Micro-USB +5V           & VIN (EXT2)            & -                                                     \\
+\bottomrule
+\end{tabular}
+}
+\label{tab:teensy_mc}
+\end{table}
+
+\begin{table}
+\centering
+\caption{MC and Power board connections}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lcc}
+\toprule
+\multicolumn{1}{c}{\textbf{Cable label}} & \textbf{MC board header} & \textbf{Power board header}     \\
+\midrule
+1                                        & J3                       & -                               \\
+Red wire from Bluetooth module           & J4 +5V                   & -                               \\
+Brown wire from Bluetooth module         & J4 GND                   & -                               \\
+2                                        & J5                       & -                               \\
+3                                        & J6                       & J6                              \\
+7                                        & J7                       & J7                              \\
+6.                                       & J8                       & -                               \\
+8                                        & J9                       & -                               \\
+Analog output, handlebar motor           & J10                      & J10                             \\
+Analog output, fork motor                & J11                      & J11                             \\
+Torque sensor value                      & J12                      & J12                             \\
+Grey wire - A                            & J13 bottom pin           & -                               \\
+Yellow wire - Y                          & J14 bottom pin           & -                               \\
+Black wire - X                           & J15 bottom pin           & -                               \\
+Torque sensor measure enable             & J16                      & J16                             \\
+10                                       & -                        & J1                              \\
+9.                                       & -                        & J2                              \\
+14                                       & -                        & J3                              \\
+13                                       & -                        & J4                              \\
+Output torque sensor                     & -                        & J5 VAL                          \\
+Protoboard red cable                     & -                        & J5 +18V                         \\
+Protoboard black cable                   & -                        & J5 GND                          \\
+11                                       & -                        & Glued 4-pin under the inductor  \\
+12                                       & -                        & Remaining glued 4-pin           \\
+\bottomrule
+\end{tabular}
+}
+\label{tab:mc_power}
+\end{table}
+
 \section{Teensy}
 
 \subsection{Teensy 3.6}
 The bicycle originally featured a Teensy 3.6 installed at the very back of the electronics box. This Teensy contains the code necessary to control the handlebars and the fork. It runs a PD controller implemented by Georgios Dialynas, which runs at 1000 Hz and makes the handlebar angle follow the fork angle, and vice-versa. The code can be found on \href{https://github.com/gdialynas/Steer-by-wire-bicycle}{GitHub/gdialynas/Steer-by-wire-bicycle}.
 
-\subsection{Teensy 3.6 Pinout}
-The following pins are used on Teensy 3.6, together with their functions and requirements:
-\begin{itemize}[noitemsep]
-  \item Pins 2 and 3 -- Used for the rear wheel encoder. Both pins need to be Digital with Interrupt capabilities (all digital pins on Teensy 3.6).
-  \item Pin 8 -- Used to send PWM signal to the handlebar motor. Pin needs to be PWM capable.
-  \item Pin 9 -- Used to send PWM signal to the fork motor. Pin needs to be PWM capable.
-  \item Pin 10 -- Used as a Chip Select (CS) pin for the SPI communication with the IMU. Needs to be a Digital pin.
-  \item Pin 11 -- Used as Microcontroller-Out-Sensor-In (MOSI) pin for the SPI communication with the IMU, handlebar motor encoder, and fork motor encoder.
-  \item Pin 12 -- Used as Microcontroller-In-Sensor-Out (MISO) pin for the SPI communication with the IMU, handlebar motor encoder, and fork motor encoder.
-  \item Pin 13 -- Used as Serial Clock (SCK) pin for the SPI communication with the IMU, handlebar motor encoder, and fork motor controller.
-  \item Pin 20 -- Used to read the signal from the Force Transducer. Needs to be Analog.
-  \item Pin 21 -- Used to read the signal from the Torque sensor. Needs to be Analog.
-  \item Pins 22 and 23 -- Used for the pedal encoder. Both pins need to be Digital with Interrupt capabilities (all digital pins on Teensy 3.6).
-  \item Pin 24 -- Used as a CS pin for the SPI communication with the handlebar motor encoder.
-  \item Pin 25 -- Used as a CS pin for the SPI communication with the fork motor encoder.
-  \item Pin 26 -- Used to send power to the handlebar and fork encoders. Needs to be Digital.
-  \item Pin 27 -- Used to control the LED on the handlebars. Needs to be Digital.
-  \item Pin 28 -- The switch located on the handlebars is connected to this pin. Needs to be Digital.
-  \item Pin 29 -- Used to turn on or off the handlebar motor. Needs to be Digital.
-  \item Pin 30 -- Used to turn on or off the fork motor. Needs to be Digital.
-  \item Pin 33 -- Used to read the torque of the fork motor. Needs to be Analog.
-  \item Pin 34 -- Used to read the torque of the handlebar motor. Needs to be Analog.
-\end{itemize}
-
 \subsection{Teensy 4.1}
-Teensy 3.6 has been discontinued (as of April 2022) and is out of stock. Therefore, in order to ensure the longevity of the bicycle, it was decided to move to Teensy 4.1, as it is going to be significantly easier to obtain spare microcontrollers in the event of Teensy getting damaged.
+Teensy 3.6 has been discontinued and is out of stock (as of April 2022). Therefore, in order to ensure the longevity of the bicycle, it was decided to move to Teensy 4.1, as it is going to be significantly easier to obtain spare microcontrollers in the event of Teensy getting damaged.
 
 The pinout of the Teensy changed slightly between the versions 3.6 and 4.1. The most impactful change was the location of the Analog pins. For this exact application, this meant that pins 33 and 34 are no longer Analog and the wires need to be redirected to other pins. Pins 40 and 41 were chosen as replacements, respectively.
 
@@ -45,68 +110,12 @@ However, now a Teensy is used instead of the STM32-H405, therefore, most of the 
 The PCB schematic can be found in either \href{https://github.com/oliverlee/gyropcb}{GitHub/oliverlee/gyropcb} or its fork \href{https://github.com/gdialynas/gyropcb}{GitHub/gdialynas/gyropcb} under the name \verb|mc_pcb|.
 
 \subsection{Board's Pinout}
-This board features two 26-pin headers \verb|EXT1| and \verb|EXT2| in the middle of the board. These headers were made for the \href{https://www.olimex.com/Products/ARM/ST/STM32-H405/}{OLIMEX STM32-H405}\footnote{\href{https://www.olimex.com/Products/ARM/ST/STM32-H405/}{https://www.olimex.com/Products/ARM/ST/STM32-H405/}} microcontroller. There are also seven 2-pin headers (from \verb|J10| to \verb|J16|), three 4-pin headers (\verb|J3, J4, J5|), two 6-pin headers (\verb|J8, J9|), and two 8-pin headers (\verb|J6, J7|) along the sides of the board. For the Steer-by-Wire application, four more wires are soldered to the pads on the PCB in the location, where a \verb|U4| IC chip should be soldered. These are the functions of each header:
+This board features two 26-pin headers \verb|EXT1| and \verb|EXT2| in the middle of the board. These headers were made for the \href{https://www.olimex.com/Products/ARM/ST/STM32-H405/}{OLIMEX STM32-H405}\footnote{\href{https://www.olimex.com/Products/ARM/ST/STM32-H405/}{https://www.olimex.com/Products/ARM/ST/STM32-H405/}} microcontroller. There are also seven 2-pin headers (from \verb|J10| to \verb|J16|), three 4-pin headers (\verb|J3, J4, J5|), two 6-pin headers (\verb|J8, J9|), and two 8-pin headers (\verb|J6, J7|) along the sides of the board. For the Steer-by-Wire application, four more wires are soldered to the pads on the PCB in the location, where a \verb|U4| IC chip should be soldered.
 
-\verb|EXT1| (Pin numbering according to the \href{https://www.olimex.com/Products/ARM/ST/STM32-H405/resources/STM32-H405_UM.pdf}{OLIMEX User Guide, page 9}\footnote{\href{https://www.olimex.com/Products/ARM/ST/STM32-H405/resources/STM32-H405_UM.pdf}{https://www.olimex.com/Products/ARM/ST/STM32-H405/resources/STM32-H405_UM.pdf}}):
-\begin{itemize}[noitemsep]
-  \item Pin 2 (PA8) -- Connected to Pin 8 of the Teensy.
-  \item Pin 4 (PA9) -- Connected to Pin 9 of the Teensy.
-  \item Pin 5 (3.3V VDD) -- Connected to 3.3V (between Pins 12 and 24) on Teensy.
-  \item Pin 6 (GND) -- Connected to GND (above Pin 23) on Teensy.
-  \item Pin 7 (PA10) -- Connected to Pin 26 of the Teensy.
-  \item Pin 14 (PA6) -- Connected to Pin 12 of the Teensy.
-  \item Pin 18 (PA5) -- Connected to Pin 13 of the Teensy.
-  \item Pin 19 (PC0) -- Connected to Pin 41 of the Teensy.
-  \item Pin 20 (PC1) -- Connected to Pin 40 of the Teensy.
-  \item Pin 21 (PB0) -- Connected to Pin 10 of the Teensy.
-  \item Pin 22 (PA7) -- Connected to Pin 11 of the Teensy.
-\end{itemize}
+The \verb|EXT1| and \verb|EXT2| header pins are numbered according to \href{https://www.olimex.com/Products/ARM/ST/STM32-H405/resources/STM32-H405_UM.pdf}{OLIMEX User Guide, page 9}\footnote{\href{https://www.olimex.com/Products/ARM/ST/STM32-H405/resources/STM32-H405_UM.pdf}{https://www.olimex.com/Products/ARM/ST/STM32-H405/resources/STM32-H405\_UM.pdf}}).
 
-\verb|EXT2| (Pin numbering according to the \href{https://www.olimex.com/Products/ARM/ST/STM32-H405/resources/STM32-H405_UM.pdf}{OLIMEX User Guide, page 9}):
-\begin{itemize}[noitemsep]
-  \item Pin 2 (PC2) -- Connected to Pin 21 on Teensy.
-  \item Pin 4 (PA0) -- Connected to Pin 2 on Teensy.
-  \item Pin 6 (GND) -- Connected to GND (above Pin 0) on Teensy.
-  \item Pin 8 (PA1) -- Connected to Pin 3 on Teensy.
-  \item Pin 10 (PA3) -- Connected to Pin 25 on Teensy.
-  \item Pin 11 (PA4) -- Connected to Pin 24 on Teensy.
-  \item Pin 16 (PB13) -- Connected to Pin 30 on Teensy.
-  \item Pin 17 (PB12) -- Connected to Pin 29 on Teensy.
-  \item Pin 20 (PC6) -- Connected to Pin 22 on Teensy.
-  \item Pin 21 (PC7) -- Connected to Pin 23 on Teensy.
-  \item Pin 25 (GND\_VSS) -- Wire is connected to the USB-micro cable to supply power to Teensy. Black wire.
-  \item Pin 26 (VIN) -- Wire is connected to the USB-micro cable to supply power to Teensy. Red wire.
-\end{itemize}
+Headers are connected according to Tables \ref{tab:teensy_mc} and \ref{tab:mc_power}.
 
-2-pin headers:
-\begin{itemize}[noitemsep]
-  \item \verb|J10| -- Cable labelled \verb|Analog output, handlebar motor|.
-  \item \verb|J11| -- Cable labelled \verb|Analog output, fork motor|.
-  \item \verb|J12| -- Cable labelled \verb|Torque sensor value|.
-  \item \verb|J13| -- A grey wire labelled \verb|A| is connected to the right pin (assuming that the SD card slot is closer to the observer and ethernet ports are further).
-  \item \verb|J14| -- A yellow wire leading to a resistor and labelled \verb|Y| is connected to the right pin (assuming that the SD card slot is closer to the observer and ethernet ports are further).
-  \item \verb|J15| -- A black wire labelled \verb|X| is connected to the right pin (assuming that the SD card slot is closer to the observer and ethernet ports are further).
-  \item \verb|J16| -- Cable labelled \verb|Torque sensor measure enable|.
-\end{itemize}
-
-4-pin headers:
-\begin{itemize}[noitemsep]
-  \item \verb|J3| -- Cable labelled \verb|1|.
-  \item \verb|J4| -- This header is used to power the Bluetooth module. Red wire goes to \verb|+5V|, while the brown wire goes to \verb|GND|.
-  \item \verb|J5| -- Cable labelled \verb|2|.
-\end{itemize}
-
-6-pin headers:
-\begin{itemize}[noitemsep]
-  \item \verb|J8| -- Cable labelled \verb|6.|, with orange and white wires at the top pins (assuming that the SD slot is at the bottom of the board).
-  \item \verb|J9| -- Cable labelled \verb|8|, with orange and white wires at the top pins (assuming that the SD slot is at the bottom of the board).
-\end{itemize}
-
-8-pin headers:
-\begin{itemize}[noitemsep]
-  \item \verb|J6| -- Cable labelled \verb|3|.
-  \item \verb|J7| -- Cable labelled \verb|7|.
-\end{itemize}
 
 \section{Power Board}
 This is a custom made PCB that was designed by Oliver Lee, Georgios Dialynas, and Andrew Berry. This PCB is used in both the Steer-by-Wire bicycle and the fixed-base Bicycle Simulator. It is a power supply board that interfaces with two \href{https://www.maxongroup.com/maxon/view/product/control/4-Q-Servokontroller/438725}{Maxon ESCON 50/5}\footnote{\href{https://www.maxongroup.com/maxon/view/product/control/4-Q-Servokontroller/438725}{https://www.maxongroup.com/maxon/view/product/control/4-Q-Servokontroller/438725}} servo controller modules.
@@ -114,41 +123,13 @@ This is a custom made PCB that was designed by Oliver Lee, Georgios Dialynas, an
 The PCB schematic can be found in either \href{https://github.com/oliverlee/gyropcb}{GitHub/oliverlee/gyropcb} or its fork \href{https://github.com/gdialynas/gyropcb}{GitHub/gdialynas/gyropcb} under the name \verb|power_pcb|.
 
 \subsection{Board's Pinout}
-In the middle of the board, there are two 18-pin headers \verb|EXT1| and \verb|EXT3|, and two 11-pin headers \verb|EXT2| and \verb|EXT4|. These headers are used to seat the ESCON modules. There are also four 2-pin headers (\verb|J10|, \verb|J11|, \verb|J12|, \verb|J16|), one 5-pin header (\verb|J5|), two 6-pin headers (\verb|J2|, \verb|J4|), and four 8-pin headers (\verb|J1|, \verb|J3|, \verb|J6|, \verb|J7|) along the sides of the board. There are alos two 4-pin headers glued on the bottom side of the board. These are the functions of each header:
+In the middle of the board, there are two 18-pin headers \verb|EXT1| and \verb|EXT3|, and two 11-pin headers \verb|EXT2| and \verb|EXT4|. These headers are used to seat the ESCON modules. There are also four 2-pin headers (\verb|J10|, \verb|J11|, \verb|J12|, \verb|J16|), one 5-pin header (\verb|J5|), two 6-pin headers (\verb|J2|, \verb|J4|), and four 8-pin headers (\verb|J1|, \verb|J3|, \verb|J6|, \verb|J7|) along the sides of the board. There are also two 4-pin headers glued on the bottom side of the board.
 
 Headers \verb|EXT1| and \verb|EXT2| are used to seat the handlebar motor's ESCON module.
 
 Headers \verb|EXT3| and \verb|EXT4| are used to seat the fork motor's ESCON module.
 
-2-pin headers:
-\begin{itemize}[noitemsep]
-  \item \verb|J10| -- Cable labelled \verb|Analog output, handlebar motor|.
-  \item \verb|J11| -- Cable labelled \verb|Analog output, fork motor|.
-  \item \verb|J12| -- Cable labelled \verb|Torque sensor value|.
-  \item \verb|J16| -- Cable labelled \verb|Torque sensor measure enable|.
-\end{itemize}
-
-5-pin header \verb|J5|: wire labelled \verb|Output torque sensor| is connected to the \verb|VAL| pin, while the red and black cables going to the protoboard are connected to the \verb|+18V| and \verb|GND| pins, respectively.
-
-6-pin headers:
-\begin{itemize}[noitemsep]
-  \item \verb|J2| -- Cable labelled \verb|9.|.
-  \item \verb|J4| -- Cable labelled \verb|13|.
-\end{itemize}
-
-8-pin headers:
-\begin{itemize}[noitemsep]
-  \item \verb|J1| -- Cable labelled \verb|10|.
-  \item \verb|J3| -- Cable labelled \verb|14|.
-  \item \verb|J6| -- Cable labelled \verb|3|.
-  \item \verb|J7| -- Cable labelled \verb|7|.
-\end{itemize}
-
-Glued 4-pin headers:
-\begin{itemize}[noitemsep]
-  \item The header under the inductor -- Cable labelled \verb|11|.
-  \item The header not under the inductor -- Cable labelled \verb|12|.
-\end{itemize}
+Other headers are connected according to Table \ref{tab:mc_power}.
 
 \section{Protoboard}
 There is a protoboard containing two IC chips, 2 capacitors and a couple of resistors. The two ICs are \href{https://www.ti.com/lit/ds/symlink/ina125.pdf}{INA125P}\footnote{\href{https://www.ti.com/lit/ds/symlink/ina125.pdf}{https://www.ti.com/lit/ds/symlink/ina125.pdf}} amplifiers. The analog torque sensor and force transducer go through these amplifiers. Each chip has 16 pins.
