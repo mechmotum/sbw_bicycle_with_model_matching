@@ -492,7 +492,7 @@ void haptics(){
   #if USE_BT
   //------------------------- Printing to Bluetooth --------------------------//
     // Limit the printing rate
-    if (haptics_iteration_counter % 5 == 0){
+    if (hand_switch_state == 1 && haptics_iteration_counter % 5 == 0){
       Serial1.print(hand_switch_state);
       Serial1.print(",");
       Serial1.println(angle_fork, 2);
