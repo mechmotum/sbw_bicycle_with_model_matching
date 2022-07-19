@@ -1,11 +1,13 @@
-function options = readyTraining1(options, mpc_first)
+function options = readyTraining1(options, group)
 
     options.lookupBreakpoints = 1:7;
     options.trialLength = 7;
-    if mpc_first
+    if group == 1
         options.lookupValues = [ones(1, 6), 0];
-    else
+    elseif group == 2
         options.lookupValues = [zeros(1, 7)];
+    else
+        disp("Wrong group number!");
     end
 
 end
