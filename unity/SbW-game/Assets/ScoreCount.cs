@@ -18,9 +18,9 @@ public class ScoreCount : MonoBehaviour
     	void Update()
     	{
         	float bikePos = GameObject.Find("UDPComms").GetComponent<UDPReceive>().vivePos;
-        	float gatePos = GameObject.Find("Ground/Gate").GetComponent<GatesLoc>().gateXloc;
-        	bool gateFound = GameObject.Find("Ground/Gate").GetComponent<GatesLoc>().gateFound;
-        	int gateIndex = GameObject.Find("Ground/Gate").GetComponent<GatesLoc>().gateZloc;
+        	float gatePos = GameObject.Find("Ground/SoftStar").GetComponent<GatesLoc>().gateXloc;
+        	bool gateFound = GameObject.Find("Ground/SoftStar").GetComponent<GatesLoc>().gateFound;
+        	int gateIndex = GameObject.Find("Ground/SoftStar").GetComponent<GatesLoc>().gateZloc;
 		int endTrial = GameObject.Find("UDPComms").GetComponent<UDPReceive>().endTrial;
 		if (endTrial == 0) {
 			if (gateFound && gateIndex < 2)
