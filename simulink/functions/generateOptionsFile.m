@@ -15,7 +15,7 @@ opts.blockLength = 10;      % Number of gates in one block [-]
 opts.gateNumber = 7;        % Number of different gate positions [-]
 opts.maxWidth = 0.2;        % The furthest lateral displacement of the gate [m]
                             % (from the centre of the treadmill)
-opts.randSeed = 20220705;   % Random seed for the randomized gate positions [-]
+opts.randSeed = 20220729;   % Random seed for the randomized gate positions [-]
 
 % User-settable options --- Bicycle parameters
 opts.trackerHeight = 0.9;   % Height of the tracker relative to ground [m]
@@ -34,9 +34,9 @@ opts.lb_x = -opts.ub_x;
 opts.lb_u = -opts.ub_u;
 
 % User-settable options --- Cost weights
-opts.Q1 = 4;                % Position weight [-]
+opts.Q1 = 10;                % Position weight [-]
 opts.Q2 = 10;               % Yaw weight [-]
-opts.Q3 = 5;                % Lean weight [-]
+opts.Q3 = 3;                % Lean weight [-]
 opts.R = 1;                 % Input weight [-]
 
 % Calculated options

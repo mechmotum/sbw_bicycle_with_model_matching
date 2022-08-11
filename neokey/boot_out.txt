@@ -1,0 +1,2 @@
+Adafruit CircuitPython 7.2.5 on 2022-04-06; Adafruit NeoKey Trinkey M0 with samd21e18
+Board ID:adafruit_neokey_trinkey_m0

@@ -5,7 +5,7 @@ The Teensy is responsible for running the PD controller that makes sure that the
 and fork angles match up.
 
 ## File structure
-`lib/` - This folder contains the required external libraries. Currently only Bolderflight's MPU9250 library and its dependencies are included here. Other libraries (`Encoder`, `SPI`, `SD`, `TeensyThreads`) are standard Teensy 4.1 libraries and come in-built.
+`lib/` - This folder contains the required external libraries. Currently, you can find Bolderflight's MPU9250 library and its dependencies, as well as RF24 for the radio communication, and SdFat for the SD card logging. Libraries like `Arduino`, `Encoder`, `SPI`, `RingBuf` are either standard Teensy 4.1 libraries, standard PlatformIO libraries, or included with previously mentioned libraries.
 
 `src/` - This folder contains the main code base. Currently, everything is contained in the `main.cpp` file.
 

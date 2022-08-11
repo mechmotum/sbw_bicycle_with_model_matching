@@ -66,12 +66,12 @@ simulinkStructInitial = simulinkStruct.signals.values(1,:);
 QstructInitial = Qstruct.signals.values(1,:);
 blockCounterStruct.signals.values = ...
     zeros(size(simulinkStruct.signals.values, 1), 1);
-blockCounterStruct.signals.values(end) = 1; %size(simulinkStruct.signals.values, 1)
+blockCounterStruct.signals.values(end) = 1;
 
 %% Write strings containing the reference for Unity
 % Create a format string
-str_one_val = ",%.2f";
-str_all_val = "%.2f";
+str_one_val = ",%.3f";
+str_all_val = "%.3f";
 for i = 1 : nU - 1
     str_all_val = str_all_val + str_one_val;
 end

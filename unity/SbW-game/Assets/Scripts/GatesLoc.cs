@@ -10,6 +10,8 @@ public class GatesLoc : MonoBehaviour
 	public int gateZloc;
 	public bool gateFound = false;
 	public float gateXloc;
+	
+	//int DebugCount = 0;
    			       
 	void Start() 
 	{
@@ -30,7 +32,7 @@ public class GatesLoc : MonoBehaviour
 		float gateZ = 0f;
 		for (int i = 0; i < numOfPoints; i++)
 		{
-			if (allGateX[i] != "99.00")
+			if (allGateX[i] != "99.000")
 			{
 				// Gate found, save its X position and Z index
 				gateXloc = float.Parse(allGateX[i]);
@@ -58,6 +60,7 @@ public class GatesLoc : MonoBehaviour
 		int currentLine = GameObject.Find("UDPComms").GetComponent<UDPReceive>().currLine;
     		// Extract and render the reference at current time
 		string[] allGateX = allGates[currentLine].Trim().Split(',');
+		//string[] allGateX = allGates[DebugCount].Trim().Split(',');
     		Vector3 gateLoc = new Vector3();
     		// Search if there are gates at this point in time
 		gateFound = false;
@@ -65,7 +68,7 @@ public class GatesLoc : MonoBehaviour
 		float gateZ = 0f;
     		for (int i = 0; i < numOfPoints; i++)
 		{
-			if (allGateX[i] != "99.00")
+			if (allGateX[i] != "99.000")
 			{
 				// Gate found, save its X position and Z index
 				gateXloc = float.Parse(allGateX[i]);
@@ -86,5 +89,6 @@ public class GatesLoc : MonoBehaviour
 			gateLoc.Set(0.0f, 1.35f, -0.6f); // If no gate, place it behind the bicycle
 		}
     		transform.localPosition = gateLoc; // Render
+		//DebugCount = (DebugCount + 1) % numOfLines;
     	}
 }

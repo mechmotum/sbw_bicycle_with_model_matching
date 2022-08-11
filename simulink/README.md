@@ -47,7 +47,7 @@ The options are:
 - `blockLength` - trials are split into blocks, each of which consists of `blockLength` number of gates. Default value - `10`
 - `gateNumber` - the number of different possible positions of the gates. Default value - `7`
 - `maxWidth` - the furthest lateral position of the centre of the gate, relative to the centre of the treadmill, in meters. Default value - `0.2`
-- `randSeed` - the seed to generate pseudo-random gate positions. Default value - `20220705`
+- `randSeed` - the seed to generate pseudo-random gate positions. Default value - `20220729`
 - `trackerHeight` - the height of the HTC Vive Tracker, relative to the rear wheel contact point, in meters. Default value - `0.9`
 - `steerTorqueLim` - maximum allowed torque coming from the controller, in Newton-meters. Default value - `3`
 - `fCutoff` - the cutoff frequency for the low-pass filter, in Hertz. Default value - `8`
@@ -56,9 +56,9 @@ The options are:
   - `lb_x = -ub_x`
   - `ub_u = steerTorqueLim`
   - `lb_u = -ub_u`
-- `Q1` - maximum value of the MPC weight for the lateral position. Default value - `4`
+- `Q1` - maximum value of the MPC weight for the lateral position. Default value - `10`
 - `Q2` - maximum value of the MPC weight for the yaw. Default value - `10`
-- `Q3` - maximum value of the MPC weight for the lean. Default value - `5`
+- `Q3` - maximum value of the MPC weight for the lean. Default value - `3`
 - `R` - MPC weight on the control command. Default value - `1`
 - `Tend` - length of one block, in seconds. Calculated from `Tinterval * blockLength`
 - `nSH` - number of steps in the MPC (Simulink) horizon. Calculated from `TShorizon / Ts_mpc`
@@ -70,8 +70,7 @@ The options are:
 
 `./functions/` - Contains MATLAB functions:
   - To calculate and generate required variables for the MPC controller (`generateOptionsFile.m`, `generateMatrices.m`, `generateReference.m`);
-  - To set up other experiment trials (`readyBaseline.m`, `readyTraining1.m`, `readyTraining2.m`, `readyRetention.m`);
-  - To calculate the average score in a trial (`getBaselineScore.m`).
+  - To set up other experiment trials (`readyTraining1.m`, `readyTraining2.m`, `readyRetention.m`);
 
 `./mat_files/` - Contains `.mat` files needed by `main.m`:
   - `bike_ss.mat` contains a continuous state space model of the bicycle. By default it uses the "Rigid Rider bicycle" model. Obtained by using the scripts of [Jason K. Moore](https://github.com/moorepants/HumanControl).

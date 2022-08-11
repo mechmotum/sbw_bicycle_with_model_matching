@@ -12,6 +12,7 @@
 #include <os_generic.h>
 
 static volatile int keepRunning = 1;
+volatile int count = 0;
 
 #ifdef __linux__
 
@@ -28,7 +29,7 @@ void intHandler(int dummy) {
 #endif
 
 #define SERVERPORT "4950"
-#define SENDTOIP "192.168.137.1"
+#define SENDTOIP "192.168.200.110"
 
 static void log_fn(SurviveSimpleContext *actx, SurviveLogLevel logLevel, const char *msg) {
 	fprintf(stderr, "(%7.3f) SimpleApi: %s\n", survive_simple_run_time(actx), msg);
@@ -83,12 +84,12 @@ int main(int argc, char **argv) {
 			SurviveVelocity vel = pose_event->velocity;
 
 			int n = sprintf(msg, "%7.3f,%4.3f,%4.3f,%4.3f,%4.3f,%4.3f,%4.3f,%4.3f\n",
-				timecode, 
+				timecode,
 				pose.Pos[0], pose.Pos[1], pose.Pos[2],
 				pose.Rot[0], pose.Rot[1], pose.Rot[2], pose.Rot[3]);
 
 			sendto(sockfd, msg, n, 0, p->ai_addr, p->ai_addrlen);
-			if (count == 500) {
+			if (count == 5) {
 				printf("(%7.3f) %4.3f %4.3f %4.3f\n", timecode, pose.Pos[0], pose.Pos[1], pose.Pos[2]);
 				count = 0;
 			}

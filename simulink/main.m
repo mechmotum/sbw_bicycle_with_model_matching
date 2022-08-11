@@ -26,7 +26,7 @@ end
 load("matrices.mat");
 
 %% Load settings for the Familiarization + Baseline test
-opts = readyBaseline(opts);
+opts = readyFamiliarisation(opts);
 
 %% Open Simulink
 open_system("getAngleBias.slx");

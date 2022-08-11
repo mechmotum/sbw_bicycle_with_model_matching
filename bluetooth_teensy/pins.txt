@@ -1,0 +1,10 @@
+Teensy 4.1  --- BT Module
+Pin 0 (RX1) <-> TXD
+Pin 1 (TX1) <-> RXD
+GND         <-> GND
+VIN (5V)*    <-> VCC 
+
+*While the VIN is supposed to be used as power IN, here we are using it as
+power OUT to the BT module. Since VUSB and VIN are connected, 5V are coming
+through USB and BT module siphons off some current from the USB. It should be
+fine as long as BT module current is low
