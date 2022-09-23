@@ -35,4 +35,4 @@ Building on Georgios Dialynas' work:
 - $T_g$ is the ground reaction torque
 - $y$ is the lateral position of the rear wheel
 - $\psi$ is the yaw angle
-- $\phi$ is the roll angle
+- $\varphi$ is the roll angle
