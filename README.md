@@ -28,11 +28,11 @@ Building on Georgios Dialynas' work:
 
 ![Block diagram](/block_diagram.png)
 
-$\theta$ is the handlebar angle
-$\delta$ is the fork angle
-$e$ is the angular error
-$T_h$ is the human torque
-$T_g$ is the ground reaction torque
-$y$ is the lateral position of the rear wheel
-$\psi$ is the yaw angle
-$\phi$ is the roll angle
+- $\theta$ is the handlebar angle
+- $\delta$ is the fork angle
+- $e$ is the angular error
+- $T_h$ is the human torque
+- $T_g$ is the ground reaction torque
+- $y$ is the lateral position of the rear wheel
+- $\psi$ is the yaw angle
+- $\phi$ is the roll angle
