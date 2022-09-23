@@ -23,3 +23,16 @@ Building on Georgios Dialynas' work:
 `unity/SbW-game/` - Contains the visualisation of the reference line that needs to be tracked. Developed in Unity.
 
 `unity/SbW-game-built/` - Contains the binaries built from `unity/SbW-game/`. Built for Windows 64-bit.
+
+## Block diagram of the bicycle
+
+![Block diagram](/block_diagram.png)
+
+$\theta$ is the handlebar angle
+$\delta$ is the fork angle
+$e$ is the angular error
+$T_h$ is the human torque
+$T_g$ is the ground reaction torque
+$y$ is the lateral position of the rear wheel
+$\psi$ is the yaw angle
+$\phi$ is the roll angle
