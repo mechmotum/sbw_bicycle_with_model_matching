@@ -1,0 +1,8 @@
+[_] read how the encoders work and interface with the teensy
+    [_] How to read the encoders. (Open communication by setting chip select HIGH -> read value -> close communication)
+    [_] Why open and close communication, cant it stay open? 
+    [_] What is chip select
+    [_] How does it work in general? (seems like he only shuts down once and never restarts...)
+[_] What is analogWriteResoltion
+[_] analogWrite(pwm_pin_fork, 16384); what does this value mean
+[_] How to communicate with the motors

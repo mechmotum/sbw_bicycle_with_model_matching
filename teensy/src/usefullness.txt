@@ -1,0 +1,3 @@
+SPI: connection protocol to Encoder, IMU
+
+calibrate the encoders!
