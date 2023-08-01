@@ -1,10 +1,11 @@
 #include <Arduino.h>
 #include <SPI.h> 
 #include <Encoder.h>
-#include "mpu9250.h" // https://github.com/bolderflight/MPU9250
 #include "SdFat.h"
 #include "RingBuf.h"
-#include "RF24.h"
+#include "mpu9250.h"
+// #include "RF24.h"
+// #include "mpu9250.h" // https://github.com/bolderflight/MPU9250
 
 //=============================== Definitions ================================//
 #define USE_IMU 0
@@ -107,12 +108,12 @@ uint8_t hand_switch_state_prev = 0;
 //   double radio_message = 0.0; // Decoded message. Needs to be double
 // #endif
 //------------------------------ Bluetooth -----------------------------------//
-#if USE_BT
-  const byte bt_message_length = 8; // Length of the message
-  char bt_message_string[bt_message_length]; // Message array
-  double bt_message_double = 0.0; // Message
-  bool bt_message_new = false;
-#endif
+// #if USE_BT
+//   const byte bt_message_length = 8; // Length of the message
+//   char bt_message_string[bt_message_length]; // Message array
+//   double bt_message_double = 0.0; // Message
+//   bool bt_message_new = false;
+// #endif
 //--------------------------- SD Card Logging --------------------------------//
 #if USE_SD
   // The maximum expected legth of one sample of data. In bytes
