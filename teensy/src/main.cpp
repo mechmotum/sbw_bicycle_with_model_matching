@@ -1,32 +1,23 @@
 #include <Arduino.h>
-#include <SPI.h> 
+#include <SPI.h>
 #include <Encoder.h>
 #include "SdFat.h"
 #include "RingBuf.h"
-#include "mpu9250.h"
-// #include "RF24.h"
-// #include "mpu9250.h" // https://github.com/bolderflight/MPU9250
+#include "mpu9250.h" //https://github.com/bolderflight/MPU9250
+
 
 //=============================== Definitions ================================//
-#define USE_IMU 0
-#define USE_SD 0
-// #define USE_RADIO 0
-// #define USE_BT 1
-#define USE_ANALOG 0
-#define USE_ENCODERS 0
-#define SERIAL_DEBUG 0
+#define USE_IMU 1
+#define USE_SD 1
+#define USE_ANALOG 1
+#define USE_ENCODERS 1
+#define SERIAL_DEBUG 1
 
 //=========================== Function definitions ===========================//
-// void setup();
-// void loop();
 void haptics();
 float return_scaling(uint64_t iteration);
 //float moving_avg(float new_value);
 uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
-// #if USE_BT
-//   void bt_read();
-//   void bt_parse();
-// #endif
 #if USE_SD
   void openFile();
 #endif
@@ -97,23 +88,6 @@ uint8_t hand_switch_state_prev = 0;
   const uint8_t cs_imu = 10; // SPI Chip Select for MPU9250
   bfs::Mpu9250 IMU(&SPI, cs_imu); // MPU9250 object
 #endif
-//-------------------------------- Radio -------------------------------------//
-// #if USE_RADIO
-//   const uint8_t cs_radio = 38; // SPI Chip Select for nRF24 radio
-//   const uint8_t radio_enable = 37; // Make HIGH to enable the radio
-//   RF24 radio(radio_enable, cs_radio, 1000000); // 1MHz SPI frequency
-//   uint8_t radioAddresses[][6] = {"1Node", "2Node"};
-//   uint8_t thisRadio = 0; // Set to 1 on the MPC radio
-//   double messageRecv = 0.0; // Received message. Can be any type
-//   double radio_message = 0.0; // Decoded message. Needs to be double
-// #endif
-//------------------------------ Bluetooth -----------------------------------//
-// #if USE_BT
-//   const byte bt_message_length = 8; // Length of the message
-//   char bt_message_string[bt_message_length]; // Message array
-//   double bt_message_double = 0.0; // Message
-//   bool bt_message_new = false;
-// #endif
 //--------------------------- SD Card Logging --------------------------------//
 #if USE_SD
   // The maximum expected legth of one sample of data. In bytes
@@ -176,9 +150,6 @@ void setup(){
 
 
   // Setup optional features
-  // #if USE_BT
-  //   Serial1.begin(115200); // Bluetooth module
-  // #endif
   #if USE_IMU
     pinMode(cs_imu, OUTPUT);
     digitalWrite(cs_imu, HIGH);
@@ -213,34 +184,6 @@ void setup(){
     }
   #endif
   
-  #if USE_RADIO
-    SPI1.begin();
-    SPI1.setMISO(39);
-    if (!radio.begin(&SPI1)) {
-      Serial.println("Failed to initialise the radio");
-      // Long-short error code (-.)
-      while (1) {
-        digitalWrite(hand_led, HIGH);
-        delay(1000);
-        digitalWrite(hand_led, LOW);
-        delay(500);
-        digitalWrite(hand_led, HIGH);
-        delay(500);
-        digitalWrite(hand_led, LOW);
-        delay(500);
-      }
-    }
-    radio.setPALevel(RF24_PA_HIGH);
-    radio.setDataRate(RF24_2MBPS);
-    radio.setChannel(46);
-    radio.setPayloadSize(32);
-    radio.openWritingPipe(radioAddresses[thisRadio]);
-    radio.openReadingPipe(1, radioAddresses[!thisRadio]);
-    radio.setAutoAck(false);
-    radio.setCRCLength(RF24_CRC_16);
-    radio.startListening();
-  #endif
-
   delay(1);
   sinceLast = 0;
 }
@@ -253,27 +196,6 @@ void loop(){
 
   if (sinceLast >= 1000){
     sinceLast = sinceLast - 1000; // Reset the counter
-
-    // #if USE_RADIO
-    //   // Currently set up for debugging
-    //   // TODO: adjust for normal use
-    //   if (radio.available()) {
-    //     float payloadRecv;
-    //     radio.read(&payloadRecv, sizeof(payloadRecv));
-    //     Serial.print(haptics_iteration_counter);
-    //     Serial.write(',');
-    //     Serial.print(sinceLast);
-    //     Serial.write(',');
-    //     Serial.println(payloadRecv);
-    //     radio_message = payloadRecv;
-    //   }
-    // #endif
-
-    // #if USE_BT
-    //   // Read Bluetooth, see if there's a new message
-    //   bt_read();
-    //   bt_parse();
-    // #endif
 
     // Turn on LED when bike is ready
     if (haptics_iteration_counter >= 13000) 
@@ -295,10 +217,6 @@ void loop(){
 //============================== Haptics =====================================//
 void haptics(){
   //----------------------- Increase counters --------------------------------//
-  // if (hand_switch_state == 1 && hand_switch_state_prev == 0) 
-  //   mpc_iteration_counter = 8000;
-  // else if (hand_switch_state == 1) 
-  //   mpc_iteration_counter += 1;
   haptics_iteration_counter += 1;
 
   //---------------- SPI communication with Handlebar encoder ----------------//
@@ -389,19 +307,6 @@ void haptics(){
   //---------------------- Calculate PID fork torque -------------------------//
   double command_fork = (Kp_f*(angle_hand - angle_fork) + Kd_f*error);
   command_fork = command_fork / return_scaling(haptics_iteration_counter);
-  // Add MPC if the swith is 1
-  // #if USE_RADIO
-  //   if (haptics_iteration_counter >= 13000 && hand_switch_state == 1) {
-  //     command_fork = command_fork + 
-  //       radio_message / return_scaling(mpc_iteration_counter);
-  //   }	
-  // #endif
-  // #if USE_BT
-  //   if (haptics_iteration_counter >= 13000 && hand_switch_state == 1) {
-  //     command_fork = command_fork + 
-  //       bt_message_double / return_scaling(mpc_iteration_counter);
-  //   }
-  // #endif
   
   //---------------------- Find the fork PWM command -------------------------//
   uint64_t pwm_command_fork = (command_fork * -842.795 + 16384);
@@ -412,21 +317,7 @@ void haptics(){
   //--------------------- Calculate PID handlebar torque ---------------------//
   double command_hand = (Kp_h*(angle_hand - angle_fork) + Kd_h*error);
   command_hand = command_hand / return_scaling(haptics_iteration_counter);
-  // Add MPC if the swith is 1
-  // Sign of message needs to be flipped to ensure both motors rotate
-  // the same way and according to Whipple-Carvallo
-  // #if USE_RADIO
-  //   if (haptics_iteration_counter >= 13000 && hand_switch_state == 1) {
-  //     command_hand = command_hand - 
-  //       radio_message / return_scaling(mpc_iteration_counter);
-  //   }
-  // #endif
-  // #if USE_BT
-  //   if (haptics_iteration_counter >= 13000 && hand_switch_state == 1) {
-  //     command_hand = command_hand - 
-  //       bt_message_double / return_scaling(mpc_iteration_counter);
-  //   }
-  // #endif
+
   
   //-------------------- Find the handlebar PWM command ----------------------//
   uint64_t pwm_command_hand = (command_hand * -842.795 + 16384); //K: magic numbers, what do they mean :s
@@ -522,29 +413,6 @@ void haptics(){
     }
   #endif
 
-  // #if USE_BT
-  // //------------------------- Printing to Bluetooth --------------------------//
-  //   // Limit the printing rate
-  //   if (hand_switch_state == 1 && haptics_iteration_counter % 5 == 0){
-  //     Serial1.print(hand_switch_state);
-  //     Serial1.print(",");
-  //     Serial1.println(angle_fork, 2);
-  //   }
-  // #endif
-  
-  // #if USE_RADIO
-  // //--------------------------- Printing to Radio ----------------------------//
-  //   // Limit the printing rate
-  //   if (haptics_iteration_counter % 10 == 0){
-  //     radio.stopListening();
-  //     char payloadSend[32];
-  //     sprintf(payloadSend, "%d,%.4f,%.4f", 
-  //       hand_switch_state, angle_hand, filtered_angle_rate);
-  //     radio.write(payloadSend, 32);
-  //     radio.startListening();
-  //   }
-  // #endif
-
   //-------------------------- Printing to SD card ---------------------------//
   #if USE_SD
     size_t n = rb.bytesUsed();
@@ -569,10 +437,10 @@ void haptics(){
       rb.write(',');
       rb.print(angle_fork,2);
       rb.write(',');
-      rb.print(angle_rate,2);
-      rb.write(',');
-      rb.print(filtered_angle_rate,2);
-      rb.write(',');
+      // rb.print(angle_rate,2);
+      // rb.write(',');
+      // rb.print(filtered_angle_rate,2);
+      // rb.write(',');
       rb.print(error,2);
       rb.write(',');
       rb.print(command_fork,2);
@@ -657,37 +525,6 @@ uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size){
   return 0;
 }
 
-// #if USE_BT
-//   void bt_read(){
-//     static byte ndx = 0;
-//     char endMarker = '\n';
-//     char rc;
-
-//     while (Serial1.available() > 0 && bt_message_new == false){
-//       rc = Serial1.read();
-//       if (rc != endMarker){
-//         bt_message_string[ndx] = rc;
-//         ndx++;
-//         if (ndx >= bt_message_length){
-//           ndx = bt_message_length - 1;
-//         }
-//       }
-//       else{
-//         bt_message_string[ndx] = '\0'; // terminate the string
-//         ndx = 0;
-//         bt_message_new = true;
-//       }
-//     }
-//   }
-
-//   void bt_parse(){
-//     if (bt_message_new == true){
-//       bt_message_double = atof(bt_message_string);
-//       bt_message_new = false;
-//     }
-//   }
-// #endif
-
 #if USE_SD
   void openFile() {
     String fullFileName = fileName + String(fileCount) + fileExt;
@@ -722,25 +559,15 @@ uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size){
     rb.write(',');
     rb.print("angle_fork");
     rb.write(',');
-    rb.print("angle_rate");
-    rb.write(',');
-    rb.print("filtered_angle_rate");
-    rb.write(',');
+    // rb.print("angle_rate");
+    // rb.write(',');
+    // rb.print("filtered_angle_rate");
+    // rb.write(',');
     rb.print("error");
     rb.write(',');
     rb.print("command_fork");
     rb.write(',');
     rb.print("command_hand");
-    // #if USE_BT
-    //   rb.write(',');
-    //   rb.print("bt_message_double");
-    // #endif
-    // #if USE_RADIO
-    //   rb.write(',');
-    //   rb.print("radio_message");
-    //   rb.write(',');
-    //   rb.print("payloadRecv");
-    // #endif
     #if USE_IMU
       rb.write(',');
       rb.print("gyroX");
