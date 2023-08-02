@@ -22,6 +22,28 @@ uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
   void openFile();
 #endif
 
+//=========================== Magic Number Defines ===============================//
+const uint8_t PWM_RESOLUTION = 15;
+const float PWM_FREQUENCY = 4577.64;
+const uint32_t PWM_MAX_VAL = (1 << PWM_RESOLUTION) - 1;
+const uint32_t HAND_PWM_MAX = PWM_MAX_VAL;
+const uint32_t HAND_PWM_MIN = 0;
+const uint32_t FORK_PWM_MAX = PWM_MAX_VAL;
+const uint32_t FORK_PWM_MIN = 0;
+const uint16_t INITIAL_FORK_PWM = 0;
+const uint16_t INITIAL_STEER_PWM = 0;
+const uint16_t MIN_LOOP_LENGTH_MU = 1000;
+const uint16_t HAPTIC_STARTUP_ITTERATIONS = 13000;
+const uint16_t ENCODER_CLK_FREQ = 225000; //clock frequency for the encoders SPI protocol
+const float HAND_ENC_BIAS = 153.65;
+const float FORK_ENC_BIAS = 100.65;
+const float HAND_ENC_MAX_VAL = 8191.0;
+const float FORK_ENC_MAX_VAL = 8191.0;
+const float FULL_ROTATION_DEG = 360.0;
+const float HALF_ROTATION_DEG = 180.0;
+const float MECHANICAL_LIMIT = 42.0;
+
+
 //=========================== Global Variables ===============================//
 //------------------------------- Minimal ------------------------------------//
 // Pins
@@ -34,6 +56,10 @@ const uint8_t enable_fork = 30; // Turn the fork motor on or off
 const uint8_t enable_encoder = 31; // HIGH to send power to the encoders
 const uint8_t hand_led = 32; // LED installed on the handlebars
 const uint8_t hand_switch = 28; // Switch installed on the handlebars
+const uint8_t encdr_pin1_wheel = 2; //1 of 2 pins to read out the wheel encoder
+const uint8_t encdr_pin2_wheel = 3; //1 of 2 pins to read out the wheel encoder
+const uint8_t encdr_pin1_pedal = 23; //1 of 2 pins to read out the pedal encoder
+const uint8_t encdr_pin2_pedal = 22; //1 of 2 pins to read out the pedal encoder
 // Haptics
 float error_prev = 0.0f;
 uint32_t error_time_prev = 0.0f;
@@ -74,11 +100,11 @@ uint8_t hand_switch_state_prev = 0;
 #endif
 //------------------- Wheel Speed and Cadence Encoders -----------------------//
 #if USE_ENCODERS
-  Encoder wheel_counter(2, 3); // Rear wheel speed encoder
+  Encoder wheel_counter(encdr_pin1_wheel, encdr_pin2_wheel); // Rear wheel speed encoder
   const uint32_t WHEEL_COUNTS_LENGTH = 200;
   int32_t wheel_counts[WHEEL_COUNTS_LENGTH] = {0};
   uint32_t wheel_counts_index = 0;
-  Encoder pedal_counter(23, 22); // Pedal cadence encoder
+  Encoder pedal_counter(encdr_pin1_pedal, encdr_pin2_pedal); // Pedal cadence encoder
   const uint32_t PEDAL_COUNTS_LENGTH = 500;
   int32_t pedal_counts[PEDAL_COUNTS_LENGTH] = {0};
   uint32_t pedal_counts_index = 0;
@@ -125,6 +151,7 @@ void setup(){
   digitalWrite(enable_encoder, HIGH); // HIGH to enable power to the encoders
 
   pinMode(hand_led, OUTPUT);
+  digitalWrite(hand_led, LOW);
 
   pinMode(enable_fork, OUTPUT);
   digitalWrite(enable_fork, HIGH); // Set HIGH to enable motor
@@ -134,15 +161,15 @@ void setup(){
 
 
   // Setup PWM pins
-  analogWriteResolution(15);
+  analogWriteResolution(PWM_RESOLUTION);
 
   pinMode(pwm_pin_fork, OUTPUT);
-  analogWriteFrequency(pwm_pin_fork, 4577.64);
-  analogWrite(pwm_pin_fork, 16384);
+  analogWriteFrequency(pwm_pin_fork, PWM_FREQUENCY);
+  analogWrite(pwm_pin_fork, INITIAL_FORK_PWM);
 
   pinMode(pwm_pin_hand, OUTPUT);
-  analogWriteFrequency(pwm_pin_hand, 4577.64);
-  analogWrite(pwm_pin_hand, 16384);
+  analogWriteFrequency(pwm_pin_hand, PWM_FREQUENCY);
+  analogWrite(pwm_pin_hand, INITIAL_STEER_PWM);
 
 
   // Setup INPUT pins
@@ -194,11 +221,11 @@ void loop(){
     if (!isOpen) openFile();
   #endif
 
-  if (sinceLast >= 1000){
-    sinceLast = sinceLast - 1000; // Reset the counter
+  if (sinceLast >= MIN_LOOP_LENGTH_MU){
+    sinceLast = sinceLast - MIN_LOOP_LENGTH_MU; // Reset the counter
 
     // Turn on LED when bike is ready
-    if (haptics_iteration_counter >= 13000) 
+    if (haptics_iteration_counter >= HAPTIC_STARTUP_ITTERATIONS) 
       digitalWrite(hand_led, HIGH);
 
     // // Read the switch state
@@ -217,7 +244,7 @@ void loop(){
 //============================== Haptics =====================================//
 void haptics(){
   //----------------------- Increase counters --------------------------------//
-  haptics_iteration_counter += 1;
+  haptics_iteration_counter++;
 
   //---------------- SPI communication with Handlebar encoder ----------------//
   #if USE_IMU
@@ -225,11 +252,17 @@ void haptics(){
   #endif
   digitalWrite(cs_fork, HIGH); // HIGH to disable fork encoder communication
   
+  // Look at:
+  // https://en.wikipedia.org/wiki/Synchronous_Serial_Interface
+  // https://en.wikipedia.org/wiki/Serial_Peripheral_Interface
+  // https://arduino.stackexchange.com/questions/55470/interfacing-with-an-ssi-sensor
+  // data sheet of RMB20SC
+  // encoder uses 13 bits
   // Set frequency to 125 Khz-4 Mhz 
   // encoder transmit first the MSB
   // Clock Idles High Latch on the initial clock edge
-  // sample on the subsequent edge
-  SPI.beginTransaction(SPISettings(225000, MSBFIRST, SPI_MODE3));
+  // sample on the subsequent edge K:--> thus remove msb0
+  SPI.beginTransaction(SPISettings(ENCODER_CLK_FREQ, MSBFIRST, SPI_MODE3));
   digitalWrite(cs_hand, LOW); // LOW to enable handlebar encoder communication
   // Transfer 16 bits to MOSI and read what comes back to MISO
   uint16_t hand_dac = SPI.transfer16(0); 
@@ -237,12 +270,12 @@ void haptics(){
   // First AND bit operator is used bit mask 0111 1111 1111 1111 
   // the 16bit is set to zero.
   hand_dac = (hand_dac & 0x7fff) >> 2;
-  digitalWrite(cs_hand, HIGH); // HIGH to disable handlebar encoder communication
+  digitalWrite(cs_hand, HIGH); // HIGH to disable handlebar encoder communication. K: also stop clock and thus communicate EOT to ssi interface.
   SPI.endTransaction();
 
 
   //------------------ SPI communication with Fork encoder -------------------//
-  SPI.beginTransaction(SPISettings(225000, MSBFIRST, SPI_MODE3));
+  SPI.beginTransaction(SPISettings(ENCODER_CLK_FREQ, MSBFIRST, SPI_MODE3));
   digitalWrite(cs_fork, LOW); // LOW to enable fork encoder communication
   uint16_t fork_dac = SPI.transfer16(0);
   fork_dac = (fork_dac & 0x7fff) >> 2;
@@ -261,22 +294,23 @@ void haptics(){
   */
   // Encoder counts to degrees. 152.20 is the offset (angle_hand-angle_fork).
   // 153.65
-  float angle_hand = (float)hand_dac * 360.0f / 8191.0f - 153.65f; 
-  if (angle_hand > 180.0f) // CCW handlebar rotation gives 360 deg-> 310 deg.
-    angle_hand = angle_hand - 360.0f; // Subtract 360 to get 0-180 deg CCW
+  float angle_hand = ((float)hand_dac / HAND_ENC_MAX_VAL) * FULL_ROTATION_DEG - HAND_ENC_BIAS; 
+  if (angle_hand > HALF_ROTATION_DEG) // CCW handlebar rotation gives 360 deg-> 310 deg.
+    angle_hand = angle_hand - FULL_ROTATION_DEG; // Subtract 360 to get 0-180 deg CCW
   /* NOTE: The fork mechanical range is +- 42 degrees.
     Handlebars do not have a mechanical limit.
-    Software limits are set below.
+    To relay the mechanical limit of the fork
+    to the steer, software limits are set below.
     If you do not set this limits the motor folds back.
-  */
-  angle_hand = constrain(angle_hand, -42.0f, 42.0f); // Software limits
+  */ //  K: This may cause the oscillations
+  angle_hand = constrain(angle_hand, -MECHANICAL_LIMIT, MECHANICAL_LIMIT); // Software limits
 
   // Encoder counts to degrees. substracting -99.2 deg to align fork with 
   // handlebars and - to get minus values from fork encoder.
   // 100.65
-  float angle_fork = -(float)fork_dac * 360.0f / 8191.0f - 100.65f; 
-  if (angle_fork < -180.0f) // CW fork rotation gives -360 deg-> -310 deg
-    angle_fork = angle_fork + 360.0f; // Add 360 to get 0-180 deg CCW
+  float angle_fork = -((float)fork_dac / FORK_ENC_MAX_VAL) * FULL_ROTATION_DEG - FORK_ENC_BIAS; 
+  if (angle_fork < -HALF_ROTATION_DEG) // CW fork rotation gives -360 deg-> -310 deg
+    angle_fork = angle_fork + FULL_ROTATION_DEG; // Add 360 to get 0-180 deg CCW
 
 
   //---------------------- Calculate error derivative ------------------------//
@@ -289,8 +323,7 @@ void haptics(){
   }
   // Calculation of dT in seconds
   uint32_t error_time_curr = micros();
-  float error_time_diff = ((float) (error_time_curr - error_time_prev)) 
-    / 1000000.0f;
+  float error_time_diff = ((float) (error_time_curr - error_time_prev)) / 1000000.0f;
   error_time_prev = error_time_curr;
   // Calculation of dError
   float error_curr = (angle_hand - angle_fork);
@@ -309,8 +342,8 @@ void haptics(){
   command_fork = command_fork / return_scaling(haptics_iteration_counter);
   
   //---------------------- Find the fork PWM command -------------------------//
-  uint64_t pwm_command_fork = (command_fork * -842.795 + 16384);
-  pwm_command_fork = constrain(pwm_command_fork, 0, 32768);
+  uint64_t pwm_command_fork = (command_fork * -842.795 + 16384); //K: FOR THE LOVE OF GOD! WHAT IS THIS!
+  pwm_command_fork = constrain(pwm_command_fork, FORK_PWM_MIN, FORK_PWM_MAX);
   analogWrite(pwm_pin_fork, pwm_command_fork);
 
 
@@ -321,7 +354,7 @@ void haptics(){
   
   //-------------------- Find the handlebar PWM command ----------------------//
   uint64_t pwm_command_hand = (command_hand * -842.795 + 16384); //K: magic numbers, what do they mean :s
-  pwm_command_hand = constrain(pwm_command_hand, 0, 32768);
+  pwm_command_hand = constrain(pwm_command_hand, HAND_PWM_MIN, HAND_PWM_MAX);
   analogWrite(pwm_pin_hand, pwm_command_hand);
 
 
