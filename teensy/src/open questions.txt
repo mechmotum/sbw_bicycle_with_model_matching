@@ -6,3 +6,5 @@
 [_] What is analogWriteResoltion
 [_] analogWrite(pwm_pin_fork, 16384); what does this value mean
 [_] How to communicate with the motors
+[_] Do an encoder test
+[_] Let the iteration counter never overflow

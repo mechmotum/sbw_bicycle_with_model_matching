@@ -5,16 +5,24 @@
 #include "RingBuf.h"
 #include "mpu9250.h" //https://github.com/bolderflight/MPU9250
 
+/* LEFT FOR DOCUMENTATION PURPOSE ONLY [transfer to more appropriate location and remove]
+a_force = 20; // Analog output pin of the force transducer
+a_torque = 21; // Analog output pin of the torque sensor
+a_fork = 40; // Analog output pin of the fork motor drive
+a_hand = 41; // Analog output pin of the handlebar motor drive
+*/
 
-//=============================== Definitions ================================//
+//============================== Compile modes ===============================//
 #define USE_IMU 1
 #define USE_SD 1
 #define USE_ANALOG 1
-#define USE_ENCODERS 1
+#define USE_BIKE_ENCODERS 1
 #define SERIAL_DEBUG 1
 
-//=========================== Function definitions ===========================//
-void haptics();
+//=========================== Function declarations ===========================//
+void do_pd_control();
+uint16_t read_motor_encoder(const uint8_t cs_pin);
+float calc_forwrd_derivative(float val_cur, float& val_prev, elapsedMicros& timer_mu);
 float return_scaling(uint64_t iteration);
 //float moving_avg(float new_value);
 uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
@@ -22,7 +30,9 @@ uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
   void openFile();
 #endif
 
-//=========================== Magic Number Defines ===============================//
+//=========================== Global Variables ===============================//
+//------------------------------ Constants -----------------------------------//
+// PWM
 const uint8_t PWM_RESOLUTION = 15;
 const float PWM_FREQUENCY = 4577.64;
 const uint32_t PWM_MAX_VAL = (1 << PWM_RESOLUTION) - 1;
@@ -32,168 +42,182 @@ const uint32_t FORK_PWM_MAX = PWM_MAX_VAL;
 const uint32_t FORK_PWM_MIN = 0;
 const uint16_t INITIAL_FORK_PWM = 0;
 const uint16_t INITIAL_STEER_PWM = 0;
+
+// Timing
 const uint16_t MIN_LOOP_LENGTH_MU = 1000;
-const uint16_t HAPTIC_STARTUP_ITTERATIONS = 13000;
-const uint16_t ENCODER_CLK_FREQ = 225000; //clock frequency for the encoders SPI protocol
-const float HAND_ENC_BIAS = 153.65;
+const uint16_t PD_STARTUP_ITTERATIONS = 13000;
+
+// Motor encoders
+const uint32_t ENCODER_CLK_FREQ = 225000; //clock frequency for the encoders SPI protocol
+const float HAND_ENC_BIAS = 153.65; //Offset = angle_hand-angle_fork (K: I think)
 const float FORK_ENC_BIAS = 100.65;
 const float HAND_ENC_MAX_VAL = 8191.0;
 const float FORK_ENC_MAX_VAL = 8191.0;
+
+// Pedal and wheel encoders
+const uint16_t WHEEL_COUNTS_LENGTH = 200;
+const uint16_t PEDAL_COUNTS_LENGTH = 500;
+
+// Angles
 const float FULL_ROTATION_DEG = 360.0;
 const float HALF_ROTATION_DEG = 180.0;
-const float MECHANICAL_LIMIT = 42.0;
+const float SOFTWARE_LIMIT = 42.0;
 
+// SD card
+const uint16_t SD_SAMPLING_FREQ = 1000; //Sampling frequency of the SD card
+const uint64_t MESSAGE_LENGTH = 100; // The maximum expected legth of one sample of data. In bytes
+const uint16_t EXPERIMENT_TIME = 600; //in seconds
+const uint8_t  BUFFER_HOLD_TIME = 2; //in seconds
+const uint64_t LOG_FILE_SIZE = MESSAGE_LENGTH*EXPERIMENT_TIME*SD_SAMPLING_FREQ; // Log file should hold 10 minutes of data sampled at 1kHz
+const uint64_t RING_BUF_CAPACITY = MESSAGE_LENGTH*BUFFER_HOLD_TIME*SD_SAMPLING_FREQ; // Buffer should hold 2 seconds of data sampled at 1kHz
 
-//=========================== Global Variables ===============================//
-//------------------------------- Minimal ------------------------------------//
-// Pins
+// PD Gains
+const float KP_F = 2.0f;
+const float KD_F = 0.029f;
+const float KP_H = 0.9f;
+const float KD_H = 0.012f;
+
+//-------------------------------- Pins --------------------------------------//
 const uint8_t cs_hand = 24; // SPI Chip Select for handlebar encoder
 const uint8_t cs_fork = 25; // SPI Chip Select for fork encoder
+#if USE_IMU
+const uint8_t cs_imu = 10; // SPI Chip Select for MPU9250
+#endif
+
 const uint8_t pwm_pin_hand = 8; // Send PWM signals to the handlebar motor
 const uint8_t pwm_pin_fork = 9; // Send PWM signals to the fork motor
 const uint8_t enable_hand = 29; // Turn the handlebar motor on or off
 const uint8_t enable_fork = 30; // Turn the fork motor on or off
-const uint8_t enable_encoder = 31; // HIGH to send power to the encoders
+const uint8_t enable_motor_enc = 31; // HIGH to send power to the motor encoders
+
 const uint8_t hand_led = 32; // LED installed on the handlebars
 const uint8_t hand_switch = 28; // Switch installed on the handlebars
+
+#if USE_BIKE_ENCODERS
 const uint8_t encdr_pin1_wheel = 2; //1 of 2 pins to read out the wheel encoder
 const uint8_t encdr_pin2_wheel = 3; //1 of 2 pins to read out the wheel encoder
 const uint8_t encdr_pin1_pedal = 23; //1 of 2 pins to read out the pedal encoder
 const uint8_t encdr_pin2_pedal = 22; //1 of 2 pins to read out the pedal encoder
-// Haptics
-float error_prev = 0.0f;
-uint32_t error_time_prev = 0.0f;
-uint64_t haptics_iteration_counter = 0; // Ensure it never overflows
-uint64_t mpc_iteration_counter = 8000; // 5 seconds of ramping, instead of 13
-// Gains
-float Kp_f = 2.0f;
-float Kd_f = 0.029f;
-float Kp_h = 0.9f;
-float Kd_h = 0.012f;
-// Steering rate calculation
+#endif
+
+//------------------------------ PD Control ----------------------------------//
+float error_prev = 0.0f; // Variable to store the previos mismatch between handlebar and fork
+uint64_t pd_iteration_counter = 0; // TODO: Ensure it never overflows!
+
+//----------------------- Steering rate calculation --------------------------//
 //const uint8_t avg_filter_size = 10;
 //uint8_t avg_index = 0;
 //float avg_sum = 0.0f;
 //float avg_array[avg_filter_size] = {0};
 //float angle_prev = 0.0f;
-// Time
-elapsedMicros sinceLast; // How long has passed since last loop execution
-// Switch debouncing
-uint8_t hand_switch_value = 0;
-uint8_t hand_switch_array[10] = {0};
-uint8_t hand_switch_state = 0;
-uint8_t hand_switch_state_prev = 0;
-//------------------------------- Analog -------------------------------------//
-#if USE_ANALOG
-  const uint8_t a_force = 20; // Analog output pin of the force transducer
-  const uint8_t a_torque = 21; // Analog output pin of the torque sensor
-  const uint8_t a_fork = 40; // Analog output pin of the fork motor drive
-  const uint8_t a_hand = 41; // Analog output pin of the handlebar motor drive
-  float val_fork = 0.0f;
-  float val_hand = 0.0f;
-  float val_torque = 0.0f;
-  float val_force = 0.0f;
-  float a_torque_fork = 0.0f;
-  float a_torque_hand = 0.0f;
-  float analog_torque_sensor_Nm = 0.0f;
-  float analog_force_transducer_N = 0.0f;
-#endif
+
+//-------------------------- Switch debouncing -------------------------------//
+// uint8_t hand_switch_value = 0;
+// uint8_t hand_switch_array[10] = {0};
+// uint8_t hand_switch_state = 0;
+// uint8_t hand_switch_state_prev = 0;
+
+//--------------------------------- Time -------------------------------------//
+elapsedMicros sinceLastLoop; // How long has passed since last loop execution
+elapsedMicros derror_since_last; // How long since last error rate calculation
+// elapsedMicros dsteer_since_last; // How long since last steer rate calculation
+
 //------------------- Wheel Speed and Cadence Encoders -----------------------//
-#if USE_ENCODERS
-  Encoder wheel_counter(encdr_pin1_wheel, encdr_pin2_wheel); // Rear wheel speed encoder
-  const uint32_t WHEEL_COUNTS_LENGTH = 200;
+#if USE_BIKE_ENCODERS
+  Encoder wheel_counter(encdr_pin1_wheel, encdr_pin2_wheel); // Initialize Rear wheel speed encoder
+  Encoder pedal_counter(encdr_pin1_pedal, encdr_pin2_pedal); // Initialize Pedal cadence encoder
   int32_t wheel_counts[WHEEL_COUNTS_LENGTH] = {0};
-  uint32_t wheel_counts_index = 0;
-  Encoder pedal_counter(encdr_pin1_pedal, encdr_pin2_pedal); // Pedal cadence encoder
-  const uint32_t PEDAL_COUNTS_LENGTH = 500;
   int32_t pedal_counts[PEDAL_COUNTS_LENGTH] = {0};
+  uint32_t wheel_counts_index = 0;
   uint32_t pedal_counts_index = 0;
 #endif
+
 //--------------------------------- IMU --------------------------------------//
 #if USE_IMU
-  const uint8_t cs_imu = 10; // SPI Chip Select for MPU9250
   bfs::Mpu9250 IMU(&SPI, cs_imu); // MPU9250 object
 #endif
+
 //--------------------------- SD Card Logging --------------------------------//
 #if USE_SD
-  // The maximum expected legth of one sample of data. In bytes
-  const uint64_t message_length = 100;
-  // Log file should hold 10 minutes of data sampled at 1kHz
-  const uint64_t log_file_size = message_length*1000*600;
-  // Buffer should hold 2 seconds of data sampled at 1kHz
-  const uint64_t ring_buf_capacity = message_length*2*1000;
   SdExFat sd;
   ExFile root; // Used to count the number of files
   ExFile countFile; // Used to count the number of files
   ExFile logFile; // Used for logging
   String fileName = "SbW_log_";
   String fileExt = ".csv";
-  RingBuf<ExFile, ring_buf_capacity> rb; // Set up the buffer
+  RingBuf<ExFile, RING_BUF_CAPACITY> rb; // Set up the buffer
   int fileCount = 0; // Number of files already on the SD
   bool isOpen = false; // Is file already open?
   bool isFull = false; // Is the file full?
 #endif
 
-//============================== Main Setup ==================================//
+
+
+//============================== [Main Setup] ==================================//
 void setup(){
-  // Initialize communications
-  SPI.begin();        // IMU, encoders
+  //------[Initialize communications
+  SPI.begin();        // IMU, fork and steer encoders
+  #if SERIAL_DEBUG
   Serial.begin(9600); // Communication with PC through micro-USB
+  #endif
+  
+  //------[Setup INPUT pins
+  pinMode(hand_switch,      INPUT); // If switch is HIGH - MPC is on
 
-  // Setup OUTPUT pins
-  pinMode(cs_hand, OUTPUT);
-  digitalWrite(cs_hand, HIGH);
-
-  pinMode(cs_fork, OUTPUT);
-  digitalWrite(cs_fork, HIGH);
-
-  pinMode(enable_encoder, OUTPUT);
-  digitalWrite(enable_encoder, HIGH); // HIGH to enable power to the encoders
-
-  pinMode(hand_led, OUTPUT);
-  digitalWrite(hand_led, LOW);
-
-  pinMode(enable_fork, OUTPUT);
-  digitalWrite(enable_fork, HIGH); // Set HIGH to enable motor
-
-  pinMode(enable_hand, OUTPUT);
-  digitalWrite(enable_hand, HIGH); // Set HIGH to enable motor
-
-
-  // Setup PWM pins
-  analogWriteResolution(PWM_RESOLUTION);
-
-  pinMode(pwm_pin_fork, OUTPUT);
-  analogWriteFrequency(pwm_pin_fork, PWM_FREQUENCY);
-  analogWrite(pwm_pin_fork, INITIAL_FORK_PWM);
-
-  pinMode(pwm_pin_hand, OUTPUT);
-  analogWriteFrequency(pwm_pin_hand, PWM_FREQUENCY);
-  analogWrite(pwm_pin_hand, INITIAL_STEER_PWM);
-
-
-  // Setup INPUT pins
-  pinMode(hand_switch, INPUT); // If switch is HIGH - MPC is on
-
-
-  // Setup optional features
+  //------[Setup OUTPUT pins
+  pinMode(enable_motor_enc, OUTPUT);
+  pinMode(hand_led,         OUTPUT);
+  pinMode(enable_fork,      OUTPUT);
+  pinMode(enable_hand,      OUTPUT);
+  pinMode(pwm_pin_fork,     OUTPUT);
+  pinMode(pwm_pin_hand,     OUTPUT);
+  pinMode(cs_hand,          OUTPUT);
+  pinMode(cs_fork,          OUTPUT);
   #if USE_IMU
-    pinMode(cs_imu, OUTPUT);
-    digitalWrite(cs_imu, HIGH);
+  pinMode(cs_imu,           OUTPUT);
+  #endif
 
-    // Initialize IMU
-    if(!IMU.Begin()){
+  //------[Setup PWM
+  analogWriteResolution(PWM_RESOLUTION);
+  analogWriteFrequency(pwm_pin_fork, PWM_FREQUENCY);
+  analogWriteFrequency(pwm_pin_hand, PWM_FREQUENCY);
+
+  //------[Give output pins initial values
+  //Disconnect all sub-modules from the SPI bus. (pull up CS)
+  digitalWrite(cs_fork, HIGH);
+  digitalWrite(cs_hand, HIGH);
+  #if USE_IMU
+  digitalWrite(cs_imu,  HIGH);
+  #endif
+  
+  digitalWrite(enable_motor_enc, HIGH); // Set HIGH to enable power to the encoders
+  digitalWrite(enable_fork,      HIGH); // Set HIGH to enable motor
+  digitalWrite(enable_hand,      HIGH); // Set HIGH to enable motor
+  digitalWrite(hand_led,         LOW);
+  analogWrite(pwm_pin_fork,      INITIAL_FORK_PWM);
+  analogWrite(pwm_pin_hand,      INITIAL_STEER_PWM);
+
+  //------[Setup IMU
+  #if USE_IMU
+    digitalWrite(cs_imu, LOW);
+    if(!IMU.Begin()){ //Initialize communication with the sensor
+      #if SERIAL_DEBUG
       Serial.println("IMU initialization unsuccessful");
       Serial.println("Check IMU wiring or try cycling power");
+      #endif
     }
     IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); // +- 4g
     IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS); // +- 250 deg/s
+    digitalWrite(cs_imu, HIGH);
   #endif
 
   #if USE_SD
-    // Setup SD card
+    //------[Setup SD card
     if(!sd.begin(SdioConfig(FIFO_SDIO))){
+      #if SERIAL_DEBUG
+      Serial.println("SD card initialization unsuccessful");
       Serial.println("Please check SD card!");
+      #endif
       // Short-short error code (..)
       while(1) {
         digitalWrite(hand_led, HIGH);
@@ -203,29 +227,37 @@ void setup(){
       }
     }
 
-    // Count files on SD card
+    //------[Count files on SD card
     root.open("/");
     while (countFile.openNext(&root, O_RDONLY)) {
       if (!countFile.isHidden()) fileCount++;
       countFile.close();
     }
-  #endif
+  #endif //USE_SD
   
-  delay(1);
-  sinceLast = 0;
+
+
+  //------[Time stuff
+  delay(1); //give time for sensors to initialize
+  sinceLastLoop = 0;
+  derror_since_last = 0;
+  // dsteer_since_last = 0;
 }
 
-//============================== Main Loop ===================================//
+
+
+//============================== [Main Loop] ===================================//
 void loop(){
-  #if USE_SD
+  #if USE_SD // may be moved to setup with a while loop
     if (!isOpen) openFile();
   #endif
-
-  if (sinceLast >= MIN_LOOP_LENGTH_MU){
-    sinceLast = sinceLast - MIN_LOOP_LENGTH_MU; // Reset the counter
+  
+  
+  if (sinceLastLoop >= MIN_LOOP_LENGTH_MU){ //K: is the idea here to have a max freq? (cause that is not garanteed in this way)
+    sinceLastLoop = sinceLastLoop - MIN_LOOP_LENGTH_MU; //reset counter
 
     // Turn on LED when bike is ready
-    if (haptics_iteration_counter >= HAPTIC_STARTUP_ITTERATIONS) 
+    if (pd_iteration_counter >= PD_STARTUP_ITTERATIONS) 
       digitalWrite(hand_led, HIGH);
 
     // // Read the switch state
@@ -236,129 +268,83 @@ void loop(){
     //                                 sizeof(hand_switch_array)/sizeof(hand_switch_array[0])
     //                                 );
 
-    // Run PID (+MPC if switch is 1)
-    haptics();
+    do_pd_control();
   }
 }
 
-//============================== Haptics =====================================//
-void haptics(){
-  //----------------------- Increase counters --------------------------------//
-  haptics_iteration_counter++;
 
-  //---------------- SPI communication with Handlebar encoder ----------------//
-  #if USE_IMU
-    digitalWrite(cs_imu, HIGH); // HIGH to disable IMU communication
-  #endif
-  digitalWrite(cs_fork, HIGH); // HIGH to disable fork encoder communication
+
+//============================== [PD Controller] ==============================//
+void do_pd_control(){
+  //------[Increase counters
+  pd_iteration_counter++;
   
-  // Look at:
-  // https://en.wikipedia.org/wiki/Synchronous_Serial_Interface
-  // https://en.wikipedia.org/wiki/Serial_Peripheral_Interface
-  // https://arduino.stackexchange.com/questions/55470/interfacing-with-an-ssi-sensor
-  // data sheet of RMB20SC
-  // encoder uses 13 bits
-  // Set frequency to 125 Khz-4 Mhz 
-  // encoder transmit first the MSB
-  // Clock Idles High Latch on the initial clock edge
-  // sample on the subsequent edge K:--> thus remove msb0
-  SPI.beginTransaction(SPISettings(ENCODER_CLK_FREQ, MSBFIRST, SPI_MODE3));
-  digitalWrite(cs_hand, LOW); // LOW to enable handlebar encoder communication
-  // Transfer 16 bits to MOSI and read what comes back to MISO
-  uint16_t hand_dac = SPI.transfer16(0); 
-  // From my byte1 you need to mask out 3 bits the first MSB and the two LSB;
-  // First AND bit operator is used bit mask 0111 1111 1111 1111 
-  // the 16bit is set to zero.
-  hand_dac = (hand_dac & 0x7fff) >> 2;
-  digitalWrite(cs_hand, HIGH); // HIGH to disable handlebar encoder communication. K: also stop clock and thus communicate EOT to ssi interface.
-  SPI.endTransaction();
+  //------[Read encoder values
+  // #if USE_IMU
+  //   digitalWrite(cs_imu, HIGH); // HIGH to disable IMU communication
+  // #endif
+  // digitalWrite(cs_fork, HIGH); // HIGH to disable fork encoder communication
+  uint16_t enc_counts_hand = read_motor_encoder(cs_hand); //SPI communication with Handlebar encoder
+  uint16_t enc_counts_fork = read_motor_encoder(cs_fork); //SPI communication with Fork encoder
 
-
-  //------------------ SPI communication with Fork encoder -------------------//
-  SPI.beginTransaction(SPISettings(ENCODER_CLK_FREQ, MSBFIRST, SPI_MODE3));
-  digitalWrite(cs_fork, LOW); // LOW to enable fork encoder communication
-  uint16_t fork_dac = SPI.transfer16(0);
-  fork_dac = (fork_dac & 0x7fff) >> 2;
-  digitalWrite(cs_fork, HIGH); // disable fork encoder
-  SPI.endTransaction(); // ending transaction
-
-
-  //------------------------- Processing encoder data ------------------------//
+  
+  //------[Translate encoder counts to angle in degree
   /* NOTE: The two encoders are mounted opposite to each other.
-    Therefore, we have different counts directions. More specifically, 
-    CCW rotation of the handlebar encoder gives 360 deg -> 310 deg,
-    whereas, CCW rotation of the fork encoder gives 0-55 degrees.
-    The rotational direction must be the same for both encoders, 
-    the encoders must give an output 0-180 degrees. 
-    Two if statements are used for these reasons.
+  Therefore, CCW rotation of the handlebar encoder gives 360 to 310 deg,
+  whereas, CCW rotation of the fork encoder gives 0 to 55 degrees.
+  The rotational direction must be the same for both encoders, and
+  the encoders must give an output int the 0-180 degrees range. 
   */
-  // Encoder counts to degrees. 152.20 is the offset (angle_hand-angle_fork).
-  // 153.65
-  float angle_hand = ((float)hand_dac / HAND_ENC_MAX_VAL) * FULL_ROTATION_DEG - HAND_ENC_BIAS; 
-  if (angle_hand > HALF_ROTATION_DEG) // CCW handlebar rotation gives 360 deg-> 310 deg.
-    angle_hand = angle_hand - FULL_ROTATION_DEG; // Subtract 360 to get 0-180 deg CCW
-  /* NOTE: The fork mechanical range is +- 42 degrees.
-    Handlebars do not have a mechanical limit.
-    To relay the mechanical limit of the fork
-    to the steer, software limits are set below.
-    If you do not set this limits the motor folds back.
-  */ //  K: This may cause the oscillations
-  angle_hand = constrain(angle_hand, -MECHANICAL_LIMIT, MECHANICAL_LIMIT); // Software limits
-
-  // Encoder counts to degrees. substracting -99.2 deg to align fork with 
-  // handlebars and - to get minus values from fork encoder.
-  // 100.65
-  float angle_fork = -((float)fork_dac / FORK_ENC_MAX_VAL) * FULL_ROTATION_DEG - FORK_ENC_BIAS; 
-  if (angle_fork < -HALF_ROTATION_DEG) // CW fork rotation gives -360 deg-> -310 deg
-    angle_fork = angle_fork + FULL_ROTATION_DEG; // Add 360 to get 0-180 deg CCW
+  // Handlebar
+  float angle_hand = ((float)enc_counts_hand / HAND_ENC_MAX_VAL) * FULL_ROTATION_DEG - HAND_ENC_BIAS;
+  if (angle_hand > HALF_ROTATION_DEG) angle_hand = angle_hand - FULL_ROTATION_DEG; // CCW handlebar rotation gives 360 deg-> 310 deg. Subtract 360 to get 0-180 deg CCW
+  // Fork
+  float angle_fork = -(((float)enc_counts_fork / FORK_ENC_MAX_VAL) * FULL_ROTATION_DEG + FORK_ENC_BIAS); //Minus sign to get minus values from fork encoder.
+  if (angle_fork < -HALF_ROTATION_DEG) angle_fork = angle_fork + FULL_ROTATION_DEG; // CW fork rotation gives -360 deg-> -310 deg. Add 360 to get 0-180 deg CCW
 
 
-  //---------------------- Calculate error derivative ------------------------//
+  //------[Compensate for difference in range of motion of handelbar and fork
+  /* NOTE: The fork mechanical range is +- 42 degrees. Handlebars do not 
+  have a mechanical limit, however. To relay the mechanical limit of 
+  the fork to the steer, software limits are set below. If you do not set
+  this limits, the motor folds back.
+  */
+  angle_hand = constrain(angle_hand, -SOFTWARE_LIMIT, SOFTWARE_LIMIT); //K: This may cause the oscillations
+
+
+  //------[Calculate error derivative in seconds
   // S: Set the very first handlebar and fork encoder values to 0
   // D: setting handlebar and fork encoder first values to 0, we do that because first values seem to be floating values
-  // K: most likely due to encoder just getting power, and still initializing. A delay in the setup might fix this
-  if (haptics_iteration_counter < 10){ 
+  // K: most likely due to encoder just haven got power, and still initializing. A delay in the setup might fix this
+  if (pd_iteration_counter < 10){ 
     angle_hand = 0.0f;
     angle_fork = 0.0f;
   }
-  // Calculation of dT in seconds
-  uint32_t error_time_curr = micros();
-  float error_time_diff = ((float) (error_time_curr - error_time_prev)) / 1000000.0f;
-  error_time_prev = error_time_curr;
-  // Calculation of dError
-  float error_curr = (angle_hand - angle_fork);
-  float error = (error_curr - error_prev) / error_time_diff;
-  error_prev = error_curr;
+  float error = (angle_hand - angle_fork);
+  float derror_dt = calc_forwrd_derivative(error, error_prev, derror_since_last);
+  
 
-
-  //----------------------- Calculate steering rate --------------------------//
+  // //------[Calculate steering rate
   //float angle_diff = angle_fork - angle_prev;
   //float angle_rate = (float) (angle_diff / error_time_diff);
   //float filtered_angle_rate = moving_avg(angle_rate);
   //angle_prev = angle_fork;
   
-  //---------------------- Calculate PID fork torque -------------------------//
-  double command_fork = (Kp_f*(angle_hand - angle_fork) + Kd_f*error);
-  command_fork = command_fork / return_scaling(haptics_iteration_counter);
+  //------[Calculate PID torques
+  double command_fork = (KP_F*error + KD_F*derror_dt) / return_scaling(pd_iteration_counter);
+  double command_hand = (KP_H*error + KD_H*derror_dt) / return_scaling(pd_iteration_counter);
   
-  //---------------------- Find the fork PWM command -------------------------//
-  uint64_t pwm_command_fork = (command_fork * -842.795 + 16384); //K: FOR THE LOVE OF GOD! WHAT IS THIS!
+  //------[Find the fork PWM command
+  uint64_t pwm_command_fork = (command_fork * -842.795 + 16384); //K: magic numbers, what do they mean!!!
+  uint64_t pwm_command_hand = (command_hand * -842.795 + 16384); 
   pwm_command_fork = constrain(pwm_command_fork, FORK_PWM_MIN, FORK_PWM_MAX);
+  pwm_command_hand = constrain(pwm_command_hand, HAND_PWM_MIN, HAND_PWM_MAX);
+
+  //------[Send motor command
+  analogWrite(pwm_pin_hand, pwm_command_hand);
   analogWrite(pwm_pin_fork, pwm_command_fork);
 
-
-  //--------------------- Calculate PID handlebar torque ---------------------//
-  double command_hand = (Kp_h*(angle_hand - angle_fork) + Kd_h*error);
-  command_hand = command_hand / return_scaling(haptics_iteration_counter);
-
-  
-  //-------------------- Find the handlebar PWM command ----------------------//
-  uint64_t pwm_command_hand = (command_hand * -842.795 + 16384); //K: magic numbers, what do they mean :s
-  pwm_command_hand = constrain(pwm_command_hand, HAND_PWM_MIN, HAND_PWM_MAX);
-  analogWrite(pwm_pin_hand, pwm_command_hand);
-
-
-  #if USE_ENCODERS
+  #if USE_BIKE_ENCODERS
   //------------------------ Calculate bicycle speed -------------------------//
     int32_t current_wheel_count = wheel_counter.read();
     int32_t previous_wheel_count = wheel_counts[wheel_counts_index];
@@ -383,8 +369,9 @@ void haptics(){
       / ((float) PEDAL_COUNTS_LENGTH) * 0.10471975511970057;
   #endif
 
+  //-----[Read IMU data
   #if USE_IMU
-  //----------------------------- Read IMU data ------------------------------//
+    digitalWrite(cs_imu, LOW);
     IMU.Read();
     float accelY = IMU.accel_x_mps2();
     float accelX = IMU.accel_y_mps2();
@@ -393,14 +380,15 @@ void haptics(){
     float gyroX = IMU.gyro_y_radps();
     float gyroZ = IMU.gyro_z_radps();
     float temp = IMU.die_temp_c();
+    digitalWrite(cs_imu, HIGH);
   #endif
   
+  //------[Printing information to serial port
   #if SERIAL_DEBUG
-  //------------------------ Printing to serial port -------------------------//
     // Limit the printing rate
-    if (haptics_iteration_counter % 100 == 0){
-      Serial.print("Switch: ");
-      Serial.print(hand_switch_state);
+    if (pd_iteration_counter % 100 == 0){
+      // Serial.print("Switch: ");
+      // Serial.print(hand_switch_state);
       // Angles
       Serial.print(",Hand(deg)=");
       Serial.print(angle_hand);
@@ -412,11 +400,11 @@ void haptics(){
       Serial.print(",Torque_fork(Nm)=");
       Serial.print(command_fork);
       Serial.print(",Hand(Counts)= ");
-      Serial.print(hand_dac);
+      Serial.print(enc_counts_hand);
       Serial.print(",Fork(Counts)= ");
-      Serial.print(fork_dac);
+      Serial.print(enc_counts_fork);
       Serial.print(",Time Taken= ");
-      Serial.print(sinceLast);
+      Serial.print(sinceLastLoop);
       // IMU
       #if USE_IMU 
         Serial.print(",AccelX= ");
@@ -435,7 +423,7 @@ void haptics(){
         Serial.print(temp);
       #endif
       // Encoders
-      #if USE_ENCODERS
+      #if USE_BIKE_ENCODERS
         Serial.print(",Velocity= ");
         Serial.print(velocity_ms);
         Serial.print(",Cadence= ");
@@ -446,11 +434,11 @@ void haptics(){
     }
   #endif
 
-  //-------------------------- Printing to SD card ---------------------------//
+  //------[Print to SD card
   #if USE_SD
     size_t n = rb.bytesUsed();
     // Check if there is free space
-    if ((n + logFile.curPosition()) > (log_file_size - 100)) {
+    if ((n + logFile.curPosition()) > (LOG_FILE_SIZE - 100)) {
       digitalWrite(hand_led, LOW);
       isFull = true;
     }
@@ -458,13 +446,11 @@ void haptics(){
       // If the file is not busy, write out one sector of data
       if (n >= 512 && !logFile.isBusy()) rb.writeOut(512);
       // Write data to buffer
-      rb.print(haptics_iteration_counter);
+      rb.print(pd_iteration_counter);
       rb.write(',');
-      rb.print(mpc_iteration_counter);
-      rb.write(',');
-      rb.print(sinceLast);
-      rb.write(',');
-      rb.print(hand_switch_state);
+      rb.print(sinceLastLoop);
+      // rb.write(',');
+      // rb.print(hand_switch_state);
       rb.write(',');
       rb.print(angle_hand,2);
       rb.write(',');
@@ -506,10 +492,67 @@ void haptics(){
     // the controller gets back in time quickly.
     // CAN SOMETIMES CAUSE A LAG SPIKE OF MULTIPLE SECONDS
     // TODO: Find a workaround
-    if (haptics_iteration_counter % 1500 == 0) logFile.flush();
+    if (pd_iteration_counter % 1500 == 0) logFile.flush();
   #endif
+
+  return;
 }
 
+
+
+//=========================== [Read Motor Encoder] ===========================//
+uint16_t read_motor_encoder(const uint8_t cs_pin){
+  /* Communication with encoder goes through SSI protecol variant.
+  |  But we read it out via SPI protecol. Since the encoder uses 
+  |  13 bits, we need to select those out of the message we recieve
+  |  from the sub(/slave). These 13 bits are placed as follows.
+  |  .*** **** **** **.. Messages sent to the sub from the main (MOSI)
+  |  will be disregarded as SSI is not duplex.
+  |  For more info see:   
+  |  > data sheet of RMB20SC.
+  |  > https://en.wikipedia.org/wiki/Synchronous_Serial_Interface
+  |  > https://en.wikipedia.org/wiki/Serial_Peripheral_Interface
+  |  > https://arduino.stackexchange.com/questions/55470/interfacing-with-an-ssi-sensor
+  |  
+  |  FROM ORIGINAL COMMENT: 
+  |    Set frequency to 125 Khz-4 Mhz <--(from the datasheet)
+  |    encoder transmit first the MSB <--(from the datasheet)
+  |    Clock Idles High Latch on the initial clock edge
+  |    sample on the subsequent edge
+  |
+  |  Sampling on the subsequent edge is probably why we need to disregard the first bit 
+ */
+
+  SPI.beginTransaction(SPISettings(ENCODER_CLK_FREQ, MSBFIRST, SPI_MODE3)); //Open transactions on SPI BUS
+  digitalWrite(cs_pin, LOW); // LOW to connect to SPI bus
+  uint16_t enc_val = SPI.transfer16(0); // Transfer to MOSI (0) and read what comes back to MISO (enc_val)
+  enc_val = (enc_val & 0x7fff) >> 2; // select the 13 bits
+  digitalWrite(cs_pin, HIGH); // HIGH to disconnect from SPI bus. Also stop clock and thus communicate EOT to ssi interface.
+  SPI.endTransaction(); // Close transactions on SPI bus
+  return enc_val;
+}
+
+
+
+//=================== [Calculate Derivative Forward Euler] ===================//
+float calc_forwrd_derivative(float val_cur, float& val_prev, elapsedMicros& timer_mu){
+  float derivative = (val_cur - val_prev)/(timer_mu * 1e-6);
+  timer_mu = 0;
+  val_prev = val_cur;
+  return derivative;
+}
+// As a replacement of:
+  // uint32_t error_time_curr = micros();
+  // float error_time_diff = ((float) (error_time_curr - error_time_prev)) / 1000000.0f;
+  // error_time_prev = error_time_curr;
+  // // Calculation of dError
+  // float error_curr = (angle_hand - angle_fork);
+  // float error = (error_curr - error_prev) / error_time_diff;
+  // error_prev = error_curr;
+
+
+
+//============================ [Return Scaling] =============================//
 float return_scaling(uint64_t iteration){
   // Slowly ramps up the torque over 13 seconds. Used to avoid commanding high 
   // torques when turning on the bicycle, if the handlebars and the wheel are
@@ -534,15 +577,20 @@ float return_scaling(uint64_t iteration){
   return 1.0f;
 }
 
+
+
+//============================ [Moving Average] =============================//
 //float moving_avg(float new_value){
-//  avg_sum = avg_sum - avg_array[avg_index];
-//  avg_array[avg_index] = new_value;
-//  avg_sum = avg_sum + new_value;
-//  avg_index = (avg_index+1) % avg_filter_size;
-//
-//  return (float) (avg_sum / avg_filter_size);
+  // avg_sum = avg_sum - avg_array[avg_index];
+  // avg_array[avg_index] = new_value;
+  // avg_sum = avg_sum + new_value;
+  // avg_index = (avg_index+1) % avg_filter_size;
+  // return (float) (avg_sum / avg_filter_size);
 //}
 
+
+
+//============================= [Check Switch] ==============================//
 uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size){
   // Taking raw switch value is not reliable as the value can sometimes jump to
   // 0 even if the switch is on. This function tracks the last array_size
@@ -558,6 +606,9 @@ uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size){
   return 0;
 }
 
+
+
+//=============================== [Open File] ===============================//
 #if USE_SD
   void openFile() {
     String fullFileName = fileName + String(fileCount) + fileExt;
@@ -570,7 +621,7 @@ uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size){
         delay(500);
       }
     }
-    if (!logFile.preAllocate(log_file_size)) {
+    if (!logFile.preAllocate(LOG_FILE_SIZE)) {
       Serial.println("Preallocate failed");
       while (1) { // Long-long error code
         digitalWrite(hand_led, HIGH);
@@ -580,13 +631,13 @@ uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size){
       }
     }
     rb.begin(&logFile);
-    rb.print("haptics_iteration_counter");
+    rb.print("pd_iteration_counter");
     rb.write(',');
     rb.print("mpc_iteration_counter");
     rb.write(',');
-    rb.print("sinceLast");
-    rb.write(',');
-    rb.print("hand_switch_state");
+    rb.print("sinceLastLoop");
+    // rb.write(',');
+    // rb.print("hand_switch_state");
     rb.write(',');
     rb.print("angle_hand");
     rb.write(',');
