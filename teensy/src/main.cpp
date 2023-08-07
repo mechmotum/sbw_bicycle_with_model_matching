@@ -2,7 +2,7 @@
 #include <SPI.h>
 #include <Encoder.h>
 #include "SdFat.h"
-#include "RingBuf.h"
+#include "RingBuf.h" //From sdFat library
 #include "mpu9250.h" //https://github.com/bolderflight/MPU9250
 
 /* LEFT FOR DOCUMENTATION PURPOSE ONLY [transfer to more appropriate location and remove]
@@ -20,14 +20,26 @@ a_hand = 41; // Analog output pin of the handlebar motor drive
 #define SERIAL_DEBUG 1
 
 //=========================== Function declarations ===========================//
-void do_pd_control();
+void get_steer_angles(float& angle_hand, float& angle_fork);
+void calc_pd_errors(float angle_hand, float angle_fork, float& error, float& derror_dt);
+void calc_pd_control(float error, float derror_dt, double& command_fork, double& command_hand);
+void actuate_steer_motors(double command_fork, double command_hand);
 uint16_t read_motor_encoder(const uint8_t cs_pin);
 float calc_forwrd_derivative(float val_cur, float& val_prev, elapsedMicros& timer_mu);
 float return_scaling(uint64_t iteration);
+uint8_t check_switch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
+// void print_to_serial();
 //float moving_avg(float new_value);
-uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
+#if USE_BIKE_ENCODERS
+float calc_bike_speed();
+float calc_cadance();
+#endif
+#if USE_IMU
+void get_IMU_data();
+#endif
 #if USE_SD
-  void openFile();
+void open_file();
+void print_to_SD();
 #endif
 
 //=========================== Global Variables ===============================//
@@ -45,7 +57,7 @@ const uint16_t INITIAL_STEER_PWM = 0;
 
 // Timing
 const uint16_t MIN_LOOP_LENGTH_MU = 1000;
-const uint16_t PD_STARTUP_ITTERATIONS = 13000;
+const uint16_t CTRL_STARTUP_ITTERATIONS = 13000; //#itterations in which the steer torques are slowly scaled to unity.
 
 // Motor encoders
 const uint32_t ENCODER_CLK_FREQ = 225000; //clock frequency for the encoders SPI protocol
@@ -102,7 +114,7 @@ const uint8_t encdr_pin2_pedal = 22; //1 of 2 pins to read out the pedal encoder
 
 //------------------------------ PD Control ----------------------------------//
 float error_prev = 0.0f; // Variable to store the previos mismatch between handlebar and fork
-uint64_t pd_iteration_counter = 0; // TODO: Ensure it never overflows!
+uint64_t control_iteration_counter = 0; // TODO: Ensure it never overflows!
 
 //----------------------- Steering rate calculation --------------------------//
 //const uint8_t avg_filter_size = 10;
@@ -177,7 +189,7 @@ void setup(){
   pinMode(cs_imu,           OUTPUT);
   #endif
 
-  //------[Setup PWM
+  //------[Setup PWM pins
   analogWriteResolution(PWM_RESOLUTION);
   analogWriteFrequency(pwm_pin_fork, PWM_FREQUENCY);
   analogWriteFrequency(pwm_pin_hand, PWM_FREQUENCY);
@@ -197,6 +209,7 @@ void setup(){
   analogWrite(pwm_pin_fork,      INITIAL_FORK_PWM);
   analogWrite(pwm_pin_hand,      INITIAL_STEER_PWM);
 
+
   //------[Setup IMU
   #if USE_IMU
     digitalWrite(cs_imu, LOW);
@@ -210,6 +223,7 @@ void setup(){
     IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS); // +- 250 deg/s
     digitalWrite(cs_imu, HIGH);
   #endif
+
 
   #if USE_SD
     //------[Setup SD card
@@ -236,7 +250,6 @@ void setup(){
   #endif //USE_SD
   
 
-
   //------[Time stuff
   delay(1); //give time for sensors to initialize
   sinceLastLoop = 0;
@@ -249,41 +262,54 @@ void setup(){
 //============================== [Main Loop] ===================================//
 void loop(){
   #if USE_SD // may be moved to setup with a while loop
-    if (!isOpen) openFile();
+    if (!isOpen) open_file();
   #endif
   
   
-  if (sinceLastLoop >= MIN_LOOP_LENGTH_MU){ //K: is the idea here to have a max freq? (cause that is not garanteed in this way)
+  if (sinceLastLoop >= MIN_LOOP_LENGTH_MU){ //K: is the idea here to have a max freq? (cause that is not garanteed in this way)    
     sinceLastLoop = sinceLastLoop - MIN_LOOP_LENGTH_MU; //reset counter
 
-    // Turn on LED when bike is ready
-    if (pd_iteration_counter >= PD_STARTUP_ITTERATIONS) 
+    if (control_iteration_counter >= CTRL_STARTUP_ITTERATIONS) // Turn on LED when bike is ready
       digitalWrite(hand_led, HIGH);
 
     // // Read the switch state
     // hand_switch_state_prev = hand_switch_state;
     // hand_switch_value = digitalRead(hand_switch);
-    // hand_switch_state = checkSwitch(hand_switch_value, 
+    // hand_switch_state = check_switch(hand_switch_value, 
     //                                 hand_switch_array,
     //                                 sizeof(hand_switch_array)/sizeof(hand_switch_array[0])
     //                                 );
+    
+    //------[Perform steering control
+    float angle_hand, angle_fork;
+    float error, derror_dt;
+    double command_fork, command_hand;
+    get_steer_angles(angle_hand, angle_fork);
+    calc_pd_errors(angle_hand, angle_fork, error, derror_dt);
+    calc_pd_control(error, derror_dt, command_fork, command_hand);
+    actuate_steer_motors(command_fork, command_hand);
 
-    do_pd_control();
+    // //------[Calculate steering rate
+    //float angle_diff = angle_fork - angle_prev;
+    //float angle_rate = (float) (angle_diff / error_time_diff);
+    //float filtered_angle_rate = moving_avg(angle_rate);
+    //angle_prev = angle_fork;
+
+    //------[Increase counters
+    control_iteration_counter++;
   }
 }
 
 
 
-//============================== [PD Controller] ==============================//
-void do_pd_control(){
-  //------[Increase counters
-  pd_iteration_counter++;
-  
+
+/*=====================================================================================*\
+ |                                   Helper Functions                                  |
+\*=====================================================================================*/
+
+//============================== [Get steer angles] ===================================//
+void get_steer_angles(float& angle_hand, float& angle_fork){
   //------[Read encoder values
-  // #if USE_IMU
-  //   digitalWrite(cs_imu, HIGH); // HIGH to disable IMU communication
-  // #endif
-  // digitalWrite(cs_fork, HIGH); // HIGH to disable fork encoder communication
   uint16_t enc_counts_hand = read_motor_encoder(cs_hand); //SPI communication with Handlebar encoder
   uint16_t enc_counts_fork = read_motor_encoder(cs_fork); //SPI communication with Fork encoder
 
@@ -296,11 +322,13 @@ void do_pd_control(){
   the encoders must give an output int the 0-180 degrees range. 
   */
   // Handlebar
-  float angle_hand = ((float)enc_counts_hand / HAND_ENC_MAX_VAL) * FULL_ROTATION_DEG - HAND_ENC_BIAS;
-  if (angle_hand > HALF_ROTATION_DEG) angle_hand = angle_hand - FULL_ROTATION_DEG; // CCW handlebar rotation gives 360 deg-> 310 deg. Subtract 360 to get 0-180 deg CCW
+  angle_hand = ((float)enc_counts_hand / HAND_ENC_MAX_VAL) * FULL_ROTATION_DEG - HAND_ENC_BIAS;
+  if (angle_hand > HALF_ROTATION_DEG) 
+    angle_hand = angle_hand - FULL_ROTATION_DEG; // CCW handlebar rotation gives 360 deg-> 310 deg. Subtract 360 to get 0-180 deg CCW
   // Fork
-  float angle_fork = -(((float)enc_counts_fork / FORK_ENC_MAX_VAL) * FULL_ROTATION_DEG + FORK_ENC_BIAS); //Minus sign to get minus values from fork encoder.
-  if (angle_fork < -HALF_ROTATION_DEG) angle_fork = angle_fork + FULL_ROTATION_DEG; // CW fork rotation gives -360 deg-> -310 deg. Add 360 to get 0-180 deg CCW
+  angle_fork = -(((float)enc_counts_fork / FORK_ENC_MAX_VAL) * FULL_ROTATION_DEG + FORK_ENC_BIAS); //Minus sign to get minus values from fork encoder.
+  if (angle_fork < -HALF_ROTATION_DEG) 
+    angle_fork = angle_fork + FULL_ROTATION_DEG; // CW fork rotation gives -360 deg-> -310 deg. Add 360 to get 0-180 deg CCW
 
 
   //------[Compensate for difference in range of motion of handelbar and fork
@@ -310,31 +338,37 @@ void do_pd_control(){
   this limits, the motor folds back.
   */
   angle_hand = constrain(angle_hand, -SOFTWARE_LIMIT, SOFTWARE_LIMIT); //K: This may cause the oscillations
+}
 
 
-  //------[Calculate error derivative in seconds
+
+//============================== [Calculate PD error] ===================================//
+void calc_pd_errors(float angle_hand, float angle_fork, float& error, float& derror_dt){
+  //------[Calculate error derivative in seconds^-1
   // S: Set the very first handlebar and fork encoder values to 0
   // D: setting handlebar and fork encoder first values to 0, we do that because first values seem to be floating values
   // K: most likely due to encoder just haven got power, and still initializing. A delay in the setup might fix this
-  if (pd_iteration_counter < 10){ 
+  if (control_iteration_counter < 10){ 
     angle_hand = 0.0f;
     angle_fork = 0.0f;
   }
-  float error = (angle_hand - angle_fork);
-  float derror_dt = calc_forwrd_derivative(error, error_prev, derror_since_last);
-  
+  error = (angle_hand - angle_fork);
+  derror_dt = calc_forwrd_derivative(error, error_prev, derror_since_last);
+  return;
+}
 
-  // //------[Calculate steering rate
-  //float angle_diff = angle_fork - angle_prev;
-  //float angle_rate = (float) (angle_diff / error_time_diff);
-  //float filtered_angle_rate = moving_avg(angle_rate);
-  //angle_prev = angle_fork;
-  
+
+
+//============================== [Calculate PD Control] ==============================//
+void calc_pd_control(float error, float derror_dt, double& command_fork, double& command_hand){
   //------[Calculate PID torques
-  double command_fork = (KP_F*error + KD_F*derror_dt) / return_scaling(pd_iteration_counter);
-  double command_hand = (KP_H*error + KD_H*derror_dt) / return_scaling(pd_iteration_counter);
-  
-  //------[Find the fork PWM command
+  command_fork = (KP_F*error + KD_F*derror_dt) / return_scaling(control_iteration_counter);
+  command_hand = (KP_H*error + KD_H*derror_dt) / return_scaling(control_iteration_counter);
+  return;
+}
+
+void actuate_steer_motors(double command_fork, double command_hand){
+  //------[Find the PWM command
   uint64_t pwm_command_fork = (command_fork * -842.795 + 16384); //K: magic numbers, what do they mean!!!
   uint64_t pwm_command_hand = (command_hand * -842.795 + 16384); 
   pwm_command_fork = constrain(pwm_command_fork, FORK_PWM_MIN, FORK_PWM_MAX);
@@ -343,160 +377,174 @@ void do_pd_control(){
   //------[Send motor command
   analogWrite(pwm_pin_hand, pwm_command_hand);
   analogWrite(pwm_pin_fork, pwm_command_fork);
-
-  #if USE_BIKE_ENCODERS
-  //------------------------ Calculate bicycle speed -------------------------//
-    int32_t current_wheel_count = wheel_counter.read();
-    int32_t previous_wheel_count = wheel_counts[wheel_counts_index];
-    wheel_counts[wheel_counts_index] = current_wheel_count;
-    wheel_counts_index += 1;
-    if (wheel_counts_index >= WHEEL_COUNTS_LENGTH) wheel_counts_index = 0;
-    // There are 192 counts/revolution, the radius of the wheel is 3.6m
-    float rps_wheel = ((float) (current_wheel_count - previous_wheel_count)) 
-      / 192.0f * 1000.0f / ((float) WHEEL_COUNTS_LENGTH); 
-    float velocity_ms = -rps_wheel * 6.28f * 0.33f 
-      / 1000.0f * 3600.0f * 0.277778;
-
-  //--------------------------- Calculate cadence ----------------------------//
-    int32_t current_pedal_count = pedal_counter.read();
-    int32_t previous_pedal_count = pedal_counts[pedal_counts_index];
-    pedal_counts[pedal_counts_index] = current_pedal_count;
-    pedal_counts_index += 1;
-    if (pedal_counts_index >= PEDAL_COUNTS_LENGTH) pedal_counts_index = 0;
-    // There are 192 counts/revolution
-    float cadence_rads = ((float) (current_pedal_count - previous_pedal_count)) 
-      / 192.0f * 60.0f * 1000.0f 
-      / ((float) PEDAL_COUNTS_LENGTH) * 0.10471975511970057;
-  #endif
-
-  //-----[Read IMU data
-  #if USE_IMU
-    digitalWrite(cs_imu, LOW);
-    IMU.Read();
-    float accelY = IMU.accel_x_mps2();
-    float accelX = IMU.accel_y_mps2();
-    float accelZ = IMU.accel_z_mps2();
-    float gyroY = IMU.gyro_x_radps();
-    float gyroX = IMU.gyro_y_radps();
-    float gyroZ = IMU.gyro_z_radps();
-    float temp = IMU.die_temp_c();
-    digitalWrite(cs_imu, HIGH);
-  #endif
-  
-  //------[Printing information to serial port
-  #if SERIAL_DEBUG
-    // Limit the printing rate
-    if (pd_iteration_counter % 100 == 0){
-      // Serial.print("Switch: ");
-      // Serial.print(hand_switch_state);
-      // Angles
-      Serial.print(",Hand(deg)=");
-      Serial.print(angle_hand);
-      Serial.print(",Fork(deg)=");
-      Serial.print(angle_fork);
-      // Torque
-      Serial.print(",Torque_handlebar(Nm)=");
-      Serial.print(command_hand);
-      Serial.print(",Torque_fork(Nm)=");
-      Serial.print(command_fork);
-      Serial.print(",Hand(Counts)= ");
-      Serial.print(enc_counts_hand);
-      Serial.print(",Fork(Counts)= ");
-      Serial.print(enc_counts_fork);
-      Serial.print(",Time Taken= ");
-      Serial.print(sinceLastLoop);
-      // IMU
-      #if USE_IMU 
-        Serial.print(",AccelX= ");
-        Serial.print(accelX);
-        Serial.print(",AccelY= ");
-        Serial.print(accelY);
-        Serial.print(",AccelZ= ");
-        Serial.print(accelZ);
-        Serial.print(",GyroX= ");
-        Serial.print(gyroX);
-        Serial.print(",GyroY= ");
-        Serial.print(gyroY);
-        Serial.print(",GyroZ= ");
-        Serial.print(gyroZ);
-        Serial.print(",Temp= ");
-        Serial.print(temp);
-      #endif
-      // Encoders
-      #if USE_BIKE_ENCODERS
-        Serial.print(",Velocity= ");
-        Serial.print(velocity_ms);
-        Serial.print(",Cadence= ");
-        Serial.print(cadence_rads);
-      #endif
-      // New line
-      Serial.println();
-    }
-  #endif
-
-  //------[Print to SD card
-  #if USE_SD
-    size_t n = rb.bytesUsed();
-    // Check if there is free space
-    if ((n + logFile.curPosition()) > (LOG_FILE_SIZE - 100)) {
-      digitalWrite(hand_led, LOW);
-      isFull = true;
-    }
-    if (!isFull) {
-      // If the file is not busy, write out one sector of data
-      if (n >= 512 && !logFile.isBusy()) rb.writeOut(512);
-      // Write data to buffer
-      rb.print(pd_iteration_counter);
-      rb.write(',');
-      rb.print(sinceLastLoop);
-      // rb.write(',');
-      // rb.print(hand_switch_state);
-      rb.write(',');
-      rb.print(angle_hand,2);
-      rb.write(',');
-      rb.print(angle_fork,2);
-      rb.write(',');
-      // rb.print(angle_rate,2);
-      // rb.write(',');
-      // rb.print(filtered_angle_rate,2);
-      // rb.write(',');
-      rb.print(error,2);
-      rb.write(',');
-      rb.print(command_fork,2);
-      rb.write(',');
-      rb.print(command_hand,2);
-      #if USE_BT
-        rb.write(',');
-        rb.print(bt_message_double,2);
-      #endif
-      #if USE_RADIO
-        rb.write(',');
-        rb.print(radio_message,2);
-        rb.write(',');
-        rb.print(payloadRecv);
-      #endif
-      #if USE_IMU 
-        rb.write(',');
-        rb.print(gyroX,3);
-        rb.write(',');
-        rb.print(gyroY,3);
-        rb.write(',');
-        rb.print(gyroZ,3);
-      #endif
-      rb.write('\n');
-    }
-    // Flush the data from buffer to file. Try to do it at rarely as possible.
-    // Flushing takes a couple of milliseconds (around 3-4), which makes the
-    // next 3 or 4 PID controller iterations slightly out-of-time.
-    // Since the normal flush-less iteration takes significantly less than 1ms, 
-    // the controller gets back in time quickly.
-    // CAN SOMETIMES CAUSE A LAG SPIKE OF MULTIPLE SECONDS
-    // TODO: Find a workaround
-    if (pd_iteration_counter % 1500 == 0) logFile.flush();
-  #endif
-
   return;
 }
+
+
+#if USE_BIKE_ENCODERS
+//============================== [Calculate bicycle speed] ==============================//
+float calc_bike_speed(){
+  int32_t current_wheel_count = wheel_counter.read();
+  int32_t previous_wheel_count = wheel_counts[wheel_counts_index];
+  wheel_counts[wheel_counts_index] = current_wheel_count;
+  wheel_counts_index += 1;
+  if (wheel_counts_index >= WHEEL_COUNTS_LENGTH) wheel_counts_index = 0;
+  // There are 192 counts/revolution, the radius of the wheel is 3.6m
+  float rps_wheel = ((float) (current_wheel_count - previous_wheel_count)) 
+    / 192.0f * 1000.0f / ((float) WHEEL_COUNTS_LENGTH); 
+  float velocity_ms = -rps_wheel * 6.28f * 0.33f 
+    / 1000.0f * 3600.0f * 0.277778;
+  return velocity_ms;
+} 
+
+
+
+//============================== [Calculate cadance] ==============================//
+float calc_cadance(){
+  int32_t current_pedal_count = pedal_counter.read();
+  int32_t previous_pedal_count = pedal_counts[pedal_counts_index];
+  pedal_counts[pedal_counts_index] = current_pedal_count;
+  pedal_counts_index += 1;
+  if (pedal_counts_index >= PEDAL_COUNTS_LENGTH) pedal_counts_index = 0;
+  // There are 192 counts/revolution
+  float cadence_rads = ((float) (current_pedal_count - previous_pedal_count)) 
+    / 192.0f * 60.0f * 1000.0f 
+    / ((float) PEDAL_COUNTS_LENGTH) * 0.10471975511970057;
+  return cadence_rads;
+}
+#endif //USE_BIKE_ENCODERS
+
+
+
+//============================== [Read the IMU] ==============================//
+#if USE_IMU
+void get_IMU_data(){
+  digitalWrite(cs_imu, LOW);
+  IMU.Read();
+  // float accelY = IMU.accel_x_mps2();
+  // float accelX = IMU.accel_y_mps2();
+  // float accelZ = IMU.accel_z_mps2();
+  // float gyroY = IMU.gyro_x_radps();
+  // float gyroX = IMU.gyro_y_radps();
+  // float gyroZ = IMU.gyro_z_radps();
+  // float temp = IMU.die_temp_c();
+  digitalWrite(cs_imu, HIGH);
+}
+#endif
+  
+
+
+//------[Printing information to serial port
+#if SERIAL_DEBUG
+// void print_to_serial(){
+//   if (control_iteration_counter % 100 == 0){ // Limit the printing rate
+//     // Serial.print("Switch: ");
+//     // Serial.print(hand_switch_state);
+//     // Angles
+//     Serial.print(",Hand(deg)=");
+//     Serial.print(angle_hand);
+//     Serial.print(",Fork(deg)=");
+//     Serial.print(angle_fork);
+//     // Torque
+//     Serial.print(",Torque_handlebar(Nm)=");
+//     Serial.print(command_hand);
+//     Serial.print(",Torque_fork(Nm)=");
+//     Serial.print(command_fork);
+//     Serial.print(",Hand(Counts)= ");
+//     Serial.print(enc_counts_hand);
+//     Serial.print(",Fork(Counts)= ");
+//     Serial.print(enc_counts_fork);
+//     Serial.print(",Time Taken= ");
+//     Serial.print(sinceLastLoop);
+//     // IMU
+//     #if USE_IMU 
+//       Serial.print(",AccelX= ");
+//       Serial.print(accelX);
+//       Serial.print(",AccelY= ");
+//       Serial.print(accelY);
+//       Serial.print(",AccelZ= ");
+//       Serial.print(accelZ);
+//       Serial.print(",GyroX= ");
+//       Serial.print(gyroX);
+//       Serial.print(",GyroY= ");
+//       Serial.print(gyroY);
+//       Serial.print(",GyroZ= ");
+//       Serial.print(gyroZ);
+//       Serial.print(",Temp= ");
+//       Serial.print(temp);
+//     #endif
+//     // Encoders
+//     #if USE_BIKE_ENCODERS
+//       Serial.print(",Velocity= ");
+//       Serial.print(velocity_ms);
+//       Serial.print(",Cadence= ");
+//       Serial.print(cadence_rads);
+//     #endif
+//     // New line
+//     Serial.println();
+//   }
+// }
+#endif //SERIAL_DEBUG
+
+
+
+//------[Print to SD card
+#if USE_SD
+void print_to_SD(){
+  size_t n = rb.bytesUsed();
+
+  // Check if there is free space
+  if ((logFile.curPosition() + n) > (LOG_FILE_SIZE - 100)) {
+    digitalWrite(hand_led, LOW);
+    isFull = true;
+  }
+
+  if (!isFull) {
+    // If the file is not busy, write out one sector of data
+    if (n >= 512 && !logFile.isBusy()) 
+      rb.writeOut(512);
+
+    // // Write data to buffer
+    // rb.print(control_iteration_counter); //format must match that of 'open_file()'
+    // rb.write(',');
+    // rb.print(sinceLastLoop);
+    // // rb.write(',');
+    // // rb.print(hand_switch_state);
+    // rb.write(',');
+    // rb.print(angle_hand,2);
+    // rb.write(',');
+    // rb.print(angle_fork,2);
+    // rb.write(',');
+    // // rb.print(angle_rate,2);
+    // // rb.write(',');
+    // // rb.print(filtered_angle_rate,2);
+    // // rb.write(',');
+    // rb.print(error,2);
+    // rb.write(',');
+    // rb.print(command_fork,2);
+    // rb.write(',');
+    // rb.print(command_hand,2);
+    // #if USE_IMU 
+    // rb.write(',');
+    // rb.print(gyroX,3);
+    // rb.write(',');
+    // rb.print(gyroY,3);
+    // rb.write(',');
+    // rb.print(gyroZ,3);
+    // #endif
+    // rb.write('\n');
+  }
+
+  // Flush the data from buffer to file. Try to do it at rarely as possible.
+  // Flushing takes a couple of milliseconds (around 3-4), which makes the
+  // next 3 or 4 PID controller iterations slightly out-of-time.
+  // Since the normal flush-less iteration takes significantly less than 1ms, 
+  // the controller gets back in time quickly.
+  // CAN SOMETIMES CAUSE A LAG SPIKE OF MULTIPLE SECONDS
+  // TODO: Find a workaround
+  if (control_iteration_counter % 1500 == 0) logFile.flush();
+}
+#endif //USE_SD
 
 
 
@@ -559,19 +607,19 @@ float return_scaling(uint64_t iteration){
   // not aligned. Also used to slowly introduce the MPC torque to the rider.
   if (iteration <= (uint64_t) 6000) 
     return 35.0f;
-  if (iteration <= (uint64_t) 7000)
+  else if (iteration <= (uint64_t) 7000)
     return 30.0f;
-  if (iteration <= (uint64_t) 8000)
+  else if (iteration <= (uint64_t) 8000)
     return 25.0f;
-  if (iteration <= (uint64_t) 9000)
+  else if (iteration <= (uint64_t) 9000)
     return 20.0f;
-  if (iteration <= (uint64_t) 10000)
+  else if (iteration <= (uint64_t) 10000)
     return 15.0f;
-  if (iteration <= (uint64_t) 11000)
+  else if (iteration <= (uint64_t) 11000)
     return 10.0f;
-  if (iteration <= (uint64_t) 12000)
+  else if (iteration <= (uint64_t) 12000)
     return 5.0f;
-  if (iteration <= (uint64_t) 13000)
+  else if (iteration <= (uint64_t) 13000)
     return 2.5f;
   
   return 1.0f;
@@ -591,7 +639,7 @@ float return_scaling(uint64_t iteration){
 
 
 //============================= [Check Switch] ==============================//
-uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size){
+uint8_t check_switch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size){
   // Taking raw switch value is not reliable as the value can sometimes jump to
   // 0 even if the switch is on. This function tracks the last array_size
   // switch values and outputs 1 if at least 70% (rounded down) of them were 
@@ -610,60 +658,67 @@ uint8_t checkSwitch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size){
 
 //=============================== [Open File] ===============================//
 #if USE_SD
-  void openFile() {
-    String fullFileName = fileName + String(fileCount) + fileExt;
-    if (!logFile.open(fullFileName.c_str(), O_RDWR | O_CREAT | O_TRUNC)) {
-      Serial.println("Open failed");
-      while (1) { // Long-long error code
-        digitalWrite(hand_led, HIGH);
-        delay(1000);
-        digitalWrite(hand_led, LOW);
-        delay(500);
-      }
+void open_file() {
+  String fullFileName = fileName + String(fileCount) + fileExt;
+
+  if (!logFile.open(fullFileName.c_str(), O_RDWR | O_CREAT | O_TRUNC)) {
+    Serial.println("Open failed");
+    while (1) { // Long-long error code
+      digitalWrite(hand_led, HIGH);
+      delay(1000);
+      digitalWrite(hand_led, LOW);
+      delay(500);
     }
-    if (!logFile.preAllocate(LOG_FILE_SIZE)) {
-      Serial.println("Preallocate failed");
-      while (1) { // Long-long error code
-        digitalWrite(hand_led, HIGH);
-        delay(1000);
-        digitalWrite(hand_led, LOW);
-        delay(500);
-      }
-    }
-    rb.begin(&logFile);
-    rb.print("pd_iteration_counter");
-    rb.write(',');
-    rb.print("mpc_iteration_counter");
-    rb.write(',');
-    rb.print("sinceLastLoop");
-    // rb.write(',');
-    // rb.print("hand_switch_state");
-    rb.write(',');
-    rb.print("angle_hand");
-    rb.write(',');
-    rb.print("angle_fork");
-    rb.write(',');
-    // rb.print("angle_rate");
-    // rb.write(',');
-    // rb.print("filtered_angle_rate");
-    // rb.write(',');
-    rb.print("error");
-    rb.write(',');
-    rb.print("command_fork");
-    rb.write(',');
-    rb.print("command_hand");
-    #if USE_IMU
-      rb.write(',');
-      rb.print("gyroX");
-      rb.write(',');
-      rb.print("gyroY");
-      rb.write(',');
-      rb.print("gyroZ");
-    #endif
-    rb.write('\n');
-    size_t n = rb.bytesUsed();
-    rb.writeOut(n);
-    logFile.flush();
-    isOpen = true;
   }
+
+  if (!logFile.preAllocate(LOG_FILE_SIZE)) {
+    Serial.println("Preallocate failed");
+    while (1) { // Long-long error code
+      digitalWrite(hand_led, HIGH);
+      delay(1000);
+      digitalWrite(hand_led, LOW);
+      delay(500);
+    }
+  }
+
+  rb.begin(&logFile);
+
+  // rb.print("control_iteration_counter"); //This should equal the format used in 'print_to_SD'
+  // rb.write(',');
+  // rb.print("mpc_iteration_counter");
+  // rb.write(',');
+  // rb.print("sinceLastLoop");
+  // // rb.write(',');
+  // // rb.print("hand_switch_state");
+  // rb.write(',');
+  // rb.print("angle_hand");
+  // rb.write(',');
+  // rb.print("angle_fork");
+  // rb.write(',');
+  // // rb.print("angle_rate");
+  // // rb.write(',');
+  // // rb.print("filtered_angle_rate");
+  // // rb.write(',');
+  // rb.print("error");
+  // rb.write(',');
+  // rb.print("command_fork");
+  // rb.write(',');
+  // rb.print("command_hand");
+  // #if USE_IMU
+  //   rb.write(',');
+  //   rb.print("gyroX");
+  //   rb.write(',');
+  //   rb.print("gyroY");
+  //   rb.write(',');
+  //   rb.print("gyroZ");
+  // #endif
+  // rb.write('\n');
+
+  size_t n = rb.bytesUsed();
+  rb.writeOut(n);
+  logFile.flush();
+
+  isOpen = true;
+  return;
+}
 #endif
