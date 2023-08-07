@@ -52,16 +52,17 @@ const uint32_t HAND_PWM_MAX = PWM_MAX_VAL;
 const uint32_t HAND_PWM_MIN = 0;
 const uint32_t FORK_PWM_MAX = PWM_MAX_VAL;
 const uint32_t FORK_PWM_MIN = 0;
-const uint16_t INITIAL_FORK_PWM = 0;
-const uint16_t INITIAL_STEER_PWM = 0;
+const uint16_t INITIAL_FORK_PWM = 16384; //K: I think that the middle is a zero command. That 0 and 32,768 are both maximum torque but in opposite directions.
+const uint16_t INITIAL_STEER_PWM = 16384;
 
 // Timing
-const uint16_t MIN_LOOP_LENGTH_MU = 1000;
+const uint16_t MIN_LOOP_LENGTH_MU = 1000; // target minimum loop length in microseconds.
+const float MIN_LOOP_LENGTH_S = MIN_LOOP_LENGTH_MU*1e-6; //
 const uint16_t CTRL_STARTUP_ITTERATIONS = 13000; //#itterations in which the steer torques are slowly scaled to unity.
 
 // Motor encoders
 const uint32_t ENCODER_CLK_FREQ = 225000; //clock frequency for the encoders SPI protocol
-const float HAND_ENC_BIAS = 153.65; //Offset = angle_hand-angle_fork (K: I think)
+const float HAND_ENC_BIAS = 153.65;
 const float FORK_ENC_BIAS = 100.65;
 const float HAND_ENC_MAX_VAL = 8191.0;
 const float FORK_ENC_MAX_VAL = 8191.0;
@@ -69,6 +70,9 @@ const float FORK_ENC_MAX_VAL = 8191.0;
 // Pedal and wheel encoders
 const uint16_t WHEEL_COUNTS_LENGTH = 200;
 const uint16_t PEDAL_COUNTS_LENGTH = 500;
+const float WHEEL_RADIUS = 0.33f;
+const uint8_t WHEEL_COUNTS_PER_REV = 192;
+const uint8_t PEDAL_COUNTS_PER_REV = 192;
 
 // Angles
 const float FULL_ROTATION_DEG = 360.0;
@@ -78,16 +82,16 @@ const float SOFTWARE_LIMIT = 42.0;
 // SD card
 const uint16_t SD_SAMPLING_FREQ = 1000; //Sampling frequency of the SD card
 const uint64_t MESSAGE_LENGTH = 100; // The maximum expected legth of one sample of data. In bytes
-const uint16_t EXPERIMENT_TIME = 600; //in seconds
-const uint8_t  BUFFER_HOLD_TIME = 2; //in seconds
+const uint16_t EXPERIMENT_TIME = 600; // In seconds
+const uint8_t  BUFFER_HOLD_TIME = 2; // In seconds
 const uint64_t LOG_FILE_SIZE = MESSAGE_LENGTH*EXPERIMENT_TIME*SD_SAMPLING_FREQ; // Log file should hold 10 minutes of data sampled at 1kHz
 const uint64_t RING_BUF_CAPACITY = MESSAGE_LENGTH*BUFFER_HOLD_TIME*SD_SAMPLING_FREQ; // Buffer should hold 2 seconds of data sampled at 1kHz
 
 // PD Gains
-const float KP_F = 2.0f;
-const float KD_F = 0.029f;
-const float KP_H = 0.9f;
-const float KD_H = 0.012f;
+const float KP_F = 2.0f; // Fork
+const float KD_F = 0.029f; // Fork
+const float KP_H = 0.9f; // Handlebar
+const float KD_H = 0.012f; // Handlebar
 
 //-------------------------------- Pins --------------------------------------//
 const uint8_t cs_hand = 24; // SPI Chip Select for handlebar encoder
@@ -130,7 +134,7 @@ uint64_t control_iteration_counter = 0; // TODO: Ensure it never overflows!
 // uint8_t hand_switch_state_prev = 0;
 
 //--------------------------------- Time -------------------------------------//
-elapsedMicros sinceLastLoop; // How long has passed since last loop execution
+elapsedMicros since_last_loop; // How long has passed since last loop execution
 elapsedMicros derror_since_last; // How long since last error rate calculation
 // elapsedMicros dsteer_since_last; // How long since last steer rate calculation
 
@@ -155,7 +159,7 @@ elapsedMicros derror_since_last; // How long since last error rate calculation
   ExFile root; // Used to count the number of files
   ExFile countFile; // Used to count the number of files
   ExFile logFile; // Used for logging
-  String fileName = "SbW_log_";
+  String fileName = "sbw_log_";
   String fileExt = ".csv";
   RingBuf<ExFile, RING_BUF_CAPACITY> rb; // Set up the buffer
   int fileCount = 0; // Number of files already on the SD
@@ -168,13 +172,13 @@ elapsedMicros derror_since_last; // How long since last error rate calculation
 //============================== [Main Setup] ==================================//
 void setup(){
   //------[Initialize communications
-  SPI.begin();        // IMU, fork and steer encoders
+  SPI.begin(); // IMU, fork and steer encoders
   #if SERIAL_DEBUG
   Serial.begin(9600); // Communication with PC through micro-USB
   #endif
   
   //------[Setup INPUT pins
-  pinMode(hand_switch,      INPUT); // If switch is HIGH - MPC is on
+  pinMode(hand_switch,      INPUT);
 
   //------[Setup OUTPUT pins
   pinMode(enable_motor_enc, OUTPUT);
@@ -227,7 +231,7 @@ void setup(){
 
   #if USE_SD
     //------[Setup SD card
-    if(!sd.begin(SdioConfig(FIFO_SDIO))){
+    if(!sd.begin(SdioConfig(FIFO_SDIO))){ //Initialize SD card and file system for SDIO mode. Here: FIFO
       #if SERIAL_DEBUG
       Serial.println("SD card initialization unsuccessful");
       Serial.println("Please check SD card!");
@@ -244,7 +248,7 @@ void setup(){
     //------[Count files on SD card
     root.open("/");
     while (countFile.openNext(&root, O_RDONLY)) {
-      if (!countFile.isHidden()) fileCount++;
+      if (!countFile.isHidden()) fileCount++; // Count only the log files
       countFile.close();
     }
   #endif //USE_SD
@@ -252,7 +256,7 @@ void setup(){
 
   //------[Time stuff
   delay(1); //give time for sensors to initialize
-  sinceLastLoop = 0;
+  since_last_loop = 0;
   derror_since_last = 0;
   // dsteer_since_last = 0;
 }
@@ -266,8 +270,8 @@ void loop(){
   #endif
   
   
-  if (sinceLastLoop >= MIN_LOOP_LENGTH_MU){ //K: is the idea here to have a max freq? (cause that is not garanteed in this way)    
-    sinceLastLoop = sinceLastLoop - MIN_LOOP_LENGTH_MU; //reset counter
+  if (since_last_loop >= MIN_LOOP_LENGTH_MU){ //K: Sort of have a max freq? (cause that is not garanteed in this way)    
+    since_last_loop = since_last_loop - MIN_LOOP_LENGTH_MU; //reset counter
 
     if (control_iteration_counter >= CTRL_STARTUP_ITTERATIONS) // Turn on LED when bike is ready
       digitalWrite(hand_led, HIGH);
@@ -302,12 +306,11 @@ void loop(){
 
 
 
+/*==============================================================================*\
+ |                               Helper Functions                               |
+\*==============================================================================*/
 
-/*=====================================================================================*\
- |                                   Helper Functions                                  |
-\*=====================================================================================*/
-
-//============================== [Get steer angles] ===================================//
+//=========================== [Get steer angles] ===============================//
 void get_steer_angles(float& angle_hand, float& angle_fork){
   //------[Read encoder values
   uint16_t enc_counts_hand = read_motor_encoder(cs_hand); //SPI communication with Handlebar encoder
@@ -342,7 +345,8 @@ void get_steer_angles(float& angle_hand, float& angle_fork){
 
 
 
-//============================== [Calculate PD error] ===================================//
+
+//============================ [Calculate PD error] ============================//
 void calc_pd_errors(float angle_hand, float angle_fork, float& error, float& derror_dt){
   //------[Calculate error derivative in seconds^-1
   // S: Set the very first handlebar and fork encoder values to 0
@@ -358,15 +362,17 @@ void calc_pd_errors(float angle_hand, float angle_fork, float& error, float& der
 }
 
 
-
-//============================== [Calculate PD Control] ==============================//
+//=========================== [Calculate PD Control] ===========================//
 void calc_pd_control(float error, float derror_dt, double& command_fork, double& command_hand){
   //------[Calculate PID torques
-  command_fork = (KP_F*error + KD_F*derror_dt) / return_scaling(control_iteration_counter);
-  command_hand = (KP_H*error + KD_H*derror_dt) / return_scaling(control_iteration_counter);
+  command_fork = (KP_F*error + KD_F*derror_dt) / return_scaling(control_iteration_counter); //Scaling is done to prevent a jerk of the motors at startup
+  command_hand = (KP_H*error + KD_H*derror_dt) / return_scaling(control_iteration_counter); // , as the fork and handlebar can be misaligned
   return;
 }
 
+
+
+//=========================== [Actuate steer motors] ===========================//
 void actuate_steer_motors(double command_fork, double command_hand){
   //------[Find the PWM command
   uint64_t pwm_command_fork = (command_fork * -842.795 + 16384); //K: magic numbers, what do they mean!!!
@@ -382,45 +388,70 @@ void actuate_steer_motors(double command_fork, double command_hand){
 
 
 #if USE_BIKE_ENCODERS
-//============================== [Calculate bicycle speed] ==============================//
+//========================= [Calculate bicycle speed] ==========================//
 float calc_bike_speed(){
+  /*K: NOTE Since the microcontroller operating frequency is much higher than the
+  frequency at which encoder ticks pass the reading head, the difference between
+  the tick count of the current and previous loop will most of the time be zero.
+  To have a meaningfull value, the value of this loop and that of 
+  WHEEL_COUNTS_LENGTH ago are compared. WARNING: It is assumed that the loop has
+  a constant frequency, which is not the case.*/
+  //TODO: Use timers instead of loops
   int32_t current_wheel_count = wheel_counter.read();
   int32_t previous_wheel_count = wheel_counts[wheel_counts_index];
   wheel_counts[wheel_counts_index] = current_wheel_count;
   wheel_counts_index += 1;
   if (wheel_counts_index >= WHEEL_COUNTS_LENGTH) wheel_counts_index = 0;
-  // There are 192 counts/revolution, the radius of the wheel is 3.6m
-  float rps_wheel = ((float) (current_wheel_count - previous_wheel_count)) 
-    / 192.0f * 1000.0f / ((float) WHEEL_COUNTS_LENGTH); 
-  float velocity_ms = -rps_wheel * 6.28f * 0.33f 
-    / 1000.0f * 3600.0f * 0.277778;
+
+  /*NOTE #rounds = count_diff/WHEEL_COUNTS_PER_REV. The count_diff is measured 
+  WHEEL_COUNTS_LENGTH loops away from each other. A loop (should) take
+  MIN_LOOP_LENGTH_S sec. So time_diff = WHEEL_COUNTS_LENGTH * 
+  MIN_LOOP_LENGTH_S. Than rounds per second = #rounds/time_diff
+  */ 
+  float rps_wheel = ((float)(current_wheel_count - previous_wheel_count)) / 
+  ((float)WHEEL_COUNTS_PER_REV * (float)WHEEL_COUNTS_LENGTH * MIN_LOOP_LENGTH_S);
+  float velocity_ms = -rps_wheel * 2*PI * WHEEL_RADIUS;
+
   return velocity_ms;
 } 
 
 
 
-//============================== [Calculate cadance] ==============================//
+//============================ [Calculate cadance] =============================//
 float calc_cadance(){
+  /*K: NOTE Since the microcontroller operating frequency is much higher than the
+  frequency at which encoder ticks pass the reading head, the difference between
+  the tick count of the current and previous loop will most of the time be zero.
+  To have a meaningfull value, the value of this loop and that of 
+  WHEEL_COUNTS_LENGTH ago are compared. WARNING: It is assumed that the loop has
+  a constant frequency, which is not the case.*/
+  //TODO: Use timers instead of loops
   int32_t current_pedal_count = pedal_counter.read();
   int32_t previous_pedal_count = pedal_counts[pedal_counts_index];
   pedal_counts[pedal_counts_index] = current_pedal_count;
   pedal_counts_index += 1;
   if (pedal_counts_index >= PEDAL_COUNTS_LENGTH) pedal_counts_index = 0;
-  // There are 192 counts/revolution
-  float cadence_rads = ((float) (current_pedal_count - previous_pedal_count)) 
-    / 192.0f * 60.0f * 1000.0f 
-    / ((float) PEDAL_COUNTS_LENGTH) * 0.10471975511970057;
+
+  /*NOTE #rounds = count_diff/PEDAL_COUNTS_PER_REV. The count_diff is measured 
+  PEDAL_COUNTS_LENGTH loops away from each other. A loop (should) take
+  MIN_LOOP_LENGTH_S sec. So time_diff = PEDAL_COUNTS_LENGTH * 
+  MIN_LOOP_LENGTH_S. Than rps = #rounds/time_diff. Then rad/s = rps*2pi
+  */
+  float cadence_rads = ((float) (current_pedal_count - previous_pedal_count)) / 
+  ((float)PEDAL_COUNTS_PER_REV *(float) PEDAL_COUNTS_LENGTH * MIN_LOOP_LENGTH_S)
+  * 2*PI;
+    
   return cadence_rads;
 }
 #endif //USE_BIKE_ENCODERS
 
 
 
-//============================== [Read the IMU] ==============================//
+//=============================== [Read the IMU] ===============================//
 #if USE_IMU
 void get_IMU_data(){
   digitalWrite(cs_imu, LOW);
-  IMU.Read();
+  IMU.Read(); // load IMU data into IMU object
   // float accelY = IMU.accel_x_mps2();
   // float accelX = IMU.accel_y_mps2();
   // float accelZ = IMU.accel_z_mps2();
@@ -434,7 +465,7 @@ void get_IMU_data(){
   
 
 
-//------[Printing information to serial port
+//=========================== [Print to serial] ===========================//
 #if SERIAL_DEBUG
 // void print_to_serial(){
 //   if (control_iteration_counter % 100 == 0){ // Limit the printing rate
@@ -455,7 +486,7 @@ void get_IMU_data(){
 //     Serial.print(",Fork(Counts)= ");
 //     Serial.print(enc_counts_fork);
 //     Serial.print(",Time Taken= ");
-//     Serial.print(sinceLastLoop);
+//     Serial.print(since_last_loop);
 //     // IMU
 //     #if USE_IMU 
 //       Serial.print(",AccelX= ");
@@ -488,15 +519,15 @@ void get_IMU_data(){
 
 
 
-//------[Print to SD card
+//============================= [Print to SD] =============================//
 #if USE_SD
 void print_to_SD(){
   size_t n = rb.bytesUsed();
 
   // Check if there is free space
   if ((logFile.curPosition() + n) > (LOG_FILE_SIZE - 100)) {
-    digitalWrite(hand_led, LOW);
-    isFull = true;
+    digitalWrite(hand_led, LOW); //notify the user via LED
+    isFull = true; //TODO: open new file
   }
 
   if (!isFull) {
@@ -507,7 +538,7 @@ void print_to_SD(){
     // // Write data to buffer
     // rb.print(control_iteration_counter); //format must match that of 'open_file()'
     // rb.write(',');
-    // rb.print(sinceLastLoop);
+    // rb.print(since_last_loop);
     // // rb.write(',');
     // // rb.print(hand_switch_state);
     // rb.write(',');
@@ -548,7 +579,7 @@ void print_to_SD(){
 
 
 
-//=========================== [Read Motor Encoder] ===========================//
+//========================== [Read Motor Encoder] =========================//
 uint16_t read_motor_encoder(const uint8_t cs_pin){
   /* Communication with encoder goes through SSI protecol variant.
   |  But we read it out via SPI protecol. Since the encoder uses 
@@ -582,8 +613,13 @@ uint16_t read_motor_encoder(const uint8_t cs_pin){
 
 
 
-//=================== [Calculate Derivative Forward Euler] ===================//
+//================= [Calculate Derivative Backward Euler] =================//
 float calc_forwrd_derivative(float val_cur, float& val_prev, elapsedMicros& timer_mu){
+  /* Calculate the derivative with backward Euler. Each variable has its personal 
+  timer, wich will be reset to zero and the previous value is updated to the current
+  if that values derivative is calulated. WARNING: This should be the only place
+  where the value of 'previous' is altered.
+  */
   float derivative = (val_cur - val_prev)/(timer_mu * 1e-6);
   timer_mu = 0;
   val_prev = val_cur;
@@ -600,11 +636,11 @@ float calc_forwrd_derivative(float val_cur, float& val_prev, elapsedMicros& time
 
 
 
-//============================ [Return Scaling] =============================//
+//=========================== [Return Scaling] ============================//
 float return_scaling(uint64_t iteration){
   // Slowly ramps up the torque over 13 seconds. Used to avoid commanding high 
   // torques when turning on the bicycle, if the handlebars and the wheel are
-  // not aligned. Also used to slowly introduce the MPC torque to the rider.
+  // not aligned.
   if (iteration <= (uint64_t) 6000) 
     return 35.0f;
   else if (iteration <= (uint64_t) 7000)
@@ -627,7 +663,7 @@ float return_scaling(uint64_t iteration){
 
 
 
-//============================ [Moving Average] =============================//
+//=========================== [Moving Average] ============================//
 //float moving_avg(float new_value){
   // avg_sum = avg_sum - avg_array[avg_index];
   // avg_array[avg_index] = new_value;
@@ -638,7 +674,7 @@ float return_scaling(uint64_t iteration){
 
 
 
-//============================= [Check Switch] ==============================//
+//============================ [Check Switch] =============================//
 uint8_t check_switch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size){
   // Taking raw switch value is not reliable as the value can sometimes jump to
   // 0 even if the switch is on. This function tracks the last array_size
@@ -656,11 +692,12 @@ uint8_t check_switch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size)
 
 
 
-//=============================== [Open File] ===============================//
+//============================== [Open File] ==============================//
 #if USE_SD
 void open_file() {
   String fullFileName = fileName + String(fileCount) + fileExt;
 
+  // Open file
   if (!logFile.open(fullFileName.c_str(), O_RDWR | O_CREAT | O_TRUNC)) {
     Serial.println("Open failed");
     while (1) { // Long-long error code
@@ -670,7 +707,8 @@ void open_file() {
       delay(500);
     }
   }
-
+  
+  //Prealocate space
   if (!logFile.preAllocate(LOG_FILE_SIZE)) {
     Serial.println("Preallocate failed");
     while (1) { // Long-long error code
@@ -681,13 +719,14 @@ void open_file() {
     }
   }
 
+  // Start Writing to buffer
   rb.begin(&logFile);
 
   // rb.print("control_iteration_counter"); //This should equal the format used in 'print_to_SD'
   // rb.write(',');
   // rb.print("mpc_iteration_counter");
   // rb.write(',');
-  // rb.print("sinceLastLoop");
+  // rb.print("since_last_loop");
   // // rb.write(',');
   // // rb.print("hand_switch_state");
   // rb.write(',');
@@ -714,11 +753,12 @@ void open_file() {
   // #endif
   // rb.write('\n');
 
+  // Write to SD card
   size_t n = rb.bytesUsed();
   rb.writeOut(n);
   logFile.flush();
 
-  isOpen = true;
+  isOpen = true; // Set to TRUE such that the open file function is only called once
   return;
 }
 #endif
