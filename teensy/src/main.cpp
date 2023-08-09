@@ -13,11 +13,10 @@ a_hand = 41; // Analog output pin of the handlebar motor drive
 */
 
 //============================== Compile modes ===============================//
-#define USE_IMU 1
-#define USE_SD 1
-#define USE_ANALOG 1
-#define USE_BIKE_ENCODERS 1
-#define SERIAL_DEBUG 1
+#define USE_IMU 0
+#define USE_SD 0
+#define USE_BIKE_ENCODERS 0
+#define SERIAL_DEBUG 0
 
 //=========================== Function declarations ===========================//
 void get_steer_angles(float& angle_hand, float& angle_fork);
