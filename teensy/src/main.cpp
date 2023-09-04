@@ -19,9 +19,10 @@ a_hand = 41; // Analog output pin of the handlebar motor drive
 #define SERIAL_DEBUG 0
 
 //=========================== Function declarations ===========================//
-void get_steer_angles(float& angle_hand, float& angle_fork);
-void calc_pd_errors(float angle_hand, float angle_fork, float& error, float& derror_dt);
+void get_steer_angles(float& hand_angle, float& fork_angle);
+void calc_pd_errors(float hand_angle, float fork_angle, float& error, float& derror_dt);
 void calc_pd_control(float error, float derror_dt, double& command_fork, double& command_hand);
+void calc_mm_control(float lean_angle, float fork_angle, float lean_rate, float fork_rate, float lean_torque, float hand_torque, double& command_fork);
 void actuate_steer_motors(double command_fork, double command_hand);
 uint16_t read_motor_encoder(const uint8_t cs_pin);
 float calc_forwrd_derivative(float val_cur, float& val_prev, elapsedMicros& timer_mu);
@@ -91,6 +92,14 @@ const float KP_F = 2.0f; // Fork
 const float KD_F = 0.029f; // Fork
 const float KP_H = 0.9f; // Handlebar
 const float KD_H = 0.012f; // Handlebar
+
+// Model matching gains
+const float K_MM1 = 0; // lean angle
+const float K_MM2 = 0; // steer/fork angle
+const float K_MM3 = 0; // lean rate
+const float K_MM4 = 0; // steer/fork rate
+const float K_MM5 = 0; // lean torque
+const float K_MM6 = 0; // steer/hand torque
 
 //-------------------------------- Pins --------------------------------------//
 const uint8_t cs_hand = 24; // SPI Chip Select for handlebar encoder
@@ -284,19 +293,32 @@ void loop(){
     //                                 );
     
     //------[Perform steering control
-    float angle_hand, angle_fork;
+    
+    
+    // TO DO: make a BikeStates class that get/calculate all states and stores them
+
+
+    float hand_angle, fork_angle, lean_angle, fork_rate, lean_rate; // bicycle states
+    float hand_torque; // Measurement of the torque on the handlebar applied by the human 
+    float lean_torque = 0; //TODO: remove lean torque
     float error, derror_dt;
-    double command_fork, command_hand;
-    get_steer_angles(angle_hand, angle_fork);
-    calc_pd_errors(angle_hand, angle_fork, error, derror_dt);
-    calc_pd_control(error, derror_dt, command_fork, command_hand);
+    double command_fork = 0;
+    double command_hand = 0;
+    get_steer_angles(hand_angle, fork_angle);
+    // TODO: get_bicycle_states(lean_angle, fork_rate, lean_rate)
+    // TODO: get_hand_torque(hand_torque)
+    calc_pd_errors(hand_angle, fork_angle, error, derror_dt);
+    
+    calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
+    calc_mm_control(lean_angle, fork_angle, lean_rate, fork_rate, lean_torque, hand_torque, command_fork); // add model matching torque to fork torque
+    
     actuate_steer_motors(command_fork, command_hand);
 
     // //------[Calculate steering rate
-    //float angle_diff = angle_fork - angle_prev;
+    //float angle_diff = fork_angle - angle_prev;
     //float angle_rate = (float) (angle_diff / error_time_diff);
     //float filtered_angle_rate = moving_avg(angle_rate);
-    //angle_prev = angle_fork;
+    //angle_prev = fork_angle;
 
     //------[Increase counters
     control_iteration_counter++;
@@ -310,7 +332,7 @@ void loop(){
 \*==============================================================================*/
 
 //=========================== [Get steer angles] ===============================//
-void get_steer_angles(float& angle_hand, float& angle_fork){
+void get_steer_angles(float& hand_angle, float& fork_angle){
   //------[Read encoder values
   uint16_t enc_counts_hand = read_motor_encoder(cs_hand); //SPI communication with Handlebar encoder
   uint16_t enc_counts_fork = read_motor_encoder(cs_fork); //SPI communication with Fork encoder
@@ -324,13 +346,13 @@ void get_steer_angles(float& angle_hand, float& angle_fork){
   the encoders must give an output int the 0-180 degrees range. 
   */
   // Handlebar
-  angle_hand = ((float)enc_counts_hand / HAND_ENC_MAX_VAL) * FULL_ROTATION_DEG - HAND_ENC_BIAS;
-  if (angle_hand > HALF_ROTATION_DEG) 
-    angle_hand = angle_hand - FULL_ROTATION_DEG; // CCW handlebar rotation gives 360 deg-> 310 deg. Subtract 360 to get 0-180 deg CCW
+  hand_angle = ((float)enc_counts_hand / HAND_ENC_MAX_VAL) * FULL_ROTATION_DEG - HAND_ENC_BIAS;
+  if (hand_angle > HALF_ROTATION_DEG) 
+    hand_angle = hand_angle - FULL_ROTATION_DEG; // CCW handlebar rotation gives 360 deg-> 310 deg. Subtract 360 to get 0-180 deg CCW
   // Fork
-  angle_fork = -(((float)enc_counts_fork / FORK_ENC_MAX_VAL) * FULL_ROTATION_DEG + FORK_ENC_BIAS); //Minus sign to get minus values from fork encoder.
-  if (angle_fork < -HALF_ROTATION_DEG) 
-    angle_fork = angle_fork + FULL_ROTATION_DEG; // CW fork rotation gives -360 deg-> -310 deg. Add 360 to get 0-180 deg CCW
+  fork_angle = -(((float)enc_counts_fork / FORK_ENC_MAX_VAL) * FULL_ROTATION_DEG + FORK_ENC_BIAS); //Minus sign to get minus values from fork encoder.
+  if (fork_angle < -HALF_ROTATION_DEG) 
+    fork_angle = fork_angle + FULL_ROTATION_DEG; // CW fork rotation gives -360 deg-> -310 deg. Add 360 to get 0-180 deg CCW
 
 
   //------[Compensate for difference in range of motion of handelbar and fork
@@ -339,23 +361,23 @@ void get_steer_angles(float& angle_hand, float& angle_fork){
   the fork to the steer, software limits are set below. If you do not set
   this limits, the motor folds back.
   */
-  angle_hand = constrain(angle_hand, -SOFTWARE_LIMIT, SOFTWARE_LIMIT); //K: This may cause the oscillations
+  hand_angle = constrain(hand_angle, -SOFTWARE_LIMIT, SOFTWARE_LIMIT); //K: This may cause the oscillations
 }
 
 
 
 
 //============================ [Calculate PD error] ============================//
-void calc_pd_errors(float angle_hand, float angle_fork, float& error, float& derror_dt){
+void calc_pd_errors(float hand_angle, float fork_angle, float& error, float& derror_dt){
   //------[Calculate error derivative in seconds^-1
   // S: Set the very first handlebar and fork encoder values to 0
   // D: setting handlebar and fork encoder first values to 0, we do that because first values seem to be floating values
   // K: most likely due to encoder just haven got power, and still initializing. A delay in the setup might fix this
   if (control_iteration_counter < 10){ 
-    angle_hand = 0.0f;
-    angle_fork = 0.0f;
+    hand_angle = 0.0f;
+    fork_angle = 0.0f;
   }
-  error = (angle_hand - angle_fork);
+  error = (hand_angle - fork_angle);
   derror_dt = calc_forwrd_derivative(error, error_prev, derror_since_last);
   return;
 }
@@ -364,11 +386,17 @@ void calc_pd_errors(float angle_hand, float angle_fork, float& error, float& der
 //=========================== [Calculate PD Control] ===========================//
 void calc_pd_control(float error, float derror_dt, double& command_fork, double& command_hand){
   //------[Calculate PID torques
-  command_fork = (KP_F*error + KD_F*derror_dt) / return_scaling(control_iteration_counter); //Scaling is done to prevent a jerk of the motors at startup
-  command_hand = (KP_H*error + KD_H*derror_dt) / return_scaling(control_iteration_counter); // , as the fork and handlebar can be misaligned
+  command_fork += (KP_F*error + KD_F*derror_dt) / return_scaling(control_iteration_counter); //Scaling is done to prevent a jerk of the motors at startup
+  command_hand += (KP_H*error + KD_H*derror_dt) / return_scaling(control_iteration_counter); // , as the fork and handlebar can be misaligned
   return;
 }
 
+//=========================== [Calculate model matching Control] ===========================//
+void calc_mm_control(float lean_angle, float fork_angle, float lean_rate, float fork_rate, float lean_torque, float hand_torque, double& command_fork){
+  //------[Calculate model matching torques
+  // The torque is only applied to the fork, as the driver should not notice that the fork is moving differently than the handlebar.
+  command_fork += K_MM1*lean_angle + K_MM2*fork_angle + K_MM3*lean_rate + K_MM4*fork_rate + K_MM5*lean_torque + K_MM6*hand_torque;
+}
 
 
 //=========================== [Actuate steer motors] ===========================//
@@ -472,9 +500,9 @@ void get_IMU_data(){
 //     // Serial.print(hand_switch_state);
 //     // Angles
 //     Serial.print(",Hand(deg)=");
-//     Serial.print(angle_hand);
+//     Serial.print(hand_angle);
 //     Serial.print(",Fork(deg)=");
-//     Serial.print(angle_fork);
+//     Serial.print(fork_angle);
 //     // Torque
 //     Serial.print(",Torque_handlebar(Nm)=");
 //     Serial.print(command_hand);
@@ -541,9 +569,9 @@ void print_to_SD(){
     // // rb.write(',');
     // // rb.print(hand_switch_state);
     // rb.write(',');
-    // rb.print(angle_hand,2);
+    // rb.print(hand_angle,2);
     // rb.write(',');
-    // rb.print(angle_fork,2);
+    // rb.print(fork_angle,2);
     // rb.write(',');
     // // rb.print(angle_rate,2);
     // // rb.write(',');
@@ -629,7 +657,7 @@ float calc_forwrd_derivative(float val_cur, float& val_prev, elapsedMicros& time
   // float error_time_diff = ((float) (error_time_curr - error_time_prev)) / 1000000.0f;
   // error_time_prev = error_time_curr;
   // // Calculation of dError
-  // float error_curr = (angle_hand - angle_fork);
+  // float error_curr = (hand_angle - fork_angle);
   // float error = (error_curr - error_prev) / error_time_diff;
   // error_prev = error_curr;
 
@@ -729,9 +757,9 @@ void open_file() {
   // // rb.write(',');
   // // rb.print("hand_switch_state");
   // rb.write(',');
-  // rb.print("angle_hand");
+  // rb.print("hand_angle");
   // rb.write(',');
-  // rb.print("angle_fork");
+  // rb.print("fork_angle");
   // rb.write(',');
   // // rb.print("angle_rate");
   // // rb.write(',');
