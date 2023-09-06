@@ -21,12 +21,18 @@ a_hand = 41; // Analog output pin of the handlebar motor drive
 //================================= Classes ==================================//
 class BikeMeasurements{
   private:
+    // state and input variables
     float m_hand_angle;
     float m_fork_angle;
     float m_lean_angle;
     float m_fork_rate;
     float m_lean_rate;
     float m_hand_torque; // Measurement of the torque on the handlebar applied by the human 
+    
+    // variables needed for derivarion/intergration calculation
+    uint32_t m_dt_steer_meas; //Time between two consecutive measurements of the steer angle in microseconds
+    float m_fork_angle_prev;
+    
   public:
     BikeMeasurements(){
       m_hand_angle = 0;
@@ -35,6 +41,9 @@ class BikeMeasurements{
       m_fork_rate = 0;
       m_lean_rate = 0;
       m_hand_torque = 0;
+
+      m_dt_steer_meas = 0;
+      m_fork_angle_prev = 0;
     }
 
     // getters
@@ -44,6 +53,7 @@ class BikeMeasurements{
     float get_fork_rate(){return m_fork_rate;}
     float get_lean_rate(){return m_lean_rate;}
     float get_hand_torque(){return m_hand_torque;}
+    uint32_t get_dt_steer_meas(){return m_dt_steer_meas;}
 
     // setters
     void set_hand_angle(float angle){m_hand_angle = angle;}
@@ -52,7 +62,7 @@ class BikeMeasurements{
     // Retreive measurements
     void measure_steer_angles();
     void measure_hand_torque();
-    void calculate_steer_rates();
+    void calculate_fork_rate();
     void calculate_roll_states();
 };
 
@@ -62,11 +72,12 @@ void calc_pd_control(float error, float derror_dt, double& command_fork, double&
 void calc_mm_control(BikeMeasurements& bike, double& command_fork);
 void actuate_steer_motors(double command_fork, double command_hand);
 uint16_t read_motor_encoder(const uint8_t cs_pin);
-float calc_bckwrd_derivative(float val_cur, float& val_prev, elapsedMicros& timer_mu);
+void update_dtime(uint32_t& dtime, elapsedMicros& timer);
+float calc_bckwrd_derivative(float val_cur, float& val_prev, uint32_t dt);
 float return_scaling(uint64_t iteration);
 uint8_t check_switch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
 // void print_to_serial();
-//float moving_avg(float new_value);
+float steer_moving_avg(float new_value);
 #if USE_BIKE_ENCODERS
 float calc_bike_speed();
 float calc_cadance();
@@ -138,6 +149,9 @@ const float K_MM4 = 0; // steer/fork rate
 const float K_MM5 = 0; // lean torque
 const float K_MM6 = 0; // steer/hand torque
 
+//----------------------- Steering rate calculation --------------------------//
+const uint8_t STEER_MVING_AVG_SMPL_LEN = 10;
+
 //-------------------------------- Pins --------------------------------------//
 const uint8_t cs_hand = 24; // SPI Chip Select for handlebar encoder
 const uint8_t cs_fork = 25; // SPI Chip Select for fork encoder
@@ -165,13 +179,6 @@ const uint8_t encdr_pin2_pedal = 22; //1 of 2 pins to read out the pedal encoder
 float error_prev = 0.0f; // Variable to store the previos mismatch between handlebar and fork
 uint64_t control_iteration_counter = 0; // TODO: Ensure it never overflows!
 
-//----------------------- Steering rate calculation --------------------------//
-//const uint8_t avg_filter_size = 10;
-//uint8_t avg_index = 0;
-//float avg_sum = 0.0f;
-//float avg_array[avg_filter_size] = {0};
-//float angle_prev = 0.0f;
-
 //-------------------------- Switch debouncing -------------------------------//
 // uint8_t hand_switch_value = 0;
 // uint8_t hand_switch_array[10] = {0};
@@ -180,8 +187,7 @@ uint64_t control_iteration_counter = 0; // TODO: Ensure it never overflows!
 
 //--------------------------------- Time -------------------------------------//
 elapsedMicros since_last_loop; // How long has passed since last loop execution
-elapsedMicros derror_since_last; // How long since last error rate calculation
-// elapsedMicros dsteer_since_last; // How long since last steer rate calculation
+elapsedMicros since_last_steer_meas; // How long since last handlebar and fork measurement
 
 //------------------- Wheel Speed and Cadence Encoders -----------------------//
 #if USE_BIKE_ENCODERS
@@ -302,8 +308,7 @@ void setup(){
   //------[Time stuff
   delay(1); //give time for sensors to initialize
   since_last_loop = 0;
-  derror_since_last = 0;
-  // dsteer_since_last = 0;
+  since_last_steer_meas = 0;
 }
 
 
@@ -330,7 +335,7 @@ void loop(){
     //                                 );
     
     //------[initialize local variables
-    BikeMeasurements sbw_bike{};
+    static BikeMeasurements sbw_bike{};
     float error, derror_dt;
     double command_fork = 0;
     double command_hand = 0;
@@ -338,7 +343,7 @@ void loop(){
     //------[measure bike states and inputs
     sbw_bike.measure_steer_angles();
     // sbw_bike.measure_hand_torque();
-    // sbw_bike.calculate_steer_rates();
+    sbw_bike.calculate_fork_rate();
     // sbw_bike.calculate_roll_states();
 
     //------[Perform steering control
@@ -347,12 +352,6 @@ void loop(){
     calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
     
     actuate_steer_motors(command_fork, command_hand);
-
-    // //------[Calculate steering rate
-    //float angle_diff = fork_angle - angle_prev;
-    //float angle_rate = (float) (angle_diff / error_time_diff);
-    //float filtered_angle_rate = moving_avg(angle_rate);
-    //angle_prev = fork_angle;
 
     //------[Increase counters
     control_iteration_counter++;
@@ -371,7 +370,9 @@ void BikeMeasurements::measure_steer_angles(){
   uint16_t enc_counts_hand = read_motor_encoder(cs_hand); //SPI communication with Handlebar encoder
   uint16_t enc_counts_fork = read_motor_encoder(cs_fork); //SPI communication with Fork encoder
 
-  
+  //------[Time since last measurement
+  update_dtime(m_dt_steer_meas, since_last_steer_meas); // time between to calls to the motor encoder value, used for calculating derivatives
+
   //------[Translate encoder counts to angle in degree
   /* NOTE: The two encoders are mounted opposite to each other.
   Therefore, CCW rotation of the handlebar encoder gives 360 to 310 deg,
@@ -406,8 +407,10 @@ void BikeMeasurements::measure_hand_torque(){
 
 
 //======================= [calculate steer derivatives] ============================//
-void BikeMeasurements::calculate_steer_rates(){
-
+void BikeMeasurements::calculate_fork_rate(){
+  m_fork_angle = steer_moving_avg(m_fork_angle);
+  m_fork_rate = calc_bckwrd_derivative(m_fork_angle, m_fork_angle_prev, m_dt_steer_meas);
+  return;
 }
 
 
@@ -415,7 +418,6 @@ void BikeMeasurements::calculate_steer_rates(){
 void BikeMeasurements::calculate_roll_states(){
 
 }
-
 
 
 //============================ [Calculate PD error] ============================//
@@ -429,7 +431,7 @@ void calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt){
     bike.set_fork_angle(0.0f);
   }
   error = (bike.get_hand_angle() - bike.get_fork_angle());
-  derror_dt = calc_bckwrd_derivative(error, error_prev, derror_since_last);
+  derror_dt = calc_bckwrd_derivative(error, error_prev, bike.get_dt_steer_meas());
   return;
 }
 
@@ -444,6 +446,9 @@ void calc_pd_control(float error, float derror_dt, double& command_fork, double&
 
 //=========================== [Calculate model matching Control] ===========================//
 void calc_mm_control(BikeMeasurements& bike, double& command_fork){
+
+  //TODO: look into if it can be maded angle controlled?
+
   //------[Calculate model matching torques
   /* NOTE: The torque is only applied to the fork, as the driver should not notice 
   that the fork is moving differently than the handlebar. Furthermore, we assume the 
@@ -698,16 +703,25 @@ uint16_t read_motor_encoder(const uint8_t cs_pin){
 }
 
 
+//================= [Update time between measurments of the steer angels] =================//
+void update_dtime(uint32_t& dtime, elapsedMicros& timer){
+  // TODO: make 'dtime' and 'timer' linked to each other. As in dtime and 
+  // timer are a pair. If not, either timer is reset by another dtime 
+  // messing up this dtime. Or dtime is set by the wrong timer.
+  // maybe make it a class on its own?
+  dtime = timer;
+  timer = 0;
+  return;
+}
+
 
 //================= [Calculate Derivative Backward Euler] =================//
-float calc_bckwrd_derivative(float val_cur, float& val_prev, elapsedMicros& timer_mu){
-  /* Calculate the derivative with backward Euler. Each variable has its personal 
-  timer, wich will be reset to zero and the previous value is updated to the current
-  if that values derivative is calulated. WARNING: This should be the only place
-  where the value of 'previous' is altered.
+float calc_bckwrd_derivative(float val_cur, float& val_prev, uint32_t dt){
+  /* Calculate the derivative with backward Euler. The previous value is updated 
+  to the current after that values derivative is calulated. WARNING: This should 
+  be the only place where the value of 'previous' is altered.
   */
-  float derivative = (val_cur - val_prev)/(timer_mu * 1e-6);
-  timer_mu = 0;
+  float derivative = (val_cur - val_prev)/(dt * 1e-6);
   val_prev = val_cur;
   return derivative;
 }
@@ -750,14 +764,19 @@ float return_scaling(uint64_t iteration){
 
 
 //=========================== [Moving Average] ============================//
-//float moving_avg(float new_value){
-  // avg_sum = avg_sum - avg_array[avg_index];
-  // avg_array[avg_index] = new_value;
-  // avg_sum = avg_sum + new_value;
-  // avg_index = (avg_index+1) % avg_filter_size;
-  // return (float) (avg_sum / avg_filter_size);
-//}
+float steer_moving_avg(float new_value){
+  // TODO: At this point the moving average will break if it is used 
+  // for two separate signals. Make the function generic
+  static float avg_sum = 0;
+  static uint8_t avg_idx = 0;
+  static float avg_array[STEER_MVING_AVG_SMPL_LEN] = {0};
 
+  avg_sum = avg_sum - avg_array[avg_idx];
+  avg_array[avg_idx] = new_value;
+  avg_sum = avg_sum + new_value;
+  avg_idx = (avg_idx+1) % STEER_MVING_AVG_SMPL_LEN;
+  return (float) (avg_sum / STEER_MVING_AVG_SMPL_LEN);
+}
 
 
 //============================ [Check Switch] =============================//
@@ -848,3 +867,16 @@ void open_file() {
   return;
 }
 #endif
+
+
+/*
+Coding notes:
+for calculating the derivative of the fork angle one needs three variables that stay alive
+between multiple loops:
+- fork_angle_prev
+- since_last_steer_meas
+- dt_steer_meas
+These are currently global variables. I think they should be included in the BikeMeasurement
+class, as they are stronly related. But this means that the class object should also survive
+between the loops. which might cause problems
+*/
