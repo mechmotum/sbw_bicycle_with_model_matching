@@ -18,14 +18,51 @@ a_hand = 41; // Analog output pin of the handlebar motor drive
 #define USE_BIKE_ENCODERS 0
 #define SERIAL_DEBUG 0
 
+//================================= Classes ==================================//
+class BikeMeasurements{
+  private:
+    float m_hand_angle;
+    float m_fork_angle;
+    float m_lean_angle;
+    float m_fork_rate;
+    float m_lean_rate;
+    float m_hand_torque; // Measurement of the torque on the handlebar applied by the human 
+  public:
+    BikeMeasurements(){
+      m_hand_angle = 0;
+      m_fork_angle = 0;
+      m_lean_angle = 0;
+      m_fork_rate = 0;
+      m_lean_rate = 0;
+      m_hand_torque = 0;
+    }
+
+    // getters
+    float get_hand_angle(){return m_hand_angle;}
+    float get_fork_angle(){return m_fork_angle;}
+    float get_lean_angle(){return m_lean_angle;}
+    float get_fork_rate(){return m_fork_rate;}
+    float get_lean_rate(){return m_lean_rate;}
+    float get_hand_torque(){return m_hand_torque;}
+
+    // setters
+    void set_hand_angle(float angle){m_hand_angle = angle;}
+    void set_fork_angle(float angle){m_fork_angle = angle;}
+
+    // Retreive measurements
+    void measure_steer_angles();
+    void measure_hand_torque();
+    void calculate_steer_rates();
+    void calculate_roll_states();
+};
+
 //=========================== Function declarations ===========================//
-void get_steer_angles(float& hand_angle, float& fork_angle);
-void calc_pd_errors(float hand_angle, float fork_angle, float& error, float& derror_dt);
+void calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt);
 void calc_pd_control(float error, float derror_dt, double& command_fork, double& command_hand);
-void calc_mm_control(float lean_angle, float fork_angle, float lean_rate, float fork_rate, float lean_torque, float hand_torque, double& command_fork);
+void calc_mm_control(BikeMeasurements& bike, double& command_fork);
 void actuate_steer_motors(double command_fork, double command_hand);
 uint16_t read_motor_encoder(const uint8_t cs_pin);
-float calc_forwrd_derivative(float val_cur, float& val_prev, elapsedMicros& timer_mu);
+float calc_bckwrd_derivative(float val_cur, float& val_prev, elapsedMicros& timer_mu);
 float return_scaling(uint64_t iteration);
 uint8_t check_switch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
 // void print_to_serial();
@@ -42,8 +79,8 @@ void open_file();
 void print_to_SD();
 #endif
 
-//=========================== Global Variables ===============================//
-//------------------------------ Constants -----------------------------------//
+//============================= Global Variables =============================//
+//-------------------------------- Constants ---------------------------------//
 // PWM
 const uint8_t PWM_RESOLUTION = 15;
 const float PWM_FREQUENCY = 4577.64;
@@ -292,25 +329,22 @@ void loop(){
     //                                 sizeof(hand_switch_array)/sizeof(hand_switch_array[0])
     //                                 );
     
-    //------[Perform steering control
-    
-    
-    // TO DO: make a BikeStates class that get/calculate all states and stores them
-
-
-    float hand_angle, fork_angle, lean_angle, fork_rate, lean_rate; // bicycle states
-    float hand_torque; // Measurement of the torque on the handlebar applied by the human 
-    float lean_torque = 0; //TODO: remove lean torque
+    //------[initialize local variables
+    BikeMeasurements sbw_bike{};
     float error, derror_dt;
     double command_fork = 0;
     double command_hand = 0;
-    get_steer_angles(hand_angle, fork_angle);
-    // TODO: get_bicycle_states(lean_angle, fork_rate, lean_rate)
-    // TODO: get_hand_torque(hand_torque)
-    calc_pd_errors(hand_angle, fork_angle, error, derror_dt);
-    
+
+    //------[measure bike states and inputs
+    sbw_bike.measure_steer_angles();
+    // sbw_bike.measure_hand_torque();
+    // sbw_bike.calculate_steer_rates();
+    // sbw_bike.calculate_roll_states();
+
+    //------[Perform steering control
+    calc_pd_errors(sbw_bike, error, derror_dt);
     calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
-    calc_mm_control(lean_angle, fork_angle, lean_rate, fork_rate, lean_torque, hand_torque, command_fork); // add model matching torque to fork torque
+    calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
     
     actuate_steer_motors(command_fork, command_hand);
 
@@ -332,7 +366,7 @@ void loop(){
 \*==============================================================================*/
 
 //=========================== [Get steer angles] ===============================//
-void get_steer_angles(float& hand_angle, float& fork_angle){
+void BikeMeasurements::measure_steer_angles(){
   //------[Read encoder values
   uint16_t enc_counts_hand = read_motor_encoder(cs_hand); //SPI communication with Handlebar encoder
   uint16_t enc_counts_fork = read_motor_encoder(cs_fork); //SPI communication with Fork encoder
@@ -346,13 +380,13 @@ void get_steer_angles(float& hand_angle, float& fork_angle){
   the encoders must give an output int the 0-180 degrees range. 
   */
   // Handlebar
-  hand_angle = ((float)enc_counts_hand / HAND_ENC_MAX_VAL) * FULL_ROTATION_DEG - HAND_ENC_BIAS;
-  if (hand_angle > HALF_ROTATION_DEG) 
-    hand_angle = hand_angle - FULL_ROTATION_DEG; // CCW handlebar rotation gives 360 deg-> 310 deg. Subtract 360 to get 0-180 deg CCW
+  m_hand_angle = ((float)enc_counts_hand / HAND_ENC_MAX_VAL) * FULL_ROTATION_DEG - HAND_ENC_BIAS;
+  if (m_hand_angle > HALF_ROTATION_DEG) 
+    m_hand_angle = m_hand_angle - FULL_ROTATION_DEG; // CCW handlebar rotation gives 360 deg-> 310 deg. Subtract 360 to get 0-180 deg CCW
   // Fork
-  fork_angle = -(((float)enc_counts_fork / FORK_ENC_MAX_VAL) * FULL_ROTATION_DEG + FORK_ENC_BIAS); //Minus sign to get minus values from fork encoder.
-  if (fork_angle < -HALF_ROTATION_DEG) 
-    fork_angle = fork_angle + FULL_ROTATION_DEG; // CW fork rotation gives -360 deg-> -310 deg. Add 360 to get 0-180 deg CCW
+  m_fork_angle = -(((float)enc_counts_fork / FORK_ENC_MAX_VAL) * FULL_ROTATION_DEG + FORK_ENC_BIAS); //Minus sign to get minus values from fork encoder.
+  if (m_fork_angle < -HALF_ROTATION_DEG) 
+    m_fork_angle = m_fork_angle + FULL_ROTATION_DEG; // CW fork rotation gives -360 deg-> -310 deg. Add 360 to get 0-180 deg CCW
 
 
   //------[Compensate for difference in range of motion of handelbar and fork
@@ -361,24 +395,41 @@ void get_steer_angles(float& hand_angle, float& fork_angle){
   the fork to the steer, software limits are set below. If you do not set
   this limits, the motor folds back.
   */
-  hand_angle = constrain(hand_angle, -SOFTWARE_LIMIT, SOFTWARE_LIMIT); //K: This may cause the oscillations
+  m_hand_angle = constrain(m_hand_angle, -SOFTWARE_LIMIT, SOFTWARE_LIMIT); //K: This may cause the oscillations
+}
+
+
+//=========================== [Get handlebar torque] ===============================//
+void BikeMeasurements::measure_hand_torque(){
+
+}
+
+
+//======================= [calculate steer derivatives] ============================//
+void BikeMeasurements::calculate_steer_rates(){
+
+}
+
+
+//======================= [calculate roll rate and angle] ==========================//
+void BikeMeasurements::calculate_roll_states(){
+
 }
 
 
 
-
 //============================ [Calculate PD error] ============================//
-void calc_pd_errors(float hand_angle, float fork_angle, float& error, float& derror_dt){
+void calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt){
   //------[Calculate error derivative in seconds^-1
   // S: Set the very first handlebar and fork encoder values to 0
   // D: setting handlebar and fork encoder first values to 0, we do that because first values seem to be floating values
   // K: most likely due to encoder just haven got power, and still initializing. A delay in the setup might fix this
   if (control_iteration_counter < 10){ 
-    hand_angle = 0.0f;
-    fork_angle = 0.0f;
+    bike.set_hand_angle(0.0f);
+    bike.set_fork_angle(0.0f);
   }
-  error = (hand_angle - fork_angle);
-  derror_dt = calc_forwrd_derivative(error, error_prev, derror_since_last);
+  error = (bike.get_hand_angle() - bike.get_fork_angle());
+  derror_dt = calc_bckwrd_derivative(error, error_prev, derror_since_last);
   return;
 }
 
@@ -392,10 +443,18 @@ void calc_pd_control(float error, float derror_dt, double& command_fork, double&
 }
 
 //=========================== [Calculate model matching Control] ===========================//
-void calc_mm_control(float lean_angle, float fork_angle, float lean_rate, float fork_rate, float lean_torque, float hand_torque, double& command_fork){
+void calc_mm_control(BikeMeasurements& bike, double& command_fork){
   //------[Calculate model matching torques
-  // The torque is only applied to the fork, as the driver should not notice that the fork is moving differently than the handlebar.
-  command_fork += K_MM1*lean_angle + K_MM2*fork_angle + K_MM3*lean_rate + K_MM4*fork_rate + K_MM5*lean_torque + K_MM6*hand_torque;
+  /* NOTE: The torque is only applied to the fork, as the driver should not notice 
+  that the fork is moving differently than the handlebar. Furthermore, we assume the 
+  lean torque is zero, aka there is no external torque in lean direction applied
+  */
+  command_fork +=   K_MM1*bike.get_lean_angle()
+                  + K_MM2*bike.get_fork_angle() 
+                  + K_MM3*bike.get_lean_rate() 
+                  + K_MM4*bike.get_fork_rate() 
+                  // + K_MM5*bike.get_lean_torque() //we cannot measure lean torque, so we assume it is zero. 
+                  + K_MM6*bike.get_hand_torque();
 }
 
 
@@ -641,7 +700,7 @@ uint16_t read_motor_encoder(const uint8_t cs_pin){
 
 
 //================= [Calculate Derivative Backward Euler] =================//
-float calc_forwrd_derivative(float val_cur, float& val_prev, elapsedMicros& timer_mu){
+float calc_bckwrd_derivative(float val_cur, float& val_prev, elapsedMicros& timer_mu){
   /* Calculate the derivative with backward Euler. Each variable has its personal 
   timer, wich will be reset to zero and the previous value is updated to the current
   if that values derivative is calulated. WARNING: This should be the only place
