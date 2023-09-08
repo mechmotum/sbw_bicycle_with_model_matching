@@ -88,7 +88,7 @@ float calc_bike_speed();
 float calc_cadance();
 #endif
 #if USE_IMU
-void get_IMU_data();
+void get_IMU_data(uint32_t& dt_IMU_meas);
 #endif
 #if USE_SD
 void open_file();
@@ -427,13 +427,14 @@ void BikeMeasurements::calculate_roll_states(){
   // TODO: Use the gravitational acceleration and a kalman filter 
   //       or Maximum Likelyhood Estimator to more acurately 
   //       predict attitude
+  // TODO: include the IMU class into the BikeMeasurement class
 
   /*NOTE: We assume that the current measured value is constant
   untill the next measurement. The time between the current 
   measurement and the next measurement is given by m_dt_IMU_meas,
   while the current measurement is given by m_lean_rate.*/
 
-  get_IMU_data(); // get next measurement and time between current and next
+  get_IMU_data(m_dt_IMU_meas); // get next measurement and time between current and next
   m_lean_angle += riemann_integrate(m_lean_rate, m_dt_IMU_meas); //use current measurement and time till next to calculate integral
   m_lean_rate = IMU.gyro_x_radps(); //next measurement becomes current measurement
 }
@@ -559,14 +560,14 @@ float calc_cadance(){
 
 //=============================== [Read the IMU] ===============================//
 #if USE_IMU
-void get_IMU_data(){
+void get_IMU_data(uint32_t& dt_IMU_meas){
   //------[Read out data via SPI
   digitalWrite(cs_imu, LOW);
   IMU.Read(); // load IMU data into IMU object
   digitalWrite(cs_imu, HIGH);
 
   //------[Time since last measurement
-  update_dtime(m_dt_IMU_meas, since_last_IMU_meas); // time between to calls to the IMU
+  update_dtime(dt_IMU_meas, since_last_IMU_meas); // time between to calls to the IMU
 
   /* Only left for documentation reasons */
   // float accelY = IMU.accel_x_mps2();
