@@ -5,6 +5,9 @@
 #include "RingBuf.h" //From sdFat library
 #include "mpu9250.h" //https://github.com/bolderflight/MPU9250
 
+/*TODO: include other measurement functions into the BikeMeasurements class, like the IMU*/
+
+
 /* LEFT FOR DOCUMENTATION PURPOSE ONLY [transfer to more appropriate location and remove]
 a_force = 20; // Analog output pin of the force transducer
 a_torque = 21; // Analog output pin of the torque sensor
@@ -13,7 +16,7 @@ a_hand = 41; // Analog output pin of the handlebar motor drive
 */
 
 //============================== Compile modes ===============================//
-#define USE_IMU 0
+#define USE_IMU 1
 #define USE_SD 0
 #define USE_BIKE_ENCODERS 0
 #define SERIAL_DEBUG 0
@@ -31,6 +34,7 @@ class BikeMeasurements{
     
     // variables needed for derivarion/intergration calculation
     uint32_t m_dt_steer_meas; //Time between two consecutive measurements of the steer angle in microseconds
+    uint32_t m_dt_IMU_meas; //Time between two consecutive measurements of the IMU values in microseconds
     float m_fork_angle_prev;
     
   public:
@@ -73,6 +77,7 @@ void calc_mm_control(BikeMeasurements& bike, double& command_fork);
 void actuate_steer_motors(double command_fork, double command_hand);
 uint16_t read_motor_encoder(const uint8_t cs_pin);
 void update_dtime(uint32_t& dtime, elapsedMicros& timer);
+float riemann_integrate(float value, uint32_t dt);
 float calc_bckwrd_derivative(float val_cur, float& val_prev, uint32_t dt);
 float return_scaling(uint64_t iteration);
 uint8_t check_switch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
@@ -188,6 +193,7 @@ uint64_t control_iteration_counter = 0; // TODO: Ensure it never overflows!
 //--------------------------------- Time -------------------------------------//
 elapsedMicros since_last_loop; // How long has passed since last loop execution
 elapsedMicros since_last_steer_meas; // How long since last handlebar and fork measurement
+elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
 
 //------------------- Wheel Speed and Cadence Encoders -----------------------//
 #if USE_BIKE_ENCODERS
@@ -309,6 +315,7 @@ void setup(){
   delay(1); //give time for sensors to initialize
   since_last_loop = 0;
   since_last_steer_meas = 0;
+  since_last_IMU_meas = 0;
 }
 
 
@@ -344,7 +351,7 @@ void loop(){
     sbw_bike.measure_steer_angles();
     // sbw_bike.measure_hand_torque();
     sbw_bike.calculate_fork_rate();
-    // sbw_bike.calculate_roll_states();
+    sbw_bike.calculate_roll_states();
 
     //------[Perform steering control
     calc_pd_errors(sbw_bike, error, derror_dt);
@@ -416,7 +423,19 @@ void BikeMeasurements::calculate_fork_rate(){
 
 //======================= [calculate roll rate and angle] ==========================//
 void BikeMeasurements::calculate_roll_states(){
+  // TODO: make sure that gyrox is indeed the roll rate!
+  // TODO: Use the gravitational acceleration and a kalman filter 
+  //       or Maximum Likelyhood Estimator to more acurately 
+  //       predict attitude
 
+  /*NOTE: We assume that the current measured value is constant
+  untill the next measurement. The time between the current 
+  measurement and the next measurement is given by m_dt_IMU_meas,
+  while the current measurement is given by m_lean_rate.*/
+
+  get_IMU_data(); // get next measurement and time between current and next
+  m_lean_angle += riemann_integrate(m_lean_rate, m_dt_IMU_meas); //use current measurement and time till next to calculate integral
+  m_lean_rate = IMU.gyro_x_radps(); //next measurement becomes current measurement
 }
 
 
@@ -541,8 +560,15 @@ float calc_cadance(){
 //=============================== [Read the IMU] ===============================//
 #if USE_IMU
 void get_IMU_data(){
+  //------[Read out data via SPI
   digitalWrite(cs_imu, LOW);
   IMU.Read(); // load IMU data into IMU object
+  digitalWrite(cs_imu, HIGH);
+
+  //------[Time since last measurement
+  update_dtime(m_dt_IMU_meas, since_last_IMU_meas); // time between to calls to the IMU
+
+  /* Only left for documentation reasons */
   // float accelY = IMU.accel_x_mps2();
   // float accelX = IMU.accel_y_mps2();
   // float accelZ = IMU.accel_z_mps2();
@@ -550,7 +576,6 @@ void get_IMU_data(){
   // float gyroX = IMU.gyro_y_radps();
   // float gyroZ = IMU.gyro_z_radps();
   // float temp = IMU.die_temp_c();
-  digitalWrite(cs_imu, HIGH);
 }
 #endif
   
@@ -714,6 +739,9 @@ void update_dtime(uint32_t& dtime, elapsedMicros& timer){
   return;
 }
 
+float riemann_integrate(float value, uint32_t dt){
+  return value*dt;
+}
 
 //================= [Calculate Derivative Backward Euler] =================//
 float calc_bckwrd_derivative(float val_cur, float& val_prev, uint32_t dt){
@@ -867,16 +895,3 @@ void open_file() {
   return;
 }
 #endif
-
-
-/*
-Coding notes:
-for calculating the derivative of the fork angle one needs three variables that stay alive
-between multiple loops:
-- fork_angle_prev
-- since_last_steer_meas
-- dt_steer_meas
-These are currently global variables. I think they should be included in the BikeMeasurement
-class, as they are stronly related. But this means that the class object should also survive
-between the loops. which might cause problems
-*/
