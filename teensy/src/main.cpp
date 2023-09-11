@@ -98,15 +98,19 @@ void print_to_SD();
 //============================= Global Variables =============================//
 //-------------------------------- Constants ---------------------------------//
 // PWM
-const uint8_t PWM_RESOLUTION = 15;
+const uint8_t PWM_RESOLUTION_BITS = 15;
 const float PWM_FREQUENCY = 4577.64;
-const uint32_t PWM_MAX_VAL = (1 << PWM_RESOLUTION) - 1;
+const uint32_t PWM_MAX_VAL = (1 << PWM_RESOLUTION_BITS) - 1;
 const uint32_t HAND_PWM_MAX = PWM_MAX_VAL;
 const uint32_t HAND_PWM_MIN = 0;
 const uint32_t FORK_PWM_MAX = PWM_MAX_VAL;
 const uint32_t FORK_PWM_MIN = 0;
 const uint16_t INITIAL_FORK_PWM = 16384; //K: I think that the middle is a zero command. That 0 and 32,768 are both maximum torque but in opposite directions.
 const uint16_t INITIAL_STEER_PWM = 16384;
+
+// Torque
+const float TEENSY_ANALOG_VOLTAGE = 3.3;
+const uint8_t HAND_TORQUE_RESOLUTION = 1023;
 
 // Timing
 const uint16_t MIN_LOOP_LENGTH_MU = 1000; // target minimum loop length in microseconds.
@@ -173,6 +177,8 @@ const uint8_t enable_motor_enc = 31; // HIGH to send power to the motor encoders
 const uint8_t hand_led = 32; // LED installed on the handlebars
 const uint8_t hand_switch = 28; // Switch installed on the handlebars
 
+const uint8_t a_torque = 21; // Analog output pin of the torque sensor
+
 #if USE_BIKE_ENCODERS
 const uint8_t encdr_pin1_wheel = 2; //1 of 2 pins to read out the wheel encoder
 const uint8_t encdr_pin2_wheel = 3; //1 of 2 pins to read out the wheel encoder
@@ -236,6 +242,7 @@ void setup(){
   
   //------[Setup INPUT pins
   pinMode(hand_switch,      INPUT);
+  pinMode(a_torque,         INPUT);
 
   //------[Setup OUTPUT pins
   pinMode(enable_motor_enc, OUTPUT);
@@ -251,7 +258,7 @@ void setup(){
   #endif
 
   //------[Setup PWM pins
-  analogWriteResolution(PWM_RESOLUTION);
+  analogWriteResolution(PWM_RESOLUTION_BITS);
   analogWriteFrequency(pwm_pin_fork, PWM_FREQUENCY);
   analogWriteFrequency(pwm_pin_hand, PWM_FREQUENCY);
 
@@ -409,7 +416,7 @@ void BikeMeasurements::measure_steer_angles(){
 
 //=========================== [Get handlebar torque] ===============================//
 void BikeMeasurements::measure_hand_torque(){
-
+  uint8_t voltage = TEENSY_ANALOG_VOLTAGE * analogRead(a_torque)/HAND_TORQUE_RESOLUTION;
 }
 
 
@@ -426,7 +433,10 @@ void BikeMeasurements::calculate_roll_states(){
   // TODO: make sure that gyrox is indeed the roll rate!
   // TODO: Use the gravitational acceleration and a kalman filter 
   //       or Maximum Likelyhood Estimator to more acurately 
-  //       predict attitude
+  //       predict attitude. Or see the thesis work of Christoforidis OR 
+  //       "Emilio Sanjurjo, Miguel A Naya, Javier Cuadrado, and Arend L Schwab. 
+  //       Roll angle estimator based on angular rate measurements for bicycles. 
+  //       Vehicle System Dynamics, 57(11):1705–1719, 2019."
   // TODO: include the IMU class into the BikeMeasurement class
 
   /*NOTE: We assume that the current measured value is constant
