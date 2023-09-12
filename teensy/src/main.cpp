@@ -280,16 +280,18 @@ void setup(){
 
   //------[Setup IMU
   #if USE_IMU
-    digitalWrite(cs_imu, LOW);
+    // digitalWrite(cs_imu, LOW); Chip select is most likely not necessary.
+    // TODO: the mpu9250 class has a built in digital low pass filter. 
+    // default is at 184Hz. look into it if it needs to be lower.
+    IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); // +- 4g
+    IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS); // +- 250 deg/s
     if(!IMU.Begin()){ //Initialize communication with the sensor
       #if SERIAL_DEBUG
       Serial.println("IMU initialization unsuccessful");
       Serial.println("Check IMU wiring or try cycling power");
       #endif
     }
-    IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); // +- 4g
-    IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS); // +- 250 deg/s
-    digitalWrite(cs_imu, HIGH);
+    // digitalWrite(cs_imu, HIGH);
   #endif
 
 
@@ -573,11 +575,14 @@ float calc_cadance(){
 void get_IMU_data(uint32_t& dt_IMU_meas){
   //------[Read out data via SPI
   digitalWrite(cs_imu, LOW);
+  // TODO: errer handling if IMU fails to read data
   IMU.Read(); // load IMU data into IMU object
   digitalWrite(cs_imu, HIGH);
 
   //------[Time since last measurement
   update_dtime(dt_IMU_meas, since_last_IMU_meas); // time between to calls to the IMU
+
+  // TODO: Error handling in the case the die temperature becomes to high
 
   /* Only left for documentation reasons */
   // float accelY = IMU.accel_x_mps2();
