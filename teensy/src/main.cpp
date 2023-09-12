@@ -18,7 +18,7 @@ a_hand = 41; // Analog output pin of the handlebar motor drive
 //============================== Compile modes ===============================//
 #define USE_IMU 1
 #define USE_SD 0
-#define USE_BIKE_ENCODERS 0
+#define USE_BIKE_ENCODERS 1
 #define SERIAL_DEBUG 0
 
 //================================= Classes ==================================//
@@ -74,6 +74,7 @@ class BikeMeasurements{
 void calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt);
 void calc_pd_control(float error, float derror_dt, double& command_fork, double& command_hand);
 void calc_mm_control(BikeMeasurements& bike, double& command_fork);
+void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& command_hand);
 void actuate_steer_motors(double command_fork, double command_hand);
 uint16_t read_motor_encoder(const uint8_t cs_pin);
 void update_dtime(uint32_t& dtime, elapsedMicros& timer);
@@ -149,6 +150,10 @@ const float KP_F = 2.0f; // Fork
 const float KD_F = 0.029f; // Fork
 const float KP_H = 0.9f; // Handlebar
 const float KD_H = 0.012f; // Handlebar
+
+// Steer into lean gains
+const uint8_t K_SIL = 5; // gain for the steer into lean controller
+const float V_AVERAGE = 7; // TODO: figure out what this is
 
 // Model matching gains
 const float K_MM1 = 0; // lean angle
@@ -364,6 +369,7 @@ void loop(){
     calc_pd_errors(sbw_bike, error, derror_dt);
     calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
     calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
+    calc_sil_control(sbw_bike, command_fork, command_hand);
     
     actuate_steer_motors(command_fork, command_hand);
 
@@ -492,6 +498,13 @@ void calc_mm_control(BikeMeasurements& bike, double& command_fork){
                   + K_MM6*bike.get_hand_torque();
 }
 
+void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& command_hand){
+  // TODO: bike speed should be inside of the BikeMeasurements class
+  double sil_command = K_SIL*(V_AVERAGE - calc_bike_speed())*bike.get_lean_rate();
+  command_fork += sil_command;
+  command_hand += sil_command;
+  return;
+}
 
 //=========================== [Actuate steer motors] ===========================//
 void actuate_steer_motors(double command_fork, double command_hand){
