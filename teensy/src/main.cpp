@@ -18,19 +18,23 @@ a_hand = 41; // Analog output pin of the handlebar motor drive
 //============================== Compile modes ===============================//
 #define USE_IMU 1
 #define USE_SD 0
-#define USE_BIKE_ENCODERS 0
+#define USE_PEDAL_CADANCE 0
 #define SERIAL_DEBUG 0
 
 //================================= Classes ==================================//
 class BikeMeasurements{
   private:
-    // state and input variables
+    // state, input, and bicycle variables
     float m_hand_angle;
     float m_fork_angle;
     float m_lean_angle;
     float m_fork_rate;
     float m_lean_rate;
     float m_hand_torque; // Measurement of the torque on the handlebar applied by the human 
+    float m_bike_speed;  // [m/s]
+    #if USE_PEDAL_CADANCE
+    float m_pedal_cadance; // [rad/s]
+    #endif
     
     // variables needed for derivarion/intergration calculation
     uint32_t m_dt_steer_meas; //Time between two consecutive measurements of the steer angle in microseconds
@@ -45,7 +49,12 @@ class BikeMeasurements{
       m_fork_rate = 0;
       m_lean_rate = 0;
       m_hand_torque = 0;
+      m_bike_speed = 0;
+      #if USE_PEDAL_CADANCE
+      m_pedal_cadance = 0;
+      #endif
 
+      m_dt_IMU_meas = 0;
       m_dt_steer_meas = 0;
       m_fork_angle_prev = 0;
     }
@@ -58,6 +67,10 @@ class BikeMeasurements{
     float get_lean_rate(){return m_lean_rate;}
     float get_hand_torque(){return m_hand_torque;}
     uint32_t get_dt_steer_meas(){return m_dt_steer_meas;}
+    float get_bike_speed(){return m_bike_speed;}
+    #if USE_PEDAL_CADANCE
+    float get_pedal_cadance(){return m_pedal_cadance;}
+    #endif
 
     // setters
     void set_hand_angle(float angle){m_hand_angle = angle;}
@@ -68,12 +81,17 @@ class BikeMeasurements{
     void measure_hand_torque();
     void calculate_fork_rate();
     void calculate_roll_states();
+    void calculate_bike_speed();
+    #if USE_PEDAL_CADANCE
+    void calculate_pedal_cadance();
+    #endif
 };
 
 //=========================== Function declarations ===========================//
 void calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt);
 void calc_pd_control(float error, float derror_dt, double& command_fork, double& command_hand);
 void calc_mm_control(BikeMeasurements& bike, double& command_fork);
+void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& command_hand);
 void actuate_steer_motors(double command_fork, double command_hand);
 uint16_t read_motor_encoder(const uint8_t cs_pin);
 void update_dtime(uint32_t& dtime, elapsedMicros& timer);
@@ -83,10 +101,6 @@ float return_scaling(uint64_t iteration);
 uint8_t check_switch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
 // void print_to_serial();
 float steer_moving_avg(float new_value);
-#if USE_BIKE_ENCODERS
-float calc_bike_speed();
-float calc_cadance();
-#endif
 #if USE_IMU
 void get_IMU_data(uint32_t& dt_IMU_meas);
 #endif
@@ -150,6 +164,11 @@ const float KD_F = 0.029f; // Fork
 const float KP_H = 0.9f; // Handlebar
 const float KD_H = 0.012f; // Handlebar
 
+// Steer into lean gains (see 'Some recent developments in bicycle dynamics and control', A. L. Schwab et al., 2008)
+const uint8_t K_SIL1 = 8; // gain for the steer into lean controller when below stable speed range
+const float K_SIL2 = 0.7; // gain for the steer into lean controller when above stable speed range
+const float V_AVERAGE = 7; // value somewhere in the stable speed range. (take the average of min and max stable speed)
+
 // Model matching gains
 const float K_MM1 = 0; // lean angle
 const float K_MM2 = 0; // steer/fork angle
@@ -179,9 +198,9 @@ const uint8_t hand_switch = 28; // Switch installed on the handlebars
 
 const uint8_t a_torque = 21; // Analog output pin of the torque sensor
 
-#if USE_BIKE_ENCODERS
 const uint8_t encdr_pin1_wheel = 2; //1 of 2 pins to read out the wheel encoder
 const uint8_t encdr_pin2_wheel = 3; //1 of 2 pins to read out the wheel encoder
+#if USE_PEDAL_CADANCE
 const uint8_t encdr_pin1_pedal = 23; //1 of 2 pins to read out the pedal encoder
 const uint8_t encdr_pin2_pedal = 22; //1 of 2 pins to read out the pedal encoder
 #endif
@@ -202,12 +221,12 @@ elapsedMicros since_last_steer_meas; // How long since last handlebar and fork m
 elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
 
 //------------------- Wheel Speed and Cadence Encoders -----------------------//
-#if USE_BIKE_ENCODERS
   Encoder wheel_counter(encdr_pin1_wheel, encdr_pin2_wheel); // Initialize Rear wheel speed encoder
-  Encoder pedal_counter(encdr_pin1_pedal, encdr_pin2_pedal); // Initialize Pedal cadence encoder
   int32_t wheel_counts[WHEEL_COUNTS_LENGTH] = {0};
-  int32_t pedal_counts[PEDAL_COUNTS_LENGTH] = {0};
   uint32_t wheel_counts_index = 0;
+#if USE_PEDAL_CADANCE
+  Encoder pedal_counter(encdr_pin1_pedal, encdr_pin2_pedal); // Initialize Pedal cadence encoder
+  int32_t pedal_counts[PEDAL_COUNTS_LENGTH] = {0};
   uint32_t pedal_counts_index = 0;
 #endif
 
@@ -361,11 +380,13 @@ void loop(){
     // sbw_bike.measure_hand_torque();
     sbw_bike.calculate_fork_rate();
     sbw_bike.calculate_roll_states();
+    sbw_bike.calculate_bike_speed();
 
     //------[Perform steering control
     calc_pd_errors(sbw_bike, error, derror_dt);
     calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
     calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
+    calc_sil_control(sbw_bike, command_fork, command_hand);
     
     actuate_steer_motors(command_fork, command_hand);
 
@@ -494,6 +515,18 @@ void calc_mm_control(BikeMeasurements& bike, double& command_fork){
                   + K_MM6*bike.get_hand_torque();
 }
 
+void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& command_hand){
+  double sil_command;
+
+  if (bike.get_bike_speed() < V_AVERAGE)
+    sil_command = K_SIL1 * (V_AVERAGE - bike.get_bike_speed())*bike.get_lean_rate();
+  else
+    sil_command = K_SIL2 * (bike.get_bike_speed() - V_AVERAGE)*bike.get_lean_angle();
+
+  command_fork += sil_command;
+  command_hand += sil_command;
+  return;
+}
 
 //=========================== [Actuate steer motors] ===========================//
 void actuate_steer_motors(double command_fork, double command_hand){
@@ -510,9 +543,9 @@ void actuate_steer_motors(double command_fork, double command_hand){
 }
 
 
-#if USE_BIKE_ENCODERS
+
 //========================= [Calculate bicycle speed] ==========================//
-float calc_bike_speed(){
+void BikeMeasurements::calculate_bike_speed(){
   /*K: NOTE Since the microcontroller operating frequency is much higher than the
   frequency at which encoder ticks pass the reading head, the difference between
   the tick count of the current and previous loop will most of the time be zero.
@@ -533,15 +566,15 @@ float calc_bike_speed(){
   */ 
   float rps_wheel = ((float)(current_wheel_count - previous_wheel_count)) / 
   ((float)WHEEL_COUNTS_PER_REV * (float)WHEEL_COUNTS_LENGTH * MIN_LOOP_LENGTH_S);
-  float velocity_ms = -rps_wheel * 2*PI * WHEEL_RADIUS;
+  m_bike_speed = -rps_wheel * 2*PI * WHEEL_RADIUS;
 
-  return velocity_ms;
+  return;
 } 
 
 
-
+#if USE_PEDAL_CADANCE
 //============================ [Calculate cadance] =============================//
-float calc_cadance(){
+void BikeMeasurements::calculate_pedal_cadance(){
   /*K: NOTE Since the microcontroller operating frequency is much higher than the
   frequency at which encoder ticks pass the reading head, the difference between
   the tick count of the current and previous loop will most of the time be zero.
@@ -560,13 +593,13 @@ float calc_cadance(){
   MIN_LOOP_LENGTH_S sec. So time_diff = PEDAL_COUNTS_LENGTH * 
   MIN_LOOP_LENGTH_S. Than rps = #rounds/time_diff. Then rad/s = rps*2pi
   */
-  float cadence_rads = ((float) (current_pedal_count - previous_pedal_count)) / 
+  m_pedal_cadance = ((float) (current_pedal_count - previous_pedal_count)) / 
   ((float)PEDAL_COUNTS_PER_REV *(float) PEDAL_COUNTS_LENGTH * MIN_LOOP_LENGTH_S)
   * 2*PI;
     
-  return cadence_rads;
+  return;
 }
-#endif //USE_BIKE_ENCODERS
+#endif //USE_PEDAL_CADANCE
 
 
 
@@ -637,9 +670,9 @@ void get_IMU_data(uint32_t& dt_IMU_meas){
 //       Serial.print(temp);
 //     #endif
 //     // Encoders
-//     #if USE_BIKE_ENCODERS
 //       Serial.print(",Velocity= ");
 //       Serial.print(velocity_ms);
+//     #if USE_PEDAL_CADANCE
 //       Serial.print(",Cadence= ");
 //       Serial.print(cadence_rads);
 //     #endif
