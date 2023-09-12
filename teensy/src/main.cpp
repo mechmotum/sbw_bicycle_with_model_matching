@@ -151,9 +151,10 @@ const float KD_F = 0.029f; // Fork
 const float KP_H = 0.9f; // Handlebar
 const float KD_H = 0.012f; // Handlebar
 
-// Steer into lean gains
-const uint8_t K_SIL = 5; // gain for the steer into lean controller
-const float V_AVERAGE = 7; // TODO: figure out what this is
+// Steer into lean gains (see 'Some recent developments in bicycle dynamics and control', A. L. Schwab et al., 2008)
+const uint8_t K_SIL1 = 8; // gain for the steer into lean controller when below stable speed range
+const float K_SIL2 = 0.7; // gain for the steer into lean controller when above stable speed range
+const float V_AVERAGE = 7; // value somewhere in the stable speed range. (take the average of min and max stable speed)
 
 // Model matching gains
 const float K_MM1 = 0; // lean angle
@@ -500,7 +501,13 @@ void calc_mm_control(BikeMeasurements& bike, double& command_fork){
 
 void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& command_hand){
   // TODO: bike speed should be inside of the BikeMeasurements class
-  double sil_command = K_SIL*(V_AVERAGE - calc_bike_speed())*bike.get_lean_rate();
+  if (bike.get_bike_speed() <= V_AVERAGE)
+    double sil_command = K_SIL1 * (V_AVERAGE - bike.get_bike_speed())*bike.get_lean_rate();
+  else
+    double sil_command = K_SIL2 * (bike.get_bike_speed() - V_AVERAGE)*bike.get_lean_angle();
+
+
+  // double sil_command = K_SIL*(V_AVERAGE - calc_bike_speed())*bike.get_lean_rate();
   command_fork += sil_command;
   command_hand += sil_command;
   return;
