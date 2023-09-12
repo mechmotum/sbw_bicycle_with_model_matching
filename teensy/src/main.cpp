@@ -37,6 +37,7 @@ class BikeMeasurements{
     #endif
     
     // variables needed for derivarion/intergration calculation
+    uint32_t m_dt_bike_speed_meas; //Time between two consecutive measurements of the bike speed in microseconds
     uint32_t m_dt_steer_meas; //Time between two consecutive measurements of the steer angle in microseconds
     uint32_t m_dt_IMU_meas; //Time between two consecutive measurements of the IMU values in microseconds
     float m_fork_angle_prev;
@@ -54,6 +55,7 @@ class BikeMeasurements{
       m_pedal_cadance = 0;
       #endif
 
+      m_dt_bike_speed_meas = 0;
       m_dt_IMU_meas = 0;
       m_dt_steer_meas = 0;
       m_fork_angle_prev = 0;
@@ -111,6 +113,9 @@ void print_to_SD();
 
 //============================= Global Variables =============================//
 //-------------------------------- Constants ---------------------------------//
+// Conversion
+const uint32_t MICRO_TO_UNIT = 1e6;
+
 // PWM
 const uint8_t PWM_RESOLUTION_BITS = 15;
 const float PWM_FREQUENCY = 4577.64;
@@ -124,7 +129,7 @@ const uint16_t INITIAL_STEER_PWM = 16384;
 
 // Torque
 const float TEENSY_ANALOG_VOLTAGE = 3.3;
-const uint8_t HAND_TORQUE_RESOLUTION = 1023;
+const uint16_t HAND_TORQUE_RESOLUTION = 1023;
 
 // Timing
 const uint16_t MIN_LOOP_LENGTH_MU = 1000; // target minimum loop length in microseconds.
@@ -139,11 +144,18 @@ const float HAND_ENC_MAX_VAL = 8191.0;
 const float FORK_ENC_MAX_VAL = 8191.0;
 
 // Pedal and wheel encoders
-const uint16_t WHEEL_COUNTS_LENGTH = 200;
-const uint16_t PEDAL_COUNTS_LENGTH = 500;
-const float WHEEL_RADIUS = 0.33f;
+/*NOTE: A WHEEL_COUNTS_LENGTH of 500 gives an approximate 45 counts per calculation 
+for a bike going 1 m/s. It then also calculates the average speed of the last 
+0.5 seconds. So it will have trouble with high frequency sinosoidal translations. 
+We assume here that the speed is always in the forward direction. Unfortunetely, 
+with this size (500) the resolution is noticably lower for lower speeds.*/
+const uint16_t WHEEL_COUNTS_LENGTH = 500; 
 const uint8_t WHEEL_COUNTS_PER_REV = 192;
+const float WHEEL_RADIUS = 0.33f;
+#if USE_PEDAL_CADANCE
+const uint16_t PEDAL_COUNTS_LENGTH = 500;
 const uint8_t PEDAL_COUNTS_PER_REV = 192;
+#endif
 
 // Angles
 const float FULL_ROTATION_DEG = 360.0;
@@ -219,11 +231,15 @@ uint64_t control_iteration_counter = 0; // TODO: Ensure it never overflows!
 elapsedMicros since_last_loop; // How long has passed since last loop execution
 elapsedMicros since_last_steer_meas; // How long since last handlebar and fork measurement
 elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
+elapsedMicros sinse_last_bike_speed; // How long since last bike speed measurement
 
 //------------------- Wheel Speed and Cadence Encoders -----------------------//
   Encoder wheel_counter(encdr_pin1_wheel, encdr_pin2_wheel); // Initialize Rear wheel speed encoder
   int32_t wheel_counts[WHEEL_COUNTS_LENGTH] = {0};
   uint32_t wheel_counts_index = 0;
+  uint32_t end_of_array_storage = 0; //to store the value of the encoder at the end of the wheel_counts array before resetting.
+  uint32_t bike_speed_dt_sum_mu = 0;
+  uint32_t bike_speed_dt_array[WHEEL_COUNTS_LENGTH] = {0};
 #if USE_PEDAL_CADANCE
   Encoder pedal_counter(encdr_pin1_pedal, encdr_pin2_pedal); // Initialize Pedal cadence encoder
   int32_t pedal_counts[PEDAL_COUNTS_LENGTH] = {0};
@@ -339,11 +355,13 @@ void setup(){
   #endif //USE_SD
   
 
-  //------[Time stuff
+  //------[reset counting variables
   delay(1); //give time for sensors to initialize
   since_last_loop = 0;
   since_last_steer_meas = 0;
   since_last_IMU_meas = 0;
+  sinse_last_bike_speed = 0;
+  wheel_counter.write(0);
 }
 
 
@@ -351,7 +369,7 @@ void setup(){
 //============================== [Main Loop] ===================================//
 void loop(){
   #if USE_SD // may be moved to setup with a while loop
-    if (!isOpen) open_file();
+  if (!isOpen) open_file();
   #endif
   
   
@@ -473,6 +491,81 @@ void BikeMeasurements::calculate_roll_states(){
 }
 
 
+//========================= [Calculate bicycle speed] ==========================//
+void BikeMeasurements::calculate_bike_speed(){
+  // TODO: bring the approprate global variables inside of the BikeMeasurement class
+
+  /*K: NOTE Since the microcontroller operating frequency is much higher than the
+  frequency at which encoder ticks pass the reading head, the difference between
+  the tick count of the current and previous loop will most of the time be zero.
+  To have a meaningfull value, the value of this loop and that of 
+  WHEEL_COUNTS_LENGTH ago are compared.*/
+  int32_t current_wheel_count = wheel_counter.read();
+  int32_t previous_wheel_count = wheel_counts[wheel_counts_index];
+  wheel_counts[wheel_counts_index] = current_wheel_count;
+
+  //Update time measurement
+  update_dtime(m_dt_bike_speed_meas, sinse_last_bike_speed);
+  bike_speed_dt_sum_mu -= bike_speed_dt_array[wheel_counts_index];
+  bike_speed_dt_sum_mu += m_dt_bike_speed_meas;
+  bike_speed_dt_array[wheel_counts_index] = m_dt_bike_speed_meas;
+
+  // update index
+  wheel_counts_index += 1;
+
+  /*NOTE: To protect from an overflow (both from the wheel_counts_index and 
+  the wheel_counter.read() value) both reset if wheel_counts_index 
+  reaches the end of the storage register/array. To compensate for the reset
+  all subsequent new-old difference calculations have to be offset by 
+  end_of_round_storage */
+  if (wheel_counts_index >= WHEEL_COUNTS_LENGTH){
+    wheel_counts_index = 0;
+    end_of_array_storage = wheel_counter.read();
+    wheel_counter.write(0);
+  }
+
+  /*NOTE #rounds = count_diff/WHEEL_COUNTS_PER_REV. The count_diff is measured 
+  WHEEL_COUNTS_LENGTH loops away from each other. The length of such a loop is
+  stored in bike_speed_dt_sum_mu
+  */ 
+  float rps_wheel = ((float)((current_wheel_count + end_of_array_storage) - previous_wheel_count )) 
+  / ((float)WHEEL_COUNTS_PER_REV * ((float)bike_speed_dt_sum_mu * MICRO_TO_UNIT));
+  m_bike_speed = -rps_wheel * 2*PI * WHEEL_RADIUS; //TODO: see if the minus sign is indeed necessary
+
+  return;
+} 
+
+
+#if USE_PEDAL_CADANCE
+//============================ [Calculate cadance] =============================//
+void BikeMeasurements::calculate_pedal_cadance(){
+  /*K: NOTE Since the microcontroller operating frequency is much higher than the
+  frequency at which encoder ticks pass the reading head, the difference between
+  the tick count of the current and previous loop will most of the time be zero.
+  To have a meaningfull value, the value of this loop and that of 
+  WHEEL_COUNTS_LENGTH ago are compared. WARNING: It is assumed that the loop has
+  a constant frequency, which is not the case.*/
+  //TODO: Use timers instead of loops
+  int32_t current_pedal_count = pedal_counter.read();
+  int32_t previous_pedal_count = pedal_counts[pedal_counts_index];
+  pedal_counts[pedal_counts_index] = current_pedal_count;
+  pedal_counts_index += 1;
+  if (pedal_counts_index >= PEDAL_COUNTS_LENGTH) pedal_counts_index = 0;
+
+  /*NOTE #rounds = count_diff/PEDAL_COUNTS_PER_REV. The count_diff is measured 
+  PEDAL_COUNTS_LENGTH loops away from each other. A loop (should) take
+  MIN_LOOP_LENGTH_S sec. So time_diff = PEDAL_COUNTS_LENGTH * 
+  MIN_LOOP_LENGTH_S. Than rps = #rounds/time_diff. Then rad/s = rps*2pi
+  */
+  m_pedal_cadance = ((float) (current_pedal_count - previous_pedal_count)) / 
+  ((float)PEDAL_COUNTS_PER_REV *(float) PEDAL_COUNTS_LENGTH * MIN_LOOP_LENGTH_S)
+  * 2*PI;
+    
+  return;
+}
+#endif //USE_PEDAL_CADANCE
+
+
 //============================ [Calculate PD error] ============================//
 void calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt){
   //------[Calculate error derivative in seconds^-1
@@ -541,65 +634,6 @@ void actuate_steer_motors(double command_fork, double command_hand){
   analogWrite(pwm_pin_fork, pwm_command_fork);
   return;
 }
-
-
-
-//========================= [Calculate bicycle speed] ==========================//
-void BikeMeasurements::calculate_bike_speed(){
-  /*K: NOTE Since the microcontroller operating frequency is much higher than the
-  frequency at which encoder ticks pass the reading head, the difference between
-  the tick count of the current and previous loop will most of the time be zero.
-  To have a meaningfull value, the value of this loop and that of 
-  WHEEL_COUNTS_LENGTH ago are compared. WARNING: It is assumed that the loop has
-  a constant frequency, which is not the case.*/
-  //TODO: Use timers instead of loops
-  int32_t current_wheel_count = wheel_counter.read();
-  int32_t previous_wheel_count = wheel_counts[wheel_counts_index];
-  wheel_counts[wheel_counts_index] = current_wheel_count;
-  wheel_counts_index += 1;
-  if (wheel_counts_index >= WHEEL_COUNTS_LENGTH) wheel_counts_index = 0;
-
-  /*NOTE #rounds = count_diff/WHEEL_COUNTS_PER_REV. The count_diff is measured 
-  WHEEL_COUNTS_LENGTH loops away from each other. A loop (should) take
-  MIN_LOOP_LENGTH_S sec. So time_diff = WHEEL_COUNTS_LENGTH * 
-  MIN_LOOP_LENGTH_S. Than rounds per second = #rounds/time_diff
-  */ 
-  float rps_wheel = ((float)(current_wheel_count - previous_wheel_count)) / 
-  ((float)WHEEL_COUNTS_PER_REV * (float)WHEEL_COUNTS_LENGTH * MIN_LOOP_LENGTH_S);
-  m_bike_speed = -rps_wheel * 2*PI * WHEEL_RADIUS;
-
-  return;
-} 
-
-
-#if USE_PEDAL_CADANCE
-//============================ [Calculate cadance] =============================//
-void BikeMeasurements::calculate_pedal_cadance(){
-  /*K: NOTE Since the microcontroller operating frequency is much higher than the
-  frequency at which encoder ticks pass the reading head, the difference between
-  the tick count of the current and previous loop will most of the time be zero.
-  To have a meaningfull value, the value of this loop and that of 
-  WHEEL_COUNTS_LENGTH ago are compared. WARNING: It is assumed that the loop has
-  a constant frequency, which is not the case.*/
-  //TODO: Use timers instead of loops
-  int32_t current_pedal_count = pedal_counter.read();
-  int32_t previous_pedal_count = pedal_counts[pedal_counts_index];
-  pedal_counts[pedal_counts_index] = current_pedal_count;
-  pedal_counts_index += 1;
-  if (pedal_counts_index >= PEDAL_COUNTS_LENGTH) pedal_counts_index = 0;
-
-  /*NOTE #rounds = count_diff/PEDAL_COUNTS_PER_REV. The count_diff is measured 
-  PEDAL_COUNTS_LENGTH loops away from each other. A loop (should) take
-  MIN_LOOP_LENGTH_S sec. So time_diff = PEDAL_COUNTS_LENGTH * 
-  MIN_LOOP_LENGTH_S. Than rps = #rounds/time_diff. Then rad/s = rps*2pi
-  */
-  m_pedal_cadance = ((float) (current_pedal_count - previous_pedal_count)) / 
-  ((float)PEDAL_COUNTS_PER_REV *(float) PEDAL_COUNTS_LENGTH * MIN_LOOP_LENGTH_S)
-  * 2*PI;
-    
-  return;
-}
-#endif //USE_PEDAL_CADANCE
 
 
 
