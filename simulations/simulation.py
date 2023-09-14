@@ -48,13 +48,19 @@ class VariableStateSpaceSystem:
 
 
 # Controllers
-# class StaticController:
-#     def __init__(self,gains):
-#         self.F = gains["fb"]
-#         self.G = gains["ff"]
-#
-#     def __str__(self):
-#         return f"F:{self.F,}\nG:{self.G}"
+class StaticController:
+    def __init__(self,gains):
+        self.F = np.vstack(
+                    (np.zeros((1,len(gains["fb"]))), 
+                     np.array(gains["fb"]))
+                )
+        self.G = np.vstack(
+                    (np.zeros((1,len(gains["ff"]))), 
+                     np.array(gains["ff"]))
+                )
+
+    def __str__(self):
+        return f"F:{self.F,}\nG:{self.G}"
 
 # class VariableController:
 #     def __init__(self,gains):
@@ -93,26 +99,17 @@ def calc_bicycle_matrices(bike: VariableStateSpaceSystem, speed):
 
 ###--------[INITIALIZATION
 ##----Set up the matrices (created by [...].py)
-# TODO: save matrices appropiately in meijaard.py
 with open("bike_and_ref_variable_dependend_system_matrices","rb") as inf:
     sys_mtrx = dill.load(inf)
 bike_plant = VariableStateSpaceSystem(sys_mtrx["plant"]) # The real bicycle
 bike_ref = VariableStateSpaceSystem(sys_mtrx["ref"]) #The reference bicycle
 
-calc_bicycle_matrices(bike_plant, 5)
-calc_bicycle_matrices(bike_ref, 5)
-
-print("plant")
-print(bike_plant)
-print("reference")
-print(bike_ref)
-
 # ##----Set up controllers 
 # #Model matching (created by [...].py)
 # # TODO: save controller gains in appropriate format in meijaard.py
-# with open("model_matching_gains", "rb") as inf:
-#     mm_gains = pkl.load(inf)
-# mm_ctrl = StaticController(mm_gains)
+with open("model_matching_gains", "rb") as inf:
+    mm_gains = dill.load(inf)
+mm_ctrl = StaticController(mm_gains)
 
 # #Steer into lean controller
 # # TODO: Set the correct sil gains
