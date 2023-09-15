@@ -1,9 +1,11 @@
-def B():
-    return 3
+import matplotlib.pyplot as plt
+import numpy as np
 
-var = {
-    "A": 3,
-    "B": ()}
+a = np.empty((3,3))
+# a[:] = np.nan
+print(a)
 
 
-print(B(var["B"]))
+# plt.plot([[1,2,3,4],[1,2,3,4]], [[1,4,9,16], [4,3,2,1]], 'ro')
+# plt.axis((0,6,0,20))
+# plt.show()

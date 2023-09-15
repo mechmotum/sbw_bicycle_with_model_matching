@@ -1,5 +1,5 @@
 import numpy as np
-import matplotlib as plt
+import matplotlib.pyplot as plt
 import dill
 
 ##----Define constants
@@ -7,6 +7,11 @@ import dill
 SIL_AVG_SPEED = 6
 K_SIL_L = 8
 K_SIL_H = 0.7
+
+# Simulation
+SIM_RANGE = {"start": 0, "stop":10}
+SIM_STEP = 0.01
+SPEEDRANGE = np.linspace(SIM_RANGE["start"] , SIM_RANGE["stop"] , num=int(round((SIM_RANGE["stop"]-SIM_RANGE["start"]) / SIM_STEP)))
 
 ##----Define classes
 # State space system
@@ -116,20 +121,40 @@ mm_ctrl = StaticController(mm_gains)
 # TODO: set correct V_AVG
 sil_ctrl = VariableController(sil_gain_fun)
 
-# ###--------[SIMULATE
-# # first try, single speed
-# # TODO: iterate over all speeds
-# speed = 5
-# # calculate speed depenend matrices
-# calc_bicycle_matrices(bike_plant, speed)
-# calc_bicycle_matrices(bike_ref, speed)
-# sil_ctrl.calc_gain()
 
-# # calculate eigenvalues
-# # dx = Ax + Bu
-# # mm_controll -> dx = (A + BF)x + BGu_ref
-# # sil_controll -> dx = (A + BF)x
-# eig_plant, _ = np.linalg.eig(bike_plant.A)
-# eig_ref, _ = np.linalg.eig(bike_ref.A)
-# eig_mm, _ = np.linalg.eig((bike_plant.A - bike_plant.B@mm_ctrl.F))
-# eig_sil, _ = np.linalg.eig((bike_plant.A - bike_plant.B@sil_ctrl.F))
+
+###--------[SIMULATE
+eigenvals = {
+    "plant": [None for k in range(len(SPEEDRANGE))],
+    "ref": [None for k in range(len(SPEEDRANGE))],
+    "mm": [None for k in range(len(SPEEDRANGE))],
+    "sil": [None for k in range(len(SPEEDRANGE))]
+}
+for idx, speed in enumerate(SPEEDRANGE):
+    # calculate speed depenend matrices
+    calc_bicycle_matrices(bike_plant, speed)
+    calc_bicycle_matrices(bike_ref, speed)
+    sil_ctrl.calc_gain(speed)
+
+    # calculate eigenvalues
+    eigenvals["plant"][idx] = np.linalg.eigvals(bike_plant.mat["A"]) # plant-> dx = Ax + Bu
+    eigenvals["ref"][idx] = np.linalg.eigvals(bike_ref.mat["A"]) # ref -> dx = A_bar x + B_bar u_bar
+    eigenvals["mm"][idx] = np.linalg.eigvals((bike_plant.mat["A"] - bike_plant.mat["B"]@mm_ctrl.F)) # mm_controll -> dx = (A + BF)x + BGu_ref
+    eigenvals["sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] - bike_plant.mat["B"]@sil_ctrl.F)) # sil_controll -> dx = (A + BF)x
+
+# Reorganize results for plotting
+for key in eigenvals.keys():
+    eigenvals[key] = {
+        "real": np.real(np.array(eigenvals[key])),
+        "imag": np.imag(np.array(eigenvals[key]))
+    }
+
+speed_axis = np.array([SPEEDRANGE], ndmin=2).T @ np.ones((1,eigenvals["plant"]["real"].shape[1]))
+
+# Plot
+for value in eigenvals.values():
+    fig = plt.figure()    
+    plt.scatter(speed_axis, value["real"],s=1)
+    plt.scatter(speed_axis, value["imag"],s=1)
+    plt.axis((0,10,-10,10))
+plt.show()
