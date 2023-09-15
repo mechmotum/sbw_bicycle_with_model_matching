@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import dill
+import inspect
 
 ##----Define constants
 # Steer into lean conroller
@@ -26,13 +27,9 @@ class VariableStateSpaceSystem:
     Takes in a dictionary that is structured as
     key = matrix name, value = variables needed to 
     calculate the parametrized matrix.
-    NOTE: key values of input dict should match key 
-    values of dict used in initialization. (so keys
-    of 'fun' must be equal to keys of 'var')
-    TODO: fix this, its bad. Suggestion: use try..catch
-    to catch the giving an input variable to B while it
-    expects no inputs. then do a exception where you 
-    manually call the realization of B without inputs
+    NOTE: all matrices now have to be dependend
+    on the same variable. (in this case it is 
+    speed)
     '''
     def __init__(self, fun: dict):
         self.mat_fun = fun
@@ -44,12 +41,12 @@ class VariableStateSpaceSystem:
             txt = txt + key + f": {value}\n"
         return txt
 
-    def calc_mtrx(self, var: dict):
+    def calc_mtrx(self, var):
         for key,val in self.mat_fun.items():
-            if var[key] == None:
-                self.mat[key] = val()
+            if len(inspect.getfullargspec(val).args): #check if the matrix requires inputs
+                self.mat[key] = val(var)
             else:
-                self.mat[key] = val(var[key])
+                self.mat[key] = val()
 
 
 # Controllers
@@ -76,14 +73,10 @@ class VariableController:
 
     def calc_gain(self, var):
         self.F = self.F_fun(var)
+        # len(inspect.getfullargspec(<YOUR_FUNCTION>).args)
         
 
 ##----Define functions
-#Shortcut for initialising the bike system's matrices for a given speed
-def calc_bicycle_matrices(bike: VariableStateSpaceSystem, speed):
-    inpt = {"A": speed, "B": None}
-    bike.calc_mtrx(inpt)
-
 # gain calculation function for steer into lean controller
 def sil_gain_fun(speed):
     '''
@@ -132,14 +125,14 @@ eigenvals = {
 }
 for idx, speed in enumerate(SPEEDRANGE):
     # calculate speed depenend matrices
-    calc_bicycle_matrices(bike_plant, speed)
-    calc_bicycle_matrices(bike_ref, speed)
+    bike_plant.calc_mtrx(speed)
+    bike_ref.calc_mtrx(speed)
     sil_ctrl.calc_gain(speed)
 
     # calculate eigenvalues
     eigenvals["plant"][idx] = np.linalg.eigvals(bike_plant.mat["A"]) # plant-> dx = Ax + Bu
     eigenvals["ref"][idx] = np.linalg.eigvals(bike_ref.mat["A"]) # ref -> dx = A_bar x + B_bar u_bar
-    eigenvals["mm"][idx] = np.linalg.eigvals((bike_plant.mat["A"] - bike_plant.mat["B"]@mm_ctrl.F)) # mm_controll -> dx = (A + BF)x + BGu_ref
+    eigenvals["mm"][idx] = np.linalg.eigvals((bike_plant.mat["A"] + bike_plant.mat["B"]@mm_ctrl.F)) # mm_controll -> dx = (A + BF)x + BGu_ref
     eigenvals["sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] - bike_plant.mat["B"]@sil_ctrl.F)) # sil_controll -> dx = (A + BF)x
 
 # Reorganize results for plotting
