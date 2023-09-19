@@ -6,11 +6,11 @@ import inspect
 ##----Define constants
 # Steer into lean conroller
 SIL_AVG_SPEED = 6
-K_SIL_L = 8
-K_SIL_H = 0.7
+K_SIL_L = -8
+K_SIL_H = -0.7
 
 # Simulation
-SIM_RANGE = {"start": 0, "stop":10}
+SIM_RANGE = {"start": 0.01, "stop":10} # zero can not be in the range, as due to the mm fixed variables, A_ref is dependent on v via 1/v. So v=0 causes inf/nan.
 SIM_STEP = 0.01
 SPEEDRANGE = np.linspace(SIM_RANGE["start"] , SIM_RANGE["stop"] , num=int(round((SIM_RANGE["stop"]-SIM_RANGE["start"]) / SIM_STEP)))
 
@@ -24,11 +24,12 @@ class VariableStateSpaceSystem:
     parametrized matrix
 
     calc_mtrx:
-    Takes in a dictionary that is structured as
-    key = matrix name, value = variables needed to 
-    calculate the parametrized matrix.
-    NOTE: all matrices now have to be dependend
-    on the same variable. (in this case it is 
+    Takes in a variable needed to calculate the 
+    parametrized matrix, and uses the member dictionairy 
+    mat_fun (initialized in init) to calculate the 
+    numarical matrix values.
+    NOTE: all matrices now have to be dependend on the 
+    same variable. (in this case it is 
     speed)
     '''
     def __init__(self, fun: dict):
@@ -43,43 +44,36 @@ class VariableStateSpaceSystem:
 
     def calc_mtrx(self, var):
         for key,val in self.mat_fun.items():
-            if len(inspect.getfullargspec(val).args): #check if the matrix requires inputs
+            if len(inspect.getfullargspec(val).args): #check if the system matrix requires inputs
                 self.mat[key] = val(var)
             else:
                 self.mat[key] = val()
 
 
-# Controllers
-class StaticController:
-    def __init__(self,gains):
-        self.F = np.vstack(
-                    (np.zeros((1,len(gains["fb"]))), 
-                     np.array(gains["fb"]))
-                )
-        self.G = np.vstack(
-                    (np.zeros((1,len(gains["ff"]))), 
-                     np.array(gains["ff"]))
-                )
-
-    def __str__(self):
-        return f"F:{self.F,}\nG:{self.G}"
-
 class VariableController:
-    def __init__(self,fun):
-        self.F_fun = fun
+    def __init__(self,fun: dict):
+        self.gain_fun = fun
+        self.gain = {}
 
     def __str__(self):
-        return f"F:{self.F}"
+        str = ""
+        for key, value in self.gain.items():
+            str = str + key + f": {value}\n"
+        return str
 
     def calc_gain(self, var):
-        self.F = self.F_fun(var)
-        # len(inspect.getfullargspec(<YOUR_FUNCTION>).args)
+        for key,val in self.gain_fun.items():
+            if len(inspect.getfullargspec(val).args): #check if the gain matrix requires inputs
+                self.gain[key] = val(var)
+            else:
+                self.gain[key] = val()
         
 
 ##----Define functions
-# gain calculation function for steer into lean controller
-def sil_gain_fun(speed):
+## gain calculation function for steer into lean controller
+def sil_gain_F_fun(speed):
     '''
+    Feedback part of the SiL controller.
     See Schwab et al., 'Some Recent Developments in Bicycle Dynamics and Control', 2008
     Dimensions: A-4x4, B-4x2
     State vector: [phi, delta, dphi, ddelta],
@@ -93,6 +87,17 @@ def sil_gain_fun(speed):
         gain[1][0] = K_SIL_H*(speed - SIL_AVG_SPEED) # *phi
     return gain
 
+def sil_gain_G_fun():
+    '''
+    Feedforward part of the SiL controller.
+    As it has none, it will be the identity 
+    matrix having appropriate dimensions.
+    Dimensions: B-4x2
+    Input vector: [Tphi, Tdelta]
+    TODO: remove magic numbers 2?
+    '''
+    return np.eye(2)
+
 
 ###---------------------------------[START]---------------------------------###
 
@@ -103,16 +108,23 @@ with open("bike_and_ref_variable_dependend_system_matrices","rb") as inf:
 bike_plant = VariableStateSpaceSystem(sys_mtrx["plant"]) # The real bicycle
 bike_ref = VariableStateSpaceSystem(sys_mtrx["ref"]) #The reference bicycle
 
-# ##----Set up controllers 
-# #Model matching (created by [...].py)
-# # TODO: save controller gains in appropriate format in meijaard.py
+##----Set up controllers 
+#Model matching (created by [...].py)
 with open("model_matching_gains", "rb") as inf:
-    mm_gains = dill.load(inf)
-mm_ctrl = StaticController(mm_gains)
+    mm_gain_fun = dill.load(inf)
+mm_funs = {
+    "F": mm_gain_fun["F"],
+    "G": mm_gain_fun["G"]
+}
+mm_ctrl = VariableController(mm_funs)
 
 #Steer into lean controller
 # TODO: set correct V_AVG
-sil_ctrl = VariableController(sil_gain_fun)
+sil_funs = {
+    "F": sil_gain_F_fun,
+    "G": sil_gain_G_fun
+}
+sil_ctrl = VariableController(sil_funs)
 
 
 
@@ -121,19 +133,22 @@ eigenvals = {
     "plant": [None for k in range(len(SPEEDRANGE))],
     "ref": [None for k in range(len(SPEEDRANGE))],
     "mm": [None for k in range(len(SPEEDRANGE))],
-    "sil": [None for k in range(len(SPEEDRANGE))]
+    "sil": [None for k in range(len(SPEEDRANGE))],
+    "mm+sil": [None for k in range(len(SPEEDRANGE))]
 }
 for idx, speed in enumerate(SPEEDRANGE):
     # calculate speed depenend matrices
     bike_plant.calc_mtrx(speed)
     bike_ref.calc_mtrx(speed)
+    mm_ctrl.calc_gain(speed)
     sil_ctrl.calc_gain(speed)
 
     # calculate eigenvalues
     eigenvals["plant"][idx] = np.linalg.eigvals(bike_plant.mat["A"]) # plant-> dx = Ax + Bu
     eigenvals["ref"][idx] = np.linalg.eigvals(bike_ref.mat["A"]) # ref -> dx = A_bar x + B_bar u_bar
-    eigenvals["mm"][idx] = np.linalg.eigvals((bike_plant.mat["A"] + bike_plant.mat["B"]@mm_ctrl.F)) # mm_controll -> dx = (A + BF)x + BGu_ref
-    eigenvals["sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] - bike_plant.mat["B"]@sil_ctrl.F)) # sil_controll -> dx = (A + BF)x
+    eigenvals["mm"][idx] = np.linalg.eigvals((bike_plant.mat["A"] + bike_plant.mat["B"]@mm_ctrl.gain["F"])) # mm_controll -> dx = (A + BF)x + BGu_ref
+    eigenvals["sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] - bike_plant.mat["B"]@sil_ctrl.gain["F"])) # sil_controll -> dx = (A - BF)x, minus because here u = -Fx
+    eigenvals["mm+sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] + bike_plant.mat["B"]@(mm_ctrl.gain["F"] - sil_ctrl.gain["F"]))) # mm + sil_controll -> dx = (A + B(Fmm - Fsil))x
 
 # Reorganize results for plotting
 for key in eigenvals.keys():
