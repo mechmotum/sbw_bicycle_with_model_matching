@@ -19,7 +19,7 @@ a_hand = 41; // Analog output pin of the handlebar motor drive
 #define USE_IMU 1
 #define USE_SD 0
 #define USE_PEDAL_CADANCE 0
-#define SERIAL_DEBUG 0
+#define SERIAL_DEBUG 1
 
 //================================= Classes ==================================//
 class BikeMeasurements{
@@ -101,7 +101,7 @@ float riemann_integrate(float value, uint32_t dt);
 float calc_bckwrd_derivative(float val_cur, float& val_prev, uint32_t dt);
 float return_scaling(uint64_t iteration);
 uint8_t check_switch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
-// void print_to_serial();
+void print_to_serial(BikeMeasurements& bike, double command_fork, double command_hand);
 float steer_moving_avg(float new_value);
 #if USE_IMU
 void get_IMU_data(uint32_t& dt_IMU_meas);
@@ -128,8 +128,8 @@ const uint16_t INITIAL_FORK_PWM = 16384; //K: I think that the middle is a zero 
 const uint16_t INITIAL_STEER_PWM = 16384;
 
 // Torque
-const float TEENSY_ANALOG_VOLTAGE = 3.3;
-const uint16_t HAND_TORQUE_RESOLUTION = 1023;
+const float TEENSY_ANALOG_VOLTAGE = 1; //3.3;
+const uint16_t HAND_TORQUE_RESOLUTION = 1; //1023;
 
 // Timing
 const uint16_t MIN_LOOP_LENGTH_MU = 1000; // target minimum loop length in microseconds.
@@ -395,21 +395,22 @@ void loop(){
 
     //------[measure bike states and inputs
     sbw_bike.measure_steer_angles();
-    // sbw_bike.measure_hand_torque();
-    sbw_bike.calculate_fork_rate();
+    sbw_bike.measure_hand_torque();
+    sbw_bike.calculate_fork_rate(); //also calculates moving average of fork angle and sets it
     sbw_bike.calculate_roll_states();
     sbw_bike.calculate_bike_speed();
 
     //------[Perform steering control
     calc_pd_errors(sbw_bike, error, derror_dt);
     calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
-    calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
-    calc_sil_control(sbw_bike, command_fork, command_hand);
+    // calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
+    // calc_sil_control(sbw_bike, command_fork, command_hand);
     
     actuate_steer_motors(command_fork, command_hand);
 
     //------[Increase counters
     control_iteration_counter++;
+    print_to_serial(sbw_bike,command_fork,command_hand);
   }
 }
 
@@ -458,6 +459,7 @@ void BikeMeasurements::measure_steer_angles(){
 //=========================== [Get handlebar torque] ===============================//
 void BikeMeasurements::measure_hand_torque(){
   uint8_t voltage = TEENSY_ANALOG_VOLTAGE * analogRead(a_torque)/HAND_TORQUE_RESOLUTION;
+  m_hand_torque = voltage ; //TEMP REMOVE AFTER MEASUREMENT TEST!
 }
 
 
@@ -666,8 +668,27 @@ void get_IMU_data(uint32_t& dt_IMU_meas){
 
 //=========================== [Print to serial] ===========================//
 #if SERIAL_DEBUG
-// void print_to_serial(){
-//   if (control_iteration_counter % 100 == 0){ // Limit the printing rate
+void print_to_serial(BikeMeasurements& bike, double command_fork, double command_hand){
+  if (control_iteration_counter % 100 == 0){ // Limit the printing rate
+      Serial.print("hand_angle: ");
+      Serial.print(bike.get_hand_angle());
+      Serial.print(", fork_angle: ");
+      Serial.print(bike.get_fork_angle());
+      Serial.print(", lean_angle: ");
+      Serial.print(bike.get_lean_angle());
+      Serial.print(", fork_rate: ");
+      Serial.print(bike.get_fork_rate());
+      Serial.print(", lean_rate: ");
+      Serial.print(bike.get_lean_rate());
+      Serial.print(", hand_torque: ");
+      Serial.print(bike.get_hand_torque());
+      Serial.print(", bike_speed: ");
+      Serial.print(bike.get_bike_speed());
+      Serial.print(", command_fork: ");
+      Serial.print(command_fork);
+      Serial.print(", command_hand: ");
+      Serial.print(command_hand);
+      Serial.println();
 //     // Serial.print("Switch: ");
 //     // Serial.print(hand_switch_state);
 //     // Angles
@@ -712,8 +733,8 @@ void get_IMU_data(uint32_t& dt_IMU_meas){
 //     #endif
 //     // New line
 //     Serial.println();
-//   }
-// }
+  }
+}
 #endif //SERIAL_DEBUG
 
 
