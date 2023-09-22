@@ -95,6 +95,7 @@ void calc_pd_control(float error, float derror_dt, double& command_fork, double&
 void calc_mm_control(BikeMeasurements& bike, double& command_fork);
 void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& command_hand);
 void actuate_steer_motors(double command_fork, double command_hand);
+void calc_mm_gains(float& k_phi, float& k_delta, float& k_dphi, float& k_ddelta, float& k_tphi, float& k_tdelta, float speed);
 uint16_t read_motor_encoder(const uint8_t cs_pin);
 void update_dtime(uint32_t& dtime, elapsedMicros& timer);
 float riemann_integrate(float value, uint32_t dt);
@@ -181,13 +182,17 @@ const uint8_t K_SIL1 = 8; // gain for the steer into lean controller when below 
 const float K_SIL2 = 0.7; // gain for the steer into lean controller when above stable speed range
 const float V_AVERAGE = 7; // value somewhere in the stable speed range. (take the average of min and max stable speed)
 
-// Model matching gains
-const float K_MM1 = 0; // lean angle
-const float K_MM2 = 0; // steer/fork angle
-const float K_MM3 = 0; // lean rate
-const float K_MM4 = 0; // steer/fork rate
-const float K_MM5 = 0; // lean torque
-const float K_MM6 = 0; // steer/hand torque
+// Model matching gains: The "_Vx" indicates that the coefficient
+//  is multiplied with speed to the power of x.
+const float K_MM_PHI_V0 = 0; // lean angle
+const float K_MM_DELT_V2 = 0; // steer/fork angle
+const float K_MM_DELT_V0 = 0; // steer/fork angle
+const float K_MM_DPHI_V1 = 0; // lean rate
+const float K_MM_DPHI_VMIN1 = 0; // lean rate
+const float K_MM_DDELT_V1 = 0; // steer/fork rate
+const float K_MM_DDELT_VMIN1 = 0; // steer/fork rate
+const float K_MM_TPHI_V0 = 0; // lean torque
+const float K_MM_TDELT_V0 = 0; // steer/hand torque
 
 //----------------------- Steering rate calculation --------------------------//
 const uint8_t STEER_MVING_AVG_SMPL_LEN = 10;
@@ -602,12 +607,25 @@ void calc_mm_control(BikeMeasurements& bike, double& command_fork){
   that the fork is moving differently than the handlebar. Furthermore, we assume the 
   lean torque is zero, aka there is no external torque in lean direction applied
   */
-  command_fork +=   K_MM1*bike.get_lean_angle()
-                  + K_MM2*bike.get_fork_angle() 
-                  + K_MM3*bike.get_lean_rate() 
-                  + K_MM4*bike.get_fork_rate() 
-                  // + K_MM5*bike.get_lean_torque() //we cannot measure lean torque, so we assume it is zero. 
-                  + K_MM6*bike.get_hand_torque();
+
+  float k_phi, k_delta, k_dphi, k_ddelta, k_tphi, k_tdelta;
+  calc_mm_gains(k_phi, k_delta, k_dphi, k_ddelta, k_tphi, k_tdelta, bike.get_bike_speed());
+
+  command_fork +=   k_phi*bike.get_lean_angle()
+                  + k_delta*bike.get_fork_angle() 
+                  + k_dphi*bike.get_lean_rate() 
+                  + k_ddelta*bike.get_fork_rate() 
+                  // + k_tphi*bike.get_lean_torque() //we cannot measure lean torque, so we assume it is zero. 
+                  + k_tdelta*bike.get_hand_torque();
+}
+
+void calc_mm_gains(float& k_phi, float& k_delta, float& k_dphi, float& k_ddelta, float& k_tphi, float& k_tdelta, float speed){
+  k_phi = K_MM_PHI_V0;
+  k_delta = K_MM_DELT_V2*(speed*speed) + K_MM_DELT_V0;
+  k_dphi = K_MM_DPHI_V1*speed + K_MM_DPHI_VMIN1/speed;
+  k_ddelta = K_MM_DDELT_V1*speed + K_MM_DDELT_VMIN1/speed;
+  k_tphi = K_MM_TPHI_V0;
+  k_tdelta = K_MM_TDELT_V0;
 }
 
 void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& command_hand){
