@@ -17,7 +17,7 @@ a_hand = 41; // Analog output pin of the handlebar motor drive
 
 //============================== Compile modes ===============================//
 #define USE_IMU 1
-#define USE_SD 0
+#define USE_SD 1
 #define USE_PEDAL_CADANCE 0
 #define SERIAL_DEBUG 1
 
@@ -109,13 +109,13 @@ void get_IMU_data(uint32_t& dt_IMU_meas);
 #endif
 #if USE_SD
 void open_file();
-void print_to_SD();
+void print_to_SD(BikeMeasurements bike, float command_fork, float command_hand);
 #endif
 
 //============================= Global Variables =============================//
 //-------------------------------- Constants ---------------------------------//
 // Conversion
-const uint32_t MICRO_TO_UNIT = 1e6;
+const float MICRO_TO_UNIT = 1e-6;
 
 // PWM
 const uint8_t PWM_RESOLUTION_BITS = 15;
@@ -164,12 +164,14 @@ const float HALF_ROTATION_DEG = 180.0;
 const float SOFTWARE_LIMIT = 42.0;
 
 // SD card
+const uint16_t SD_BLOCK_SIZE = 512;
 const uint16_t SD_SAMPLING_FREQ = 1000; //Sampling frequency of the SD card
 const uint64_t MESSAGE_LENGTH = 100; // The maximum expected legth of one sample of data. In bytes
 const uint16_t EXPERIMENT_TIME = 600; // In seconds
 const uint8_t  BUFFER_HOLD_TIME = 2; // In seconds
 const uint64_t LOG_FILE_SIZE = MESSAGE_LENGTH*EXPERIMENT_TIME*SD_SAMPLING_FREQ; // Log file should hold 10 minutes of data sampled at 1kHz
-const uint64_t RING_BUF_CAPACITY = MESSAGE_LENGTH*BUFFER_HOLD_TIME*SD_SAMPLING_FREQ; // Buffer should hold 2 seconds of data sampled at 1kHz
+const uint64_t RING_BUF_CAPACITY = MESSAGE_LENGTH*BUFFER_HOLD_TIME*SD_SAMPLING_FREQ // Buffer should hold 2 seconds of data sampled at 1kHz
+                                   + (SD_BLOCK_SIZE - ((MESSAGE_LENGTH*BUFFER_HOLD_TIME*SD_SAMPLING_FREQ) % SD_BLOCK_SIZE)); // make it a multiple of 512 for better SD writting (512 is one block)
 
 // PD Gains
 const float KP_F = 2.0f; // Fork
@@ -419,10 +421,10 @@ void loop(){
     
     actuate_steer_motors(command_fork, command_hand);
 
-    // print_to_serial();
     //------[Increase counters
     control_iteration_counter++;
     print_to_serial(sbw_bike,command_fork,command_hand);
+    print_to_SD(sbw_bike,command_fork,command_hand);
   }
 }
 
@@ -766,8 +768,11 @@ void print_to_serial(BikeMeasurements& bike, double command_fork, double command
 
 //============================= [Print to SD] =============================//
 #if USE_SD
-void print_to_SD(){
+void print_to_SD(BikeMeasurements bike, float command_fork, float command_hand){
   size_t n = rb.bytesUsed();
+  
+  elapsedMicros dt_SD;
+  dt_SD = 0;
 
   // Check if there is free space
   if ((logFile.curPosition() + n) > (LOG_FILE_SIZE - 100)) {
@@ -780,6 +785,25 @@ void print_to_SD(){
     if (n >= 512 && !logFile.isBusy()) 
       rb.writeOut(512);
 
+      rb.print(",");
+      rb.write(bike.get_hand_angle());
+      rb.print(",");
+      rb.write(bike.get_fork_angle());
+      rb.print(",");
+      rb.write(bike.get_lean_angle());
+      rb.print(",");
+      rb.write(bike.get_fork_rate());
+      rb.print(",");
+      rb.write(bike.get_lean_rate());
+      rb.print(",");
+      rb.write(bike.get_hand_torque());
+      rb.print(",");
+      rb.write(bike.get_bike_speed());
+      rb.print(",");
+      rb.write(command_fork);
+      rb.print(",");
+      rb.write(command_hand);
+      rb.println();
     // // Write data to buffer
     // rb.print(control_iteration_counter); //format must match that of 'open_file()'
     // rb.write(',');
@@ -818,7 +842,15 @@ void print_to_SD(){
   // the controller gets back in time quickly.
   // CAN SOMETIMES CAUSE A LAG SPIKE OF MULTIPLE SECONDS
   // TODO: Find a workaround
-  if (control_iteration_counter % 1500 == 0) logFile.flush();
+  if (control_iteration_counter % 1500 == 0){
+    Serial.println("Writing to SD...");
+    logFile.flush();
+  } 
+
+  #if SERIAL_DEBUG
+  Serial.print("sec inside write_to_sd: ");
+  Serial.print(dt_SD*MICRO_TO_UNIT);
+  #endif
 }
 #endif //USE_SD
 
@@ -983,6 +1015,23 @@ void open_file() {
 
   // Start Writing to buffer
   rb.begin(&logFile);
+  
+  rb.print("fork_angle");
+  rb.write(",");
+  rb.print("lean_angle");
+  rb.write(",");
+  rb.print("fork_rate");
+  rb.write(",");
+  rb.print("lean_rate");
+  rb.write(",");
+  rb.print("hand_torque");
+  rb.write(",");
+  rb.print("bike_speed");
+  rb.write(",");
+  rb.print("command_fork");
+  rb.write(",");
+  rb.print("command_hand");
+  rb.write("\n");
 
   // rb.print("control_iteration_counter"); //This should equal the format used in 'print_to_SD'
   // rb.write(',');
