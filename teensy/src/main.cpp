@@ -17,7 +17,7 @@ a_hand = 41; // Analog output pin of the handlebar motor drive
 
 //============================== Compile modes ===============================//
 #define USE_IMU 1
-#define USE_SD 1
+#define USE_SD 0
 #define USE_PEDAL_CADANCE 0
 #define SERIAL_DEBUG 1
 
@@ -328,7 +328,7 @@ void setup(){
 
   //------[Setup IMU
   #if USE_IMU
-    // digitalWrite(cs_imu, LOW); Chip select is most likely not necessary.
+    digitalWrite(cs_imu, LOW); //Chip select is most likely not necessary.
     // TODO: the mpu9250 class has a built in digital low pass filter. 
     // default is at 184Hz. look into it if it needs to be lower.
     IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); // +- 4g
@@ -339,7 +339,10 @@ void setup(){
       Serial.println("Check IMU wiring or try cycling power");
       #endif
     }
-    // digitalWrite(cs_imu, HIGH);
+    else{
+      Serial.print("imu initialized");
+    }
+    digitalWrite(cs_imu, HIGH);
   #endif
 
 
@@ -423,8 +426,14 @@ void loop(){
 
     //------[Increase counters
     control_iteration_counter++;
-    print_to_serial(sbw_bike,command_fork,command_hand);
+
+    //------[Data monitoring
+    #if SERIAL_DEBUG
+    // print_to_serial(sbw_bike,command_fork,command_hand);
+    #endif
+    #if USE_SD
     print_to_SD(sbw_bike,command_fork,command_hand);
+    #endif
   }
 }
 
