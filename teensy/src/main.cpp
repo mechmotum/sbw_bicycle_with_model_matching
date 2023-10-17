@@ -28,18 +28,38 @@
 
 /* Mpu9250 object, SPI bus, CS on pin 10 */
 bfs::Mpu9250 imu(&SPI, 10);
+// bfs::Mpu9250 imu2(&SPI, 37);
 
 void setup() {
   /* Serial to display data */
-  Serial.begin(115200);
+  Serial.begin(9600);
   while(!Serial) {}
   /* Start the SPI bus */
   SPI.begin();
-  /* Initialize and configure IMU */  
-  if (!imu.Begin()) {
-    Serial.println("Error initializing communication with IMU");
+  /* Initialize and configure IMU */
+  pinMode(10, OUTPUT);
+  pinMode(24, OUTPUT);
+  pinMode(25, OUTPUT);
+  // pinMode(37, OUTPUT);
+  
+
+  digitalWrite(10, HIGH);
+  digitalWrite(24, HIGH);
+  digitalWrite(25, HIGH);
+  // digitalWrite(37, HIGH);
+  
+  int8_t init_status = imu.Begin();
+  if (init_status <= 0) {
+    Serial.print("Error initializing communication with IMU. CODE: ");
+    Serial.print(init_status);
     while(1) {}
   }
+  // int8_t init_status2 = imu2.Begin();
+  // if (init_status2 <= 0) {
+  //   Serial.print("Error initializing communication with IMU. CODE2: ");
+  //   Serial.print(init_status2);
+  //   while(1) {}
+  // }
   /* Set the sample rate divider */
   if (!imu.ConfigSrd(19)) {
     Serial.println("Error configured SRD");
@@ -76,7 +96,8 @@ void setup() {
 
 void loop() {
   /* Check if data read */
-  if (imu.Read()) {
+  int8_t read_status = imu.Read();
+  if (read_status > 0) {
     Serial.print(imu.new_imu_data());
     Serial.print("\t");
     Serial.print(imu.new_mag_data());
@@ -102,6 +123,19 @@ void loop() {
     Serial.print(imu.die_temp_c());
     Serial.print("\n");
   }
+  else{
+    Serial.print("Reading error: ");
+    Serial.println(read_status);
+  }
+
+
+  // int8_t read_status2 = imu2.Read();
+  // if (read_status2 > 0) {
+  //   Serial.print(imu.new_imu_data());
+  //   Serial.print("\n");
+  // }
+
+  delay(100);
 }
 
 // #include <Arduino.h>
