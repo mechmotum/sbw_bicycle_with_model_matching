@@ -17,6 +17,7 @@ a_hand = 41; // Analog output pin of the handlebar motor drive
 
 //============================== Compile modes ===============================//
 #define USE_IMU 1
+#define USE_BT 1
 #define USE_SD 0
 #define USE_PEDAL_CADANCE 0
 #define SERIAL_DEBUG 0
@@ -103,8 +104,10 @@ float calc_bckwrd_derivative(float val_cur, float& val_prev, uint32_t dt);
 float return_scaling(uint64_t iteration);
 uint8_t check_switch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
 float steer_moving_avg(float new_value);
+#if USE_BT
 void init_bt();
 void print_to_bt(BikeMeasurements& sbw_bike, double command_fork, double command_hand);
+#endif
 #if SERIAL_DEBUG
 void print_to_serial(BikeMeasurements& bike, double command_fork, double command_hand);
 #endif
@@ -119,7 +122,10 @@ void print_to_SD(BikeMeasurements bike, float command_fork, float command_hand);
 //============================= Global Variables =============================//
 //-------------------------------- Constants ---------------------------------//
 // Bluetooth
+#if USE_BT
 const uint32_t BT_BAUDRATE = 9600;
+#endif
+
 // Conversion
 const float MICRO_TO_UNIT = 1e-6;
 
@@ -170,6 +176,7 @@ const float HALF_ROTATION_DEG = 180.0;
 const float SOFTWARE_LIMIT = 42.0;
 
 // SD card
+#if USE_SD
 const uint16_t SD_BLOCK_SIZE = 512;
 const uint16_t SD_SAMPLING_FREQ = 1000; //Sampling frequency of the SD card
 const uint64_t MESSAGE_LENGTH = 100; // The maximum expected legth of one sample of data. In bytes
@@ -178,6 +185,7 @@ const uint8_t  BUFFER_HOLD_TIME = 2; // In seconds
 const uint64_t LOG_FILE_SIZE = MESSAGE_LENGTH*EXPERIMENT_TIME*SD_SAMPLING_FREQ; // Log file should hold 10 minutes of data sampled at 1kHz
 const uint64_t RING_BUF_CAPACITY = MESSAGE_LENGTH*BUFFER_HOLD_TIME*SD_SAMPLING_FREQ // Buffer should hold 2 seconds of data sampled at 1kHz
                                    + (SD_BLOCK_SIZE - ((MESSAGE_LENGTH*BUFFER_HOLD_TIME*SD_SAMPLING_FREQ) % SD_BLOCK_SIZE)); // make it a multiple of 512 for better SD writting (512 is one block)
+#endif
 
 // PD Gains
 const float KP_F = 2.0f; // Fork
@@ -243,8 +251,10 @@ uint64_t control_iteration_counter = 0; // TODO: Ensure it never overflows!
 //--------------------------------- Time -------------------------------------//
 elapsedMicros since_last_loop; // How long has passed since last loop execution
 elapsedMicros since_last_steer_meas; // How long since last handlebar and fork measurement
-elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
 elapsedMicros sinse_last_bike_speed; // How long since last bike speed measurement
+#if USE_IMU
+elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
+#endif
 
 //------------------- Wheel Speed and Cadence Encoders -----------------------//
   Encoder wheel_counter(encdr_pin1_wheel, encdr_pin2_wheel); // Initialize Rear wheel speed encoder
@@ -284,7 +294,9 @@ elapsedMicros sinse_last_bike_speed; // How long since last bike speed measureme
 void setup(){
   //------[Initialize communications
   SPI.begin(); // IMU, fork and steer encoders
+  #if USE_BT
   init_bt(); //initialize bluetooth connection and write log header
+  #endif
   #if SERIAL_DEBUG
   Serial.begin(9600); // Communication with PC through micro-USB
   /*NOTE: Wait with startup procedure untill one opens a serial monitor.
@@ -381,8 +393,10 @@ void setup(){
   delay(1); //give time for sensors to initialize
   since_last_loop = 0;
   since_last_steer_meas = 0;
-  since_last_IMU_meas = 0;
   sinse_last_bike_speed = 0;
+  #if USE_IMU
+  since_last_IMU_meas = 0;
+  #endif
   wheel_counter.write(0);
 }
 
@@ -434,7 +448,9 @@ void loop(){
     control_iteration_counter++;
 
     //------[Data monitoring
+    #if USE_BT
     print_to_bt(sbw_bike,command_fork,command_hand);
+    #endif
     #if SERIAL_DEBUG
     print_to_serial(sbw_bike,command_fork,command_hand);
     #endif
@@ -707,6 +723,7 @@ void get_IMU_data(uint32_t& dt_IMU_meas){
 }
 #endif
 
+#if USE_BT
 //======================== [initialize Bluetooth] ========================//
 void init_bt(){
   /*NOTE: Wait for the main and sub bluetooth modules to connect. 
@@ -755,6 +772,7 @@ void print_to_bt(BikeMeasurements& bike, double command_fork, double command_han
       Serial1.print('\n');
   }
 }
+#endif
 
 //=========================== [Print to serial] ===========================//
 #if SERIAL_DEBUG
