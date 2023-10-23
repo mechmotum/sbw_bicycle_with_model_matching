@@ -23,7 +23,64 @@
 // * IN THE SOFTWARE.
 // */
 
-// /*=========================SPI Protocol (does not work)=========================*/
+// /*=========================I2C Protocol=========================*/
+// #include "mpu9250.h"
+
+// /* Mpu9250 object */
+// bfs::Mpu9250 imu;
+
+// void setup() {
+//   /* Serial to display data */
+//   Serial.begin(115200);
+//   while(!Serial) {}
+//   /* Start the I2C bus */
+//   Wire.begin();
+//   Wire.setClock(400000);
+//   /* I2C bus,  0x68 address */
+//   imu.Config(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
+//   /* Initialize and configure IMU */
+//   if (!imu.Begin()) {
+//     Serial.println("Error initializing communication with IMU");
+//     while(1) {}
+//   }
+//   // /* Set the sample rate divider */
+//   // if (!imu.ConfigSrd(19)) {
+//   //   Serial.println("Error configured SRD");
+//   //   while(1) {}
+//   // }
+// }
+
+// void loop() {
+//   /* Check if data read */
+//   if (imu.Read()) {
+//     Serial.print(imu.new_imu_data());
+//     Serial.print("\t");
+//     Serial.print(imu.new_mag_data());
+//     Serial.print("\t");
+//     Serial.print(imu.accel_x_mps2());
+//     Serial.print("\t");
+//     Serial.print(imu.accel_y_mps2());
+//     Serial.print("\t");
+//     Serial.print(imu.accel_z_mps2());
+//     Serial.print("\t");
+//     Serial.print(imu.gyro_x_radps());
+//     Serial.print("\t");
+//     Serial.print(imu.gyro_y_radps());
+//     Serial.print("\t");
+//     Serial.print(imu.gyro_z_radps());
+//     Serial.print("\t");
+//     Serial.print(imu.mag_x_ut());
+//     Serial.print("\t");
+//     Serial.print(imu.mag_y_ut());
+//     Serial.print("\t");
+//     Serial.print(imu.mag_z_ut());
+//     Serial.print("\t");
+//     Serial.print(imu.die_temp_c());
+//     Serial.print("\n");
+//   }
+// }
+
+// /*=========================SPI Protocol (does not work fast enough)=========================*/
 // #include "mpu9250.h"
 
 // /* Mpu9250 object, SPI bus, CS on pin 10 */
@@ -205,6 +262,7 @@ uint8_t check_switch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size)
 void print_to_serial(BikeMeasurements& bike, double command_fork, double command_hand);
 float steer_moving_avg(float new_value);
 #if USE_IMU
+void imu_setup();
 void get_IMU_data(uint32_t& dt_IMU_meas);
 #endif
 #if USE_SD
@@ -299,12 +357,14 @@ const float K_MM_TDELT_V0 = 0; // steer/hand torque
 //----------------------- Steering rate calculation --------------------------//
 const uint8_t STEER_MVING_AVG_SMPL_LEN = 10;
 
+//---------------------------------- IMU -------------------------------------//
+#if USE_IMU
+const uint32_t WIRE_FREQ = 400000; // Frequency set by bolderflight example. It seems to work so I did not alter it.
+#endif
+
 //-------------------------------- Pins --------------------------------------//
 const uint8_t cs_hand = 24; // SPI Chip Select for handlebar encoder
 const uint8_t cs_fork = 25; // SPI Chip Select for fork encoder
-#if USE_IMU
-const uint8_t cs_imu = 10; // SPI Chip Select for MPU9250
-#endif
 
 const uint8_t pwm_pin_hand = 8; // Send PWM signals to the handlebar motor
 const uint8_t pwm_pin_fork = 9; // Send PWM signals to the fork motor
@@ -355,7 +415,7 @@ elapsedMicros sinse_last_bike_speed; // How long since last bike speed measureme
 
 //--------------------------------- IMU --------------------------------------//
 #if USE_IMU
-  bfs::Mpu9250 IMU(&SPI, cs_imu); // MPU9250 object
+  bfs::Mpu9250 IMU; // MPU9250 object
 #endif
 
 //--------------------------- SD Card Logging --------------------------------//
@@ -379,7 +439,7 @@ void setup(){
   //------[Initialize communications
   SPI.begin(); // IMU, fork and steer encoders
   #if SERIAL_DEBUG
-  Serial.begin(9600); // Communication with PC through micro-USB
+  Serial.begin(115200); // Communication with PC through micro-USB
   /*NOTE: Wait with startup procedure untill one opens a serial monitor.
   Since the power to the microcontroller and to the rest of the bicycle
   is now not synchronus anymore.
@@ -401,9 +461,6 @@ void setup(){
   pinMode(pwm_pin_hand,     OUTPUT);
   pinMode(cs_hand,          OUTPUT);
   pinMode(cs_fork,          OUTPUT);
-  #if USE_IMU
-  pinMode(cs_imu,           OUTPUT); //technically not necessary as this is done by IMU.begin()
-  #endif
 
   //------[Setup PWM pins
   analogWriteResolution(PWM_RESOLUTION_BITS);
@@ -414,9 +471,6 @@ void setup(){
   //Disconnect all sub-modules from the SPI bus. (pull up CS)
   digitalWrite(cs_fork, HIGH);
   digitalWrite(cs_hand, HIGH);
-  #if USE_IMU
-  digitalWrite(cs_imu,  HIGH);
-  #endif
   
   digitalWrite(enable_motor_enc, HIGH); // Set HIGH to enable power to the encoders
   digitalWrite(enable_fork,      HIGH); // Set HIGH to enable motor
@@ -428,28 +482,12 @@ void setup(){
 
   //------[Setup IMU
   #if USE_IMU
-    delay(1000); //for some reason the communication speed with the IMU is slow, so make sure the teensy is not busy before initializing communication
-    // TODO: the mpu9250 class has a built in digital low pass filter. 
-    // default is at 184Hz. look into it if it needs to be lower.
-    IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); // +- 4g
-    IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS); // +- 250 deg/s
-    
-    if(!IMU.Begin()){ //Initialize communication with the sensor
-      #if SERIAL_DEBUG
-      Serial.println("IMU initialization unsuccessful");
-      Serial.println("Check IMU wiring or try cycling power");
-      #endif
-    }
-    #if SERIAL_DEBUG
-    else{
-      Serial.print("imu initialized");
-    }
-    #endif
+    imu_setup();
   #endif
 
 
+  //------[Setup SD card
   #if USE_SD
-    //------[Setup SD card
     if(!sd.begin(SdioConfig(FIFO_SDIO))){ //Initialize SD card and file system for SDIO mode. Here: FIFO
       #if SERIAL_DEBUG
       Serial.println("SD card initialization unsuccessful");
@@ -531,7 +569,7 @@ void loop(){
 
     //------[Data monitoring
     #if SERIAL_DEBUG
-    // print_to_serial(sbw_bike,command_fork,command_hand);
+    print_to_serial(sbw_bike,command_fork,command_hand);
     #endif
     #if USE_SD
     print_to_SD(sbw_bike,command_fork,command_hand);
@@ -692,6 +730,27 @@ void BikeMeasurements::calculate_pedal_cadance(){
 }
 #endif //USE_PEDAL_CADANCE
 
+#if USE_IMU
+void imu_setup(){
+// Start the I2C bus
+    Wire.begin();
+    Wire.setClock(WIRE_FREQ);
+    // I2C bus,  0x68 address
+    IMU.Config(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
+    // TODO: the mpu9250 class has a built in digital low pass filter. 
+    // default is at 184Hz. look into it if it needs to be lower.
+    IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); // +- 4g
+    IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS); // +- 250 deg/s
+    // Initialize and configure IMU
+    if(!IMU.Begin()){
+      #if SERIAL_DEBUG
+      Serial.println("Error initializing communication with IMU");
+      Serial.println("Check IMU wiring or try cycling power");
+      #endif
+      while(1) {}
+    }
+}
+#endif
 
 //============================ [Calculate PD error] ============================//
 void calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt){
@@ -780,25 +839,13 @@ void actuate_steer_motors(double command_fork, double command_hand){
 //=============================== [Read the IMU] ===============================//
 #if USE_IMU
 void get_IMU_data(uint32_t& dt_IMU_meas){
-  static uint8_t count = 0;
-  //------[Read out data via SPI
-  // TODO: errer handling if IMU fails to read data
-  // if(!IMU.Read()){
-  int8_t read_status = IMU.Read();
-  if(read_status<=0){
+  //------[Read out data via I2C
+  if(!IMU.Read()){
     #if SERIAL_DEBUG
-      // Serial.print("IMU read out error");
-      Serial.println(read_status);
-    #endif
-  } // load IMU data into IMU object
-  else{
-    #if SERIAL_DEBUG
-    Serial.print(count); //Count how manny times the IMU gives data before it chrashes
-    Serial.print(" : ");
-    Serial.println(IMU.new_imu_data());
-    count++;
-    #endif
+    Serial.println("IMU read out error");
   }
+  #endif
+
   //------[Time since last measurement
   update_dtime(dt_IMU_meas, since_last_IMU_meas); // time between to calls to the IMU
 
