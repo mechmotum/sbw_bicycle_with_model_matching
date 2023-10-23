@@ -1,160 +1,3 @@
-// /*
-// * Brian R Taylor
-// * brian.taylor@bolderflight.com
-// * 
-// * Copyright (c) 2021 Bolder Flight Systems Inc
-// *
-// * Permission is hereby granted, free of charge, to any person obtaining a copy
-// * of this software and associated documentation files (the “Software”), to
-// * deal in the Software without restriction, including without limitation the
-// * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-// * sell copies of the Software, and to permit persons to whom the Software is
-// * furnished to do so, subject to the following conditions:
-// *
-// * The above copyright notice and this permission notice shall be included in
-// * all copies or substantial portions of the Software.
-// *
-// * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// * IN THE SOFTWARE.
-// */
-
-// /*=========================I2C Protocol=========================*/
-// #include "mpu9250.h"
-
-// /* Mpu9250 object */
-// bfs::Mpu9250 imu;
-
-// void setup() {
-//   /* Serial to display data */
-//   Serial.begin(115200);
-//   while(!Serial) {}
-//   /* Start the I2C bus */
-//   Wire.begin();
-//   Wire.setClock(400000);
-//   /* I2C bus,  0x68 address */
-//   imu.Config(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
-//   /* Initialize and configure IMU */
-//   if (!imu.Begin()) {
-//     Serial.println("Error initializing communication with IMU");
-//     while(1) {}
-//   }
-//   // /* Set the sample rate divider */
-//   // if (!imu.ConfigSrd(19)) {
-//   //   Serial.println("Error configured SRD");
-//   //   while(1) {}
-//   // }
-// }
-
-// void loop() {
-//   /* Check if data read */
-//   if (imu.Read()) {
-//     Serial.print(imu.new_imu_data());
-//     Serial.print("\t");
-//     Serial.print(imu.new_mag_data());
-//     Serial.print("\t");
-//     Serial.print(imu.accel_x_mps2());
-//     Serial.print("\t");
-//     Serial.print(imu.accel_y_mps2());
-//     Serial.print("\t");
-//     Serial.print(imu.accel_z_mps2());
-//     Serial.print("\t");
-//     Serial.print(imu.gyro_x_radps());
-//     Serial.print("\t");
-//     Serial.print(imu.gyro_y_radps());
-//     Serial.print("\t");
-//     Serial.print(imu.gyro_z_radps());
-//     Serial.print("\t");
-//     Serial.print(imu.mag_x_ut());
-//     Serial.print("\t");
-//     Serial.print(imu.mag_y_ut());
-//     Serial.print("\t");
-//     Serial.print(imu.mag_z_ut());
-//     Serial.print("\t");
-//     Serial.print(imu.die_temp_c());
-//     Serial.print("\n");
-//   }
-// }
-
-// /*=========================SPI Protocol (does not work fast enough)=========================*/
-// #include "mpu9250.h"
-
-// /* Mpu9250 object, SPI bus, CS on pin 10 */
-// bfs::Mpu9250 imu(&SPI, 10);
-// // bfs::Mpu9250 imu2(&SPI, 37);
-
-// void setup() {
-//   /* Serial to display data */
-//   Serial.begin(9600);
-//   while(!Serial) {}
-//   /* Start the SPI bus */
-//   SPI.begin();
-//   /* Initialize and configure IMU */
-//   pinMode(10, OUTPUT);
-//   pinMode(24, OUTPUT);
-//   pinMode(25, OUTPUT);
-//   // pinMode(37, OUTPUT);
-  
-
-//   digitalWrite(10, HIGH);
-//   digitalWrite(24, HIGH);
-//   digitalWrite(25, HIGH);
-//   // digitalWrite(37, HIGH);
-  
-//   int8_t init_status = imu.Begin();
-//   if (init_status <= 0) {
-//     Serial.print("Error initializing communication with IMU. CODE: ");
-//     Serial.print(init_status);
-//     while(1) {}
-//   }
-
-//   /* Set the sample rate divider */
-//   if (!imu.ConfigSrd(19)) {
-//     Serial.println("Error configured SRD");
-//     while(1) {}
-//   }
-// }
-
-// void loop() {
-//   /* Check if data read */
-//   int8_t read_status = imu.Read();
-//   if (read_status > 0) {
-//     Serial.print(imu.new_imu_data());
-//     Serial.print("\t");
-//     Serial.print(imu.new_mag_data());
-//     Serial.print("\t");
-//     Serial.print(imu.accel_x_mps2());
-//     Serial.print("\t");
-//     Serial.print(imu.accel_y_mps2());
-//     Serial.print("\t");
-//     Serial.print(imu.accel_z_mps2());
-//     Serial.print("\t");
-//     Serial.print(imu.gyro_x_radps());
-//     Serial.print("\t");
-//     Serial.print(imu.gyro_y_radps());
-//     Serial.print("\t");
-//     Serial.print(imu.gyro_z_radps());
-//     Serial.print("\t");
-//     Serial.print(imu.mag_x_ut());
-//     Serial.print("\t");
-//     Serial.print(imu.mag_y_ut());
-//     Serial.print("\t");
-//     Serial.print(imu.mag_z_ut());
-//     Serial.print("\t");
-//     Serial.print(imu.die_temp_c());
-//     Serial.print("\n");
-//   }
-//   else{
-//     Serial.print("Reading error: ");
-//     Serial.println(read_status);
-//   }
-//   delay(100);
-// }
-
 #include <Arduino.h>
 #include <SPI.h>
 #include <Encoder.h>
@@ -163,7 +6,7 @@
 #include "mpu9250.h" //https://github.com/bolderflight/MPU9250
 
 /*TODO: include other measurement functions into the BikeMeasurements class, like the IMU*/
-
+// TODO: make all measurement units into SI units
 
 /* LEFT FOR DOCUMENTATION PURPOSE ONLY [transfer to more appropriate location and remove]
 a_force = 20; // Analog output pin of the force transducer
@@ -273,6 +116,7 @@ void imu_setup();
 void get_IMU_data(uint32_t& dt_IMU_meas);
 #endif
 #if USE_SD
+void sd_setup();
 void open_file();
 void print_to_SD(BikeMeasurements bike, float command_fork, float command_hand);
 #endif
@@ -504,29 +348,9 @@ void setup(){
     imu_setup();
   #endif
 
-
   //------[Setup SD card
   #if USE_SD
-    if(!sd.begin(SdioConfig(FIFO_SDIO))){ //Initialize SD card and file system for SDIO mode. Here: FIFO
-      #if SERIAL_DEBUG
-      Serial.println("SD card initialization unsuccessful");
-      Serial.println("Please check SD card!");
-      #endif
-      // Short-short error code (..)
-      while(1) {
-        digitalWrite(hand_led, HIGH);
-        delay(500);
-        digitalWrite(hand_led, LOW);
-        delay(500);
-      }
-    }
-
-    //------[Count files on SD card
-    root.open("/");
-    while (countFile.openNext(&root, O_RDONLY)) {
-      if (!countFile.isHidden()) fileCount++; // Count only the log files
-      countFile.close();
-    }
+    sd_setup();
   #endif //USE_SD
 
   //------[reset counting variables
@@ -775,6 +599,32 @@ void imu_setup(){
 }
 #endif
 
+#if USE_SD
+void sd_setup(){
+  //------[Initialize SD card and file system for SDIO mode. Here: FIFO
+  if(!sd.begin(SdioConfig(FIFO_SDIO))){
+      #if SERIAL_DEBUG
+      Serial.println("SD card initialization unsuccessful");
+      Serial.println("Please check SD card!");
+      #endif
+      // Short-short error code (..)
+      while(1) {
+        digitalWrite(hand_led, HIGH);
+        delay(500);
+        digitalWrite(hand_led, LOW);
+        delay(500);
+      }
+  }
+
+    //------[Count files on SD card
+    root.open("/");
+    while (countFile.openNext(&root, O_RDONLY)) {
+      if (!countFile.isHidden()) fileCount++; // Count only the log files
+      countFile.close();
+    }
+}
+#endif
+
 //============================ [Calculate PD error] ============================//
 void calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt){
   //------[Calculate error derivative in seconds^-1
@@ -862,6 +712,7 @@ void actuate_steer_motors(double command_fork, double command_hand){
 //=============================== [Read the IMU] ===============================//
 #if USE_IMU
 void get_IMU_data(uint32_t& dt_IMU_meas){
+  // TODO: Error handling in the case the die temperature becomes to high (in general: error handling)
   //------[Read out data via I2C
   if(!IMU.Read()){
     #if SERIAL_DEBUG
@@ -871,17 +722,6 @@ void get_IMU_data(uint32_t& dt_IMU_meas){
 
   //------[Time since last measurement
   update_dtime(dt_IMU_meas, since_last_IMU_meas); // time between to calls to the IMU
-
-  // TODO: Error handling in the case the die temperature becomes to high
-
-  /* Only left for documentation reasons */
-  // float accelY = IMU.accel_x_mps2();
-  // float accelX = IMU.accel_y_mps2();
-  // float accelZ = IMU.accel_z_mps2();
-  // float gyroY = IMU.gyro_x_radps();
-  // float gyroX = IMU.gyro_y_radps();
-  // float gyroZ = IMU.gyro_z_radps();
-  // float temp = IMU.die_temp_c();
 }
 #endif
 
@@ -959,58 +799,71 @@ void print_to_serial(BikeMeasurements& bike, double command_fork, double command
       Serial.print(", cmnd_hand: ");
       Serial.print(command_hand);
       Serial.println();
-//     // Serial.print("Switch: ");
-//     // Serial.print(hand_switch_state);
-//     // Angles
-//     Serial.print(",Hand(deg)=");
-//     Serial.print(hand_angle);
-//     Serial.print(",Fork(deg)=");
-//     Serial.print(fork_angle);
-//     // Torque
-//     Serial.print(",Torque_handlebar(Nm)=");
-//     Serial.print(command_hand);
-//     Serial.print(",Torque_fork(Nm)=");
-//     Serial.print(command_fork);
-//     Serial.print(",Hand(Counts)= ");
-//     Serial.print(enc_counts_hand);
-//     Serial.print(",Fork(Counts)= ");
-//     Serial.print(enc_counts_fork);
-//     Serial.print(",Time Taken= ");
-//     Serial.print(since_last_loop);
-//     // IMU
-//     #if USE_IMU 
-//       Serial.print(",AccelX= ");
-//       Serial.print(accelX);
-//       Serial.print(",AccelY= ");
-//       Serial.print(accelY);
-//       Serial.print(",AccelZ= ");
-//       Serial.print(accelZ);
-//       Serial.print(",GyroX= ");
-//       Serial.print(gyroX);
-//       Serial.print(",GyroY= ");
-//       Serial.print(gyroY);
-//       Serial.print(",GyroZ= ");
-//       Serial.print(gyroZ);
-//       Serial.print(",Temp= ");
-//       Serial.print(temp);
-//     #endif
-//     // Encoders
-//       Serial.print(",Velocity= ");
-//       Serial.print(velocity_ms);
-//     #if USE_PEDAL_CADANCE
-//       Serial.print(",Cadence= ");
-//       Serial.print(cadence_rads);
-//     #endif
-//     // New line
-//     Serial.println();
   }
 }
 #endif //SERIAL_DEBUG
 
 
 
-//============================= [Print to SD] =============================//
 #if USE_SD
+//============================== [Open File] ==============================//
+void open_file() {
+  String fullFileName = fileName + String(fileCount) + fileExt;
+
+  // Open file
+  if (!logFile.open(fullFileName.c_str(), O_RDWR | O_CREAT | O_TRUNC)) {
+    Serial.println("Open failed");
+    while (1) { // Long-long error code
+      digitalWrite(hand_led, HIGH);
+      delay(1000);
+      digitalWrite(hand_led, LOW);
+      delay(500);
+    }
+  }
+  
+  //Prealocate space
+  if (!logFile.preAllocate(LOG_FILE_SIZE)) {
+    Serial.println("Preallocate failed");
+    while (1) { // Long-long error code
+      digitalWrite(hand_led, HIGH);
+      delay(1000);
+      digitalWrite(hand_led, LOW);
+      delay(500);
+    }
+  }
+
+  // Start Writing to buffer
+  rb.begin(&logFile);
+  
+  rb.print("fork_angle");
+  rb.write(",");
+  rb.print("lean_angle");
+  rb.write(",");
+  rb.print("fork_rate");
+  rb.write(",");
+  rb.print("lean_rate");
+  rb.write(",");
+  rb.print("hand_torque");
+  rb.write(",");
+  rb.print("bike_speed");
+  rb.write(",");
+  rb.print("command_fork");
+  rb.write(",");
+  rb.print("command_hand");
+  rb.write("\n");
+
+  // Write to SD card
+  size_t n = rb.bytesUsed();
+  rb.writeOut(n);
+  logFile.flush();
+
+  isOpen = true; // Set to TRUE such that the open file function is only called once
+  return;
+}
+
+
+
+//============================= [Print to SD] =============================//
 void print_to_SD(BikeMeasurements bike, float command_fork, float command_hand){
   size_t n = rb.bytesUsed();
   
@@ -1132,7 +985,7 @@ uint16_t read_motor_encoder(const uint8_t cs_pin){
 }
 
 
-//================= [Update time between measurments of the steer angels] =================//
+//================= [Update time between measurements of the steer angels] =================//
 void update_dtime(uint32_t& dtime, elapsedMicros& timer){
   // TODO: make 'dtime' and 'timer' linked to each other. As in dtime and 
   // timer are a pair. If not, either timer is reset by another dtime 
@@ -1226,93 +1079,3 @@ uint8_t check_switch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size)
   if (val_sum >= (uint8_t)(array_size*0.7)) return 1;
   return 0;
 }
-
-
-
-//============================== [Open File] ==============================//
-#if USE_SD
-void open_file() {
-  String fullFileName = fileName + String(fileCount) + fileExt;
-
-  // Open file
-  if (!logFile.open(fullFileName.c_str(), O_RDWR | O_CREAT | O_TRUNC)) {
-    Serial.println("Open failed");
-    while (1) { // Long-long error code
-      digitalWrite(hand_led, HIGH);
-      delay(1000);
-      digitalWrite(hand_led, LOW);
-      delay(500);
-    }
-  }
-  
-  //Prealocate space
-  if (!logFile.preAllocate(LOG_FILE_SIZE)) {
-    Serial.println("Preallocate failed");
-    while (1) { // Long-long error code
-      digitalWrite(hand_led, HIGH);
-      delay(1000);
-      digitalWrite(hand_led, LOW);
-      delay(500);
-    }
-  }
-
-  // Start Writing to buffer
-  rb.begin(&logFile);
-  
-  rb.print("fork_angle");
-  rb.write(",");
-  rb.print("lean_angle");
-  rb.write(",");
-  rb.print("fork_rate");
-  rb.write(",");
-  rb.print("lean_rate");
-  rb.write(",");
-  rb.print("hand_torque");
-  rb.write(",");
-  rb.print("bike_speed");
-  rb.write(",");
-  rb.print("command_fork");
-  rb.write(",");
-  rb.print("command_hand");
-  rb.write("\n");
-
-  // rb.print("control_iteration_counter"); //This should equal the format used in 'print_to_SD'
-  // rb.write(',');
-  // rb.print("mpc_iteration_counter");
-  // rb.write(',');
-  // rb.print("since_last_loop");
-  // // rb.write(',');
-  // // rb.print("hand_switch_state");
-  // rb.write(',');
-  // rb.print("hand_angle");
-  // rb.write(',');
-  // rb.print("fork_angle");
-  // rb.write(',');
-  // // rb.print("angle_rate");
-  // // rb.write(',');
-  // // rb.print("filtered_angle_rate");
-  // // rb.write(',');
-  // rb.print("error");
-  // rb.write(',');
-  // rb.print("command_fork");
-  // rb.write(',');
-  // rb.print("command_hand");
-  // #if USE_IMU
-  //   rb.write(',');
-  //   rb.print("gyroX");
-  //   rb.write(',');
-  //   rb.print("gyroY");
-  //   rb.write(',');
-  //   rb.print("gyroZ");
-  // #endif
-  // rb.write('\n');
-
-  // Write to SD card
-  size_t n = rb.bytesUsed();
-  rb.writeOut(n);
-  logFile.flush();
-
-  isOpen = true; // Set to TRUE such that the open file function is only called once
-  return;
-}
-#endif
