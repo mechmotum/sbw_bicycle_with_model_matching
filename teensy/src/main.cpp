@@ -1,3 +1,160 @@
+// /*
+// * Brian R Taylor
+// * brian.taylor@bolderflight.com
+// * 
+// * Copyright (c) 2021 Bolder Flight Systems Inc
+// *
+// * Permission is hereby granted, free of charge, to any person obtaining a copy
+// * of this software and associated documentation files (the “Software”), to
+// * deal in the Software without restriction, including without limitation the
+// * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+// * sell copies of the Software, and to permit persons to whom the Software is
+// * furnished to do so, subject to the following conditions:
+// *
+// * The above copyright notice and this permission notice shall be included in
+// * all copies or substantial portions of the Software.
+// *
+// * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+// * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+// * IN THE SOFTWARE.
+// */
+
+// /*=========================I2C Protocol=========================*/
+// #include "mpu9250.h"
+
+// /* Mpu9250 object */
+// bfs::Mpu9250 imu;
+
+// void setup() {
+//   /* Serial to display data */
+//   Serial.begin(115200);
+//   while(!Serial) {}
+//   /* Start the I2C bus */
+//   Wire.begin();
+//   Wire.setClock(400000);
+//   /* I2C bus,  0x68 address */
+//   imu.Config(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
+//   /* Initialize and configure IMU */
+//   if (!imu.Begin()) {
+//     Serial.println("Error initializing communication with IMU");
+//     while(1) {}
+//   }
+//   // /* Set the sample rate divider */
+//   // if (!imu.ConfigSrd(19)) {
+//   //   Serial.println("Error configured SRD");
+//   //   while(1) {}
+//   // }
+// }
+
+// void loop() {
+//   /* Check if data read */
+//   if (imu.Read()) {
+//     Serial.print(imu.new_imu_data());
+//     Serial.print("\t");
+//     Serial.print(imu.new_mag_data());
+//     Serial.print("\t");
+//     Serial.print(imu.accel_x_mps2());
+//     Serial.print("\t");
+//     Serial.print(imu.accel_y_mps2());
+//     Serial.print("\t");
+//     Serial.print(imu.accel_z_mps2());
+//     Serial.print("\t");
+//     Serial.print(imu.gyro_x_radps());
+//     Serial.print("\t");
+//     Serial.print(imu.gyro_y_radps());
+//     Serial.print("\t");
+//     Serial.print(imu.gyro_z_radps());
+//     Serial.print("\t");
+//     Serial.print(imu.mag_x_ut());
+//     Serial.print("\t");
+//     Serial.print(imu.mag_y_ut());
+//     Serial.print("\t");
+//     Serial.print(imu.mag_z_ut());
+//     Serial.print("\t");
+//     Serial.print(imu.die_temp_c());
+//     Serial.print("\n");
+//   }
+// }
+
+// /*=========================SPI Protocol (does not work fast enough)=========================*/
+// #include "mpu9250.h"
+
+// /* Mpu9250 object, SPI bus, CS on pin 10 */
+// bfs::Mpu9250 imu(&SPI, 10);
+// // bfs::Mpu9250 imu2(&SPI, 37);
+
+// void setup() {
+//   /* Serial to display data */
+//   Serial.begin(9600);
+//   while(!Serial) {}
+//   /* Start the SPI bus */
+//   SPI.begin();
+//   /* Initialize and configure IMU */
+//   pinMode(10, OUTPUT);
+//   pinMode(24, OUTPUT);
+//   pinMode(25, OUTPUT);
+//   // pinMode(37, OUTPUT);
+  
+
+//   digitalWrite(10, HIGH);
+//   digitalWrite(24, HIGH);
+//   digitalWrite(25, HIGH);
+//   // digitalWrite(37, HIGH);
+  
+//   int8_t init_status = imu.Begin();
+//   if (init_status <= 0) {
+//     Serial.print("Error initializing communication with IMU. CODE: ");
+//     Serial.print(init_status);
+//     while(1) {}
+//   }
+
+//   /* Set the sample rate divider */
+//   if (!imu.ConfigSrd(19)) {
+//     Serial.println("Error configured SRD");
+//     while(1) {}
+//   }
+// }
+
+// void loop() {
+//   /* Check if data read */
+//   int8_t read_status = imu.Read();
+//   if (read_status > 0) {
+//     Serial.print(imu.new_imu_data());
+//     Serial.print("\t");
+//     Serial.print(imu.new_mag_data());
+//     Serial.print("\t");
+//     Serial.print(imu.accel_x_mps2());
+//     Serial.print("\t");
+//     Serial.print(imu.accel_y_mps2());
+//     Serial.print("\t");
+//     Serial.print(imu.accel_z_mps2());
+//     Serial.print("\t");
+//     Serial.print(imu.gyro_x_radps());
+//     Serial.print("\t");
+//     Serial.print(imu.gyro_y_radps());
+//     Serial.print("\t");
+//     Serial.print(imu.gyro_z_radps());
+//     Serial.print("\t");
+//     Serial.print(imu.mag_x_ut());
+//     Serial.print("\t");
+//     Serial.print(imu.mag_y_ut());
+//     Serial.print("\t");
+//     Serial.print(imu.mag_z_ut());
+//     Serial.print("\t");
+//     Serial.print(imu.die_temp_c());
+//     Serial.print("\n");
+//   }
+//   else{
+//     Serial.print("Reading error: ");
+//     Serial.println(read_status);
+//   }
+//   delay(100);
+// }
+
 #include <Arduino.h>
 #include <SPI.h>
 #include <Encoder.h>
@@ -112,6 +269,7 @@ void print_to_bt(BikeMeasurements& sbw_bike, double command_fork, double command
 void print_to_serial(BikeMeasurements& bike, double command_fork, double command_hand);
 #endif
 #if USE_IMU
+void imu_setup();
 void get_IMU_data(uint32_t& dt_IMU_meas);
 #endif
 #if USE_SD
@@ -213,12 +371,14 @@ const float K_MM_TDELT_V0 = 0; // steer/hand torque
 //----------------------- Steering rate calculation --------------------------//
 const uint8_t STEER_MVING_AVG_SMPL_LEN = 10;
 
+//---------------------------------- IMU -------------------------------------//
+#if USE_IMU
+const uint32_t WIRE_FREQ = 400000; // Frequency set by bolderflight example. It seems to work so I did not alter it.
+#endif
+
 //-------------------------------- Pins --------------------------------------//
 const uint8_t cs_hand = 24; // SPI Chip Select for handlebar encoder
 const uint8_t cs_fork = 25; // SPI Chip Select for fork encoder
-#if USE_IMU
-const uint8_t cs_imu = 10; // SPI Chip Select for MPU9250
-#endif
 
 const uint8_t pwm_pin_hand = 8; // Send PWM signals to the handlebar motor
 const uint8_t pwm_pin_fork = 9; // Send PWM signals to the fork motor
@@ -271,7 +431,7 @@ elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
 
 //--------------------------------- IMU --------------------------------------//
 #if USE_IMU
-  bfs::Mpu9250 IMU(&SPI, cs_imu); // MPU9250 object
+  bfs::Mpu9250 IMU; // MPU9250 object
 #endif
 
 //--------------------------- SD Card Logging --------------------------------//
@@ -298,7 +458,7 @@ void setup(){
   init_bt(); //initialize bluetooth connection and write log header
   #endif
   #if SERIAL_DEBUG
-  Serial.begin(9600); // Communication with PC through micro-USB
+  Serial.begin(115200); // Communication with PC through micro-USB
   /*NOTE: Wait with startup procedure untill one opens a serial monitor.
   Since the power to the microcontroller and to the rest of the bicycle
   is now not synchronus anymore.
@@ -320,9 +480,6 @@ void setup(){
   pinMode(pwm_pin_hand,     OUTPUT);
   pinMode(cs_hand,          OUTPUT);
   pinMode(cs_fork,          OUTPUT);
-  #if USE_IMU
-  pinMode(cs_imu,           OUTPUT);
-  #endif
 
   //------[Setup PWM pins
   analogWriteResolution(PWM_RESOLUTION_BITS);
@@ -333,9 +490,6 @@ void setup(){
   //Disconnect all sub-modules from the SPI bus. (pull up CS)
   digitalWrite(cs_fork, HIGH);
   digitalWrite(cs_hand, HIGH);
-  #if USE_IMU
-  digitalWrite(cs_imu,  HIGH);
-  #endif
   
   digitalWrite(enable_motor_enc, HIGH); // Set HIGH to enable power to the encoders
   digitalWrite(enable_fork,      HIGH); // Set HIGH to enable motor
@@ -347,26 +501,12 @@ void setup(){
 
   //------[Setup IMU
   #if USE_IMU
-    digitalWrite(cs_imu, LOW); //Chip select is most likely not necessary.
-    // TODO: the mpu9250 class has a built in digital low pass filter. 
-    // default is at 184Hz. look into it if it needs to be lower.
-    IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); // +- 4g
-    IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS); // +- 250 deg/s
-    if(!IMU.Begin()){ //Initialize communication with the sensor
-      #if SERIAL_DEBUG
-      Serial.println("IMU initialization unsuccessful");
-      Serial.println("Check IMU wiring or try cycling power");
-      #endif
-    }
-    else{
-      Serial.print("imu initialized");
-    }
-    digitalWrite(cs_imu, HIGH);
+    imu_setup();
   #endif
 
 
+  //------[Setup SD card
   #if USE_SD
-    //------[Setup SD card
     if(!sd.begin(SdioConfig(FIFO_SDIO))){ //Initialize SD card and file system for SDIO mode. Here: FIFO
       #if SERIAL_DEBUG
       Serial.println("SD card initialization unsuccessful");
@@ -613,6 +753,27 @@ void BikeMeasurements::calculate_pedal_cadance(){
 }
 #endif //USE_PEDAL_CADANCE
 
+#if USE_IMU
+void imu_setup(){
+// Start the I2C bus
+    Wire.begin();
+    Wire.setClock(WIRE_FREQ);
+    // I2C bus,  0x68 address
+    IMU.Config(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
+    // TODO: the mpu9250 class has a built in digital low pass filter. 
+    // default is at 184Hz. look into it if it needs to be lower.
+    IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); // +- 4g
+    IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS); // +- 250 deg/s
+    // Initialize and configure IMU
+    if(!IMU.Begin()){
+      #if SERIAL_DEBUG
+      Serial.println("Error initializing communication with IMU");
+      Serial.println("Check IMU wiring or try cycling power");
+      #endif
+      while(1) {}
+    }
+}
+#endif
 
 //============================ [Calculate PD error] ============================//
 void calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt){
@@ -701,11 +862,12 @@ void actuate_steer_motors(double command_fork, double command_hand){
 //=============================== [Read the IMU] ===============================//
 #if USE_IMU
 void get_IMU_data(uint32_t& dt_IMU_meas){
-  //------[Read out data via SPI
-  digitalWrite(cs_imu, LOW);
-  // TODO: errer handling if IMU fails to read data
-  IMU.Read(); // load IMU data into IMU object
-  digitalWrite(cs_imu, HIGH);
+  //------[Read out data via I2C
+  if(!IMU.Read()){
+    #if SERIAL_DEBUG
+    Serial.println("IMU read out error");
+    #endif
+  }
 
   //------[Time since last measurement
   update_dtime(dt_IMU_meas, since_last_IMU_meas); // time between to calls to the IMU
@@ -778,25 +940,25 @@ void print_to_bt(BikeMeasurements& bike, double command_fork, double command_han
 #if SERIAL_DEBUG
 void print_to_serial(BikeMeasurements& bike, double command_fork, double command_hand){
   if (control_iteration_counter % 100 == 0){ // Limit the printing rate
-    Serial.print("hand_angle: ");
-    Serial.print(bike.get_hand_angle());
-    Serial.print(", fork_angle: ");
-    Serial.print(bike.get_fork_angle());
-    Serial.print(", lean_angle: ");
-    Serial.print(bike.get_lean_angle());
-    Serial.print(", fork_rate: ");
-    Serial.print(bike.get_fork_rate());
-    Serial.print(", lean_rate: ");
-    Serial.print(bike.get_lean_rate());
-    Serial.print(", hand_torque: ");
-    Serial.print(bike.get_hand_torque());
-    Serial.print(", bike_speed: ");
-    Serial.print(bike.get_bike_speed());
-    Serial.print(", command_fork: ");
-    Serial.print(command_fork);
-    Serial.print(", command_hand: ");
-    Serial.print(command_hand);
-    Serial.println();
+      Serial.print("hand_ang: ");
+      Serial.print(bike.get_hand_angle());
+      Serial.print(", fork_ang: ");
+      Serial.print(bike.get_fork_angle());
+      Serial.print(", lean_ang: ");
+      Serial.print(bike.get_lean_angle());
+      Serial.print(", fork_rate: ");
+      Serial.print(bike.get_fork_rate());
+      Serial.print(", lean_rate: ");
+      Serial.print(bike.get_lean_rate());
+      Serial.print(", hand_torq: ");
+      Serial.print(bike.get_hand_torque());
+      Serial.print(", bike_speed: ");
+      Serial.print(bike.get_bike_speed());
+      Serial.print(", cmnd_fork: ");
+      Serial.print(command_fork);
+      Serial.print(", cmnd_hand: ");
+      Serial.print(command_hand);
+      Serial.println();
 //     // Serial.print("Switch: ");
 //     // Serial.print(hand_switch_state);
 //     // Angles
