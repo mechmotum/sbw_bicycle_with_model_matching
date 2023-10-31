@@ -1,10 +1,11 @@
+#include "eigen.h" //https://github.com/bolderflight/eigen
+#include "simpleKalman.h"
 #include <Arduino.h>
 #include <SPI.h>
 #include <Encoder.h>
 #include "SdFat.h"
 #include "RingBuf.h" //From sdFat library
 #include "mpu9250.h" //https://github.com/bolderflight/MPU9250
-
 /*TODO: include other measurement functions into the BikeMeasurements class, like the IMU*/
 // TODO: make all measurement units into SI units
 
