@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import dill
 import inspect
+import scipy.signal as sign
 
 ##----Define constants
 # Steer into lean conroller
@@ -44,7 +45,7 @@ class VariableStateSpaceSystem:
 
     def calc_mtrx(self, var):
         for key,val in self.mat_fun.items():
-            if len(inspect.getfullargspec(val).args): #check if the system matrix requires inputs
+            if len(inspect.getfullargspec(val).args): #check if the system matrix requires inputs, returns zero if none.
                 self.mat[key] = val(var)
             else:
                 self.mat[key] = val()
@@ -98,6 +99,53 @@ def sil_gain_G_fun():
     '''
     return np.eye(2)
 
+def sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl):
+    eigenvals = {
+        "plant": [None for k in range(len(SPEEDRANGE))],
+        "ref": [None for k in range(len(SPEEDRANGE))],
+        "plant+mm": [None for k in range(len(SPEEDRANGE))],
+        "plant+sil": [None for k in range(len(SPEEDRANGE))],
+        "ref+sil": [None for k in range(len(SPEEDRANGE))],
+        "plant+mm+sil": [None for k in range(len(SPEEDRANGE))]
+    }
+
+    for idx, speed in enumerate(SPEEDRANGE):
+        # calculate speed depenend matrices
+        bike_plant.calc_mtrx(speed)
+        bike_ref.calc_mtrx(speed)
+        mm_ctrl.calc_gain(speed)
+        sil_ctrl.calc_gain(speed)
+
+        # calculate eigenvalues
+        eigenvals["plant"][idx] = np.linalg.eigvals(bike_plant.mat["A"]) # plant-> dx = Ax + Bu
+        eigenvals["ref"][idx] = np.linalg.eigvals(bike_ref.mat["A"]) # ref -> dx = A_bar x + B_bar u_bar
+        eigenvals["plant+mm"][idx] = np.linalg.eigvals((bike_plant.mat["A"] + bike_plant.mat["B"]@mm_ctrl.gain["F"])) # plant + mm_controll -> dx = (A + BF)x + BGu_ref
+        eigenvals["plant+sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] - bike_plant.mat["B"]@sil_ctrl.gain["F"])) # plant + sil_controll -> dx = (A - BF)x, minus because here u = -Fx
+        eigenvals["ref+sil"][idx] = np.linalg.eigvals((bike_ref.mat["A"] - bike_ref.mat["B"]@sil_ctrl.gain["F"])) # ref + sil_controll -> dx = (A - BFsil)x
+        eigenvals["plant+mm+sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] + bike_plant.mat["B"]@(mm_ctrl.gain["F"] - mm_ctrl.gain["G"]@sil_ctrl.gain["F"]))) # mm + sil_controll -> dx = ((Aref+Bref*Fmm) - (Bref*Gmm)*Fsil)x = (A-B*Fsil)x
+
+    # Reorganize results for plotting
+    for key in eigenvals.keys():
+        eigenvals[key] = {
+            "real": np.real(np.array(eigenvals[key])),
+            "imag": np.imag(np.array(eigenvals[key]))
+        }
+
+    # have a speedrange collumn for each eigenvalue in eigenvals[X][Y]
+    speed_axis = np.array([SPEEDRANGE], ndmin=2).T @ np.ones((1,eigenvals["plant"]["real"].shape[1]))
+
+    # Plot
+    for key, value in eigenvals.items():
+        fig = plt.figure()    
+        plt.title(key)
+        plt.scatter(speed_axis, value["real"],s=1)
+        plt.scatter(speed_axis, value["imag"],s=1)
+        plt.axis((0,10,-10,10))
+        plt.xlabel("Speed [m/s]")
+        plt.ylabel("Eigenvalue [-]")
+        plt.legend(["real","imag"])
+    plt.show()
+    return
 
 ###---------------------------------[START]---------------------------------###
 
@@ -120,49 +168,16 @@ mm_ctrl = VariableController(mm_funs)
 
 #Steer into lean controller
 # TODO: set correct V_AVG
+# VariableController uses functions as input.
 sil_funs = {
-    "F": sil_gain_F_fun,
+    "F": sil_gain_F_fun, 
     "G": sil_gain_G_fun
 }
 sil_ctrl = VariableController(sil_funs)
 
-
-
 ###--------[SIMULATE
-eigenvals = {
-    "plant": [None for k in range(len(SPEEDRANGE))],
-    "ref": [None for k in range(len(SPEEDRANGE))],
-    "mm": [None for k in range(len(SPEEDRANGE))],
-    "sil": [None for k in range(len(SPEEDRANGE))],
-    "mm+sil": [None for k in range(len(SPEEDRANGE))]
-}
-for idx, speed in enumerate(SPEEDRANGE):
-    # calculate speed depenend matrices
-    bike_plant.calc_mtrx(speed)
-    bike_ref.calc_mtrx(speed)
-    mm_ctrl.calc_gain(speed)
-    sil_ctrl.calc_gain(speed)
+# Simulate eigenvalues over speed
+sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl)
 
-    # calculate eigenvalues
-    eigenvals["plant"][idx] = np.linalg.eigvals(bike_plant.mat["A"]) # plant-> dx = Ax + Bu
-    eigenvals["ref"][idx] = np.linalg.eigvals(bike_ref.mat["A"]) # ref -> dx = A_bar x + B_bar u_bar
-    eigenvals["mm"][idx] = np.linalg.eigvals((bike_plant.mat["A"] + bike_plant.mat["B"]@mm_ctrl.gain["F"])) # mm_controll -> dx = (A + BF)x + BGu_ref
-    eigenvals["sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] - bike_plant.mat["B"]@sil_ctrl.gain["F"])) # sil_controll -> dx = (A - BF)x, minus because here u = -Fx
-    eigenvals["mm+sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] + bike_plant.mat["B"]@(mm_ctrl.gain["F"] - sil_ctrl.gain["F"]))) # mm + sil_controll -> dx = (A + B(Fmm - Fsil))x
-
-# Reorganize results for plotting
-for key in eigenvals.keys():
-    eigenvals[key] = {
-        "real": np.real(np.array(eigenvals[key])),
-        "imag": np.imag(np.array(eigenvals[key]))
-    }
-
-speed_axis = np.array([SPEEDRANGE], ndmin=2).T @ np.ones((1,eigenvals["plant"]["real"].shape[1]))
-
-# Plot
-for value in eigenvals.values():
-    fig = plt.figure()    
-    plt.scatter(speed_axis, value["real"],s=1)
-    plt.scatter(speed_axis, value["imag"],s=1)
-    plt.axis((0,10,-10,10))
-plt.show()
+# Simulate dynamic behaviour # sim_dynamics()
+# sign.StateSpace(bike_plant["A"],bike_plant["B"], )
