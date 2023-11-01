@@ -19,7 +19,7 @@ void SimpleKalman::init(){
     t = 0;
 }
 
-void SimpleKalman::init(Matrix<float,2,1>& x0, double t0){
+void SimpleKalman::init(const Matrix<float,2,1>& x0, const double t0){
     x_post = x0;
     t = t0;
 }

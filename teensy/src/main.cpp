@@ -106,8 +106,9 @@ float calc_bckwrd_derivative(float val_cur, float& val_prev, uint32_t dt);
 float return_scaling(uint64_t iteration);
 uint8_t check_switch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
 float steer_moving_avg(float new_value);
+void kalman_setup();
 #if USE_BT
-void init_bt();
+void bt_setup();
 void print_to_bt(BikeMeasurements& sbw_bike, double command_fork, double command_hand);
 #endif
 #if SERIAL_DEBUG
@@ -222,6 +223,10 @@ const uint8_t STEER_MVING_AVG_SMPL_LEN = 10;
 const uint32_t WIRE_FREQ = 400000; // Frequency set by bolderflight example. It seems to work so I did not alter it.
 #endif
 
+//--------------------------- Kalman filtering -------------------------------//
+const Eigen::Matrix<float,2,1> X0 {0,0}; //initial state vector
+const double T0 = 0; //initial time
+
 //-------------------------------- Pins --------------------------------------//
 const uint8_t cs_hand = 24; // SPI Chip Select for handlebar encoder
 const uint8_t cs_fork = 25; // SPI Chip Select for fork encoder
@@ -294,14 +299,23 @@ elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
   bool isFull = false; // Is the file full?
 #endif
 
+//--------------------------- Kalman filtering -------------------------------//
+// System matrices
+Eigen::Matrix<float,2,2> F {{0,0},{0,0}};
+Eigen::Matrix<float,2,1> B {{0},{0}};
+Eigen::Matrix<float,1,2> H {{0,0}};
+Eigen::Matrix<float,2,2> Q {{0,0},{0,0}};
+Eigen::Matrix<float,1,1> R {0};
+Eigen::Matrix<float,2,2> P_post {{0,0},{0,0}};
 
+SimpleKalman gyro_kalman(F, B, H, Q, R, P_post);
 
 //============================== [Main Setup] ==================================//
 void setup(){
   //------[Initialize communications
   SPI.begin(); // IMU, fork and steer encoders
   #if USE_BT
-  init_bt(); //initialize bluetooth connection and write log header
+  bt_setup(); //initialize bluetooth connection and write log header
   #endif
   #if SERIAL_DEBUG
   Serial.begin(115200); // Communication with PC through micro-USB
@@ -355,6 +369,9 @@ void setup(){
     sd_setup();
   #endif //USE_SD
 
+  //------[Setup Kalman filter
+  kalman_setup();
+
   //------[reset counting variables
   delay(1); //give time for sensors to initialize
   since_last_loop = 0;
@@ -396,11 +413,11 @@ void loop(){
     double command_hand = 0;
 
     //------[measure bike states and inputs
+    sbw_bike.calculate_bike_speed();
     sbw_bike.measure_steer_angles();
-    sbw_bike.measure_hand_torque();
     sbw_bike.calculate_fork_rate(); //also calculates moving average of fork angle and sets it
     sbw_bike.calculate_roll_states();
-    sbw_bike.calculate_bike_speed();
+    sbw_bike.measure_hand_torque();
 
     //------[Perform steering control
     calc_pd_errors(sbw_bike, error, derror_dt);
@@ -486,22 +503,19 @@ void BikeMeasurements::calculate_fork_rate(){
 //======================= [calculate roll rate and angle] ==========================//
 void BikeMeasurements::calculate_roll_states(){
   // TODO: make sure that gyrox is indeed the roll rate!
-  // TODO: Use the gravitational acceleration and a kalman filter 
-  //       or Maximum Likelyhood Estimator to more acurately 
-  //       predict attitude. Or see the thesis work of Christoforidis OR 
-  //       "Emilio Sanjurjo, Miguel A Naya, Javier Cuadrado, and Arend L Schwab. 
-  //       Roll angle estimator based on angular rate measurements for bicycles. 
-  //       Vehicle System Dynamics, 57(11):1705–1719, 2019."
   // TODO: include the IMU class into the BikeMeasurement class
 
-  /*NOTE: We assume that the current measured value is constant
-  untill the next measurement. The time between the current 
-  measurement and the next measurement is given by m_dt_IMU_meas,
-  while the current measurement is given by m_lean_rate.*/
+  get_IMU_data(m_dt_IMU_meas);
+  float omega_x = IMU.gyro_x_radps();
+  float omega_y = IMU.gyro_y_radps();
+  float omega_z = IMU.gyro_z_radps();
+  
+  Eigen::Matrix<float,1,1> u{1};
+  Eigen::Matrix<float,1,1> z{1};
+  gyro_kalman.next_step(u, z, (double)m_dt_IMU_meas);
 
-  get_IMU_data(m_dt_IMU_meas); // get next measurement and time between current and next
-  m_lean_angle += riemann_integrate(m_lean_rate, m_dt_IMU_meas); //use current measurement and time till next to calculate integral
-  m_lean_rate = IMU.gyro_x_radps(); //next measurement becomes current measurement
+  m_lean_rate = omega_x - gyro_kalman.bias();
+  m_lean_angle = gyro_kalman.phi();
 }
 
 
@@ -627,6 +641,10 @@ void sd_setup(){
 }
 #endif
 
+void kalman_setup(){
+  gyro_kalman.init(X0,T0);
+}
+
 //============================ [Calculate PD error] ============================//
 void calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt){
   //------[Calculate error derivative in seconds^-1
@@ -729,7 +747,7 @@ void get_IMU_data(uint32_t& dt_IMU_meas){
 
 #if USE_BT
 //======================== [initialize Bluetooth] ========================//
-void init_bt(){
+void bt_setup(){
   /*NOTE: Wait for the main and sub bluetooth modules to connect. 
   The main (this code) will send out a byte untill the sub has 
   received it and has send a response. Then the main will continue.
