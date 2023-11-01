@@ -1,3 +1,4 @@
+// Note: include the "eigen.h" library first, otherewise there will be compile errors.
 #include "eigen.h" //https://github.com/bolderflight/eigen
 #include "simpleKalman.h"
 #include <Arduino.h>
