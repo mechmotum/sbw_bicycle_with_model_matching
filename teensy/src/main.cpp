@@ -39,6 +39,9 @@ class BikeMeasurements{
     float m_pedal_cadance; // [rad/s]
     #endif
     
+    float m_lean_angle_meas;
+    float m_omega_x_old;
+
     // variables needed for derivarion/intergration calculation
     uint32_t m_dt_bike_speed_meas; //Time between two consecutive measurements of the bike speed in microseconds
     uint32_t m_dt_steer_meas; //Time between two consecutive measurements of the steer angle in microseconds
@@ -57,6 +60,9 @@ class BikeMeasurements{
       #if USE_PEDAL_CADANCE
       m_pedal_cadance = 0;
       #endif
+
+      m_lean_angle_meas = 0;
+      m_omega_x_old = 0;
 
       m_dt_bike_speed_meas = 0;
       m_dt_IMU_meas = 0;
@@ -86,6 +92,7 @@ class BikeMeasurements{
     void measure_hand_torque();
     void calculate_fork_rate();
     void calculate_roll_states();
+    void calc_lean_angle_meas(float omega_x, float omega_y, float omega_z);
     void calculate_bike_speed();
     #if USE_PEDAL_CADANCE
     void calculate_pedal_cadance();
@@ -106,7 +113,6 @@ float calc_bckwrd_derivative(float val_cur, float& val_prev, uint32_t dt);
 float return_scaling(uint64_t iteration);
 uint8_t check_switch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
 float steer_moving_avg(float new_value);
-void kalman_setup();
 #if USE_BT
 void bt_setup();
 void print_to_bt(BikeMeasurements& sbw_bike, double command_fork, double command_hand);
@@ -124,12 +130,22 @@ void open_file();
 void print_to_SD(BikeMeasurements bike, float command_fork, float command_hand);
 #endif
 
+/*copied from https://stackoverflow.com/questions/1903954/is-there-a-standard-sign-function-signum-sgn-in-c-c 
+made by user79758 and stef.
+Under https://creativecommons.org/licenses/by-sa/2.5/ (original post),
+and https://creativecommons.org/licenses/by-sa/4.0/ (edited post)*/
+template <typename T> 
+int sgn(T val) { return (T(0) < val) - (val < T(0));}
+
 //============================= Global Variables =============================//
 //-------------------------------- Constants ---------------------------------//
 // Bluetooth
 #if USE_BT
 const uint32_t BT_BAUDRATE = 9600;
 #endif
+
+// physical quantities
+const float GRAVITY = 9.81;
 
 // Conversion
 const float MICRO_TO_UNIT = 1e-6;
@@ -227,6 +243,9 @@ const uint32_t WIRE_FREQ = 400000; // Frequency set by bolderflight example. It 
 const Eigen::Matrix<float,2,1> X0 {0,0}; //initial state vector
 const double T0 = 0; //initial time
 
+// roll angle measurement estimation
+float PHI_METHOD_WEIGHT = 0.05;
+
 //-------------------------------- Pins --------------------------------------//
 const uint8_t cs_hand = 24; // SPI Chip Select for handlebar encoder
 const uint8_t cs_fork = 25; // SPI Chip Select for fork encoder
@@ -301,9 +320,9 @@ elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
 
 //--------------------------- Kalman filtering -------------------------------//
 // System matrices
-Eigen::Matrix<float,2,2> F {{0,0},{0,0}};
-Eigen::Matrix<float,2,1> B {{0},{0}};
-Eigen::Matrix<float,1,2> H {{0,0}};
+Eigen::Matrix<float,2,2> F {{1,0},{0,1}};; 
+Eigen::Matrix<float,2,1> B {{0},{0}}; 
+Eigen::Matrix<float,1,2> H {{1,0}};
 Eigen::Matrix<float,2,2> Q {{0,0},{0,0}};
 Eigen::Matrix<float,1,1> R {0};
 Eigen::Matrix<float,2,2> P_post {{0,0},{0,0}};
@@ -370,7 +389,7 @@ void setup(){
   #endif //USE_SD
 
   //------[Setup Kalman filter
-  kalman_setup();
+  gyro_kalman.init(X0,T0);
 
   //------[reset counting variables
   delay(1); //give time for sensors to initialize
@@ -414,9 +433,9 @@ void loop(){
 
     //------[measure bike states and inputs
     sbw_bike.calculate_bike_speed();
+    sbw_bike.calculate_roll_states();
     sbw_bike.measure_steer_angles();
     sbw_bike.calculate_fork_rate(); //also calculates moving average of fork angle and sets it
-    sbw_bike.calculate_roll_states();
     sbw_bike.measure_hand_torque();
 
     //------[Perform steering control
@@ -505,17 +524,51 @@ void BikeMeasurements::calculate_roll_states(){
   // TODO: make sure that gyrox is indeed the roll rate!
   // TODO: include the IMU class into the BikeMeasurement class
 
+  //Get gyro measurements
   get_IMU_data(m_dt_IMU_meas);
   float omega_x = IMU.gyro_x_radps();
   float omega_y = IMU.gyro_y_radps();
   float omega_z = IMU.gyro_z_radps();
+
+  //having dt, change the propegation model and input model according to Sanjurjo
+  F << 1, -m_dt_IMU_meas,
+       0, 1;
+  B << m_dt_IMU_meas,
+       0;
+
+  // calculate the lean angle measurement according to Sanjuro
+  calc_lean_angle_meas(omega_x, omega_y, omega_z);
   
-  Eigen::Matrix<float,1,1> u{1};
-  Eigen::Matrix<float,1,1> z{1};
+  // perform the kalman step
+  Eigen::Matrix<float,1,1> u{m_omega_x_old};
+  Eigen::Matrix<float,1,1> z{m_lean_angle_meas};
   gyro_kalman.next_step(u, z, (double)m_dt_IMU_meas);
 
+  //update lean states
   m_lean_rate = omega_x - gyro_kalman.bias();
   m_lean_angle = gyro_kalman.phi();
+
+  // store current roll rate for next itteration
+  m_omega_x_old = omega_x; // You need u_k-1 to calculate x_k. There is one step difference
+}
+
+void BikeMeasurements::calc_lean_angle_meas(float omega_x, float omega_y, float omega_z){
+  /*See Sanjurjo e.a. 2019 "Roll angle estimator based on angular 
+    rate measurements for bicycles" for explanation on why these 
+    formulas are used.*/
+  float phi_d, phi_w, tmp, W;
+
+  // Lean angle estimate based on constant cornering (good for small lean angles)
+  phi_d = std::atan((omega_z*m_bike_speed)/GRAVITY);
+
+  // Lean angle astimate based on zero tilt rate (good for large lean angles)
+  phi_w = sgn(omega_z)*std::asin(omega_y/std::sqrt(omega_y*omega_y + omega_z*omega_z));
+  
+  // Use the best method based on lean angle size
+  tmp = (m_lean_angle/PHI_METHOD_WEIGHT);
+  W = std::exp(-tmp*tmp); // weight
+
+  m_lean_angle_meas = W*phi_d + (1-W)*phi_w;
 }
 
 
@@ -640,10 +693,6 @@ void sd_setup(){
     }
 }
 #endif
-
-void kalman_setup(){
-  gyro_kalman.init(X0,T0);
-}
 
 //============================ [Calculate PD error] ============================//
 void calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt){
