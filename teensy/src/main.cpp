@@ -28,25 +28,25 @@ a_hand = 41; // Analog output pin of the handlebar motor drive
 class BikeMeasurements{
   private:
     // state, input, and bicycle variables
-    float m_hand_angle;
-    float m_fork_angle;
-    float m_lean_angle;
-    float m_fork_rate;
-    float m_lean_rate;
-    float m_hand_torque; // Measurement of the torque on the handlebar applied by the human 
-    float m_bike_speed;  // [m/s]
+    float m_hand_angle;    // [rad]
+    float m_fork_angle;    // [rad]
+    float m_lean_angle;    // [rad]
+    float m_fork_rate;     // [rad/s]
+    float m_lean_rate;     // [rad/s]
+    float m_hand_torque;   // Measurement of the torque on the handlebar applied by the human 
+    float m_bike_speed;    // [m/s]
     #if USE_PEDAL_CADANCE
     float m_pedal_cadance; // [rad/s]
     #endif
     
-    float m_lean_angle_meas;
-    float m_omega_x_old;
+    float m_lean_angle_meas; // [rad]
+    float m_omega_x_old;     // [rad/s]
 
     // variables needed for derivarion/intergration calculation
     uint32_t m_dt_bike_speed_meas; //Time between two consecutive measurements of the bike speed in microseconds
     uint32_t m_dt_steer_meas; //Time between two consecutive measurements of the steer angle in microseconds
     uint32_t m_dt_IMU_meas; //Time between two consecutive measurements of the IMU values in microseconds
-    float m_fork_angle_prev;
+    float m_fork_angle_prev; // [rad]
     
   public:
     BikeMeasurements(){
@@ -135,7 +135,7 @@ made by user79758 and stef.
 Under https://creativecommons.org/licenses/by-sa/2.5/ (original post),
 and https://creativecommons.org/licenses/by-sa/4.0/ (edited post)*/
 template <typename T> 
-int sgn(T val) { return (T(0) < val) - (val < T(0));}
+int sgn(T val) { return (T(0) < val) - (val < T(0));} //lkjlkj //sign should not give zero in this specific instance
 
 //============================= Global Variables =============================//
 //-------------------------------- Constants ---------------------------------//
@@ -167,13 +167,13 @@ const uint16_t HAND_TORQUE_RESOLUTION = 1; //1023;
 
 // Timing
 const uint16_t MIN_LOOP_LENGTH_MU = 1000; // target minimum loop length in microseconds.
-const float MIN_LOOP_LENGTH_S = MIN_LOOP_LENGTH_MU*1e-6; //
+const float MIN_LOOP_LENGTH_S = MIN_LOOP_LENGTH_MU*MICRO_TO_UNIT; //
 const uint16_t CTRL_STARTUP_ITTERATIONS = 13000; //#itterations in which the steer torques are slowly scaled to unity.
 
 // Motor encoders
 const uint32_t ENCODER_CLK_FREQ = 225000; //clock frequency for the encoders SPI protocol
-const float HAND_ENC_BIAS = 153.65;
-const float FORK_ENC_BIAS = 100.65;
+const float HAND_ENC_BIAS = 153.65 * DEG_TO_RAD;
+const float FORK_ENC_BIAS = 100.65 * DEG_TO_RAD;
 const float HAND_ENC_MAX_VAL = 8191.0;
 const float FORK_ENC_MAX_VAL = 8191.0;
 
@@ -185,21 +185,19 @@ We assume here that the speed is always in the forward direction. Unfortunetely,
 with this size (500) the resolution is noticably lower for lower speeds.*/
 const uint16_t WHEEL_COUNTS_LENGTH = 500; 
 const uint8_t WHEEL_COUNTS_PER_REV = 192;
-const float WHEEL_RADIUS = 0.33f;
+const float WHEEL_RADIUS = 0.33f; //[m]
 #if USE_PEDAL_CADANCE
 const uint16_t PEDAL_COUNTS_LENGTH = 500;
 const uint8_t PEDAL_COUNTS_PER_REV = 192;
 #endif
 
 // Angles
-const float FULL_ROTATION_DEG = 360.0;
-const float HALF_ROTATION_DEG = 180.0;
-const float SOFTWARE_LIMIT = 42.0;
+const float SOFTWARE_LIMIT = 42.0 * DEG_TO_RAD;
 
 // SD card
 #if USE_SD
 const uint16_t SD_BLOCK_SIZE = 512;
-const uint16_t SD_SAMPLING_FREQ = 1000; //Sampling frequency of the SD card
+const uint16_t SD_SAMPLING_FREQ = 1000; // [Hz] Sampling frequency of the SD card
 const uint64_t MESSAGE_LENGTH = 100; // The maximum expected legth of one sample of data. In bytes
 const uint16_t EXPERIMENT_TIME = 600; // In seconds
 const uint8_t  BUFFER_HOLD_TIME = 2; // In seconds
@@ -209,15 +207,22 @@ const uint64_t RING_BUF_CAPACITY = MESSAGE_LENGTH*BUFFER_HOLD_TIME*SD_SAMPLING_F
 #endif
 
 // PD Gains
-const float KP_F = 2.0f; // Fork
-const float KD_F = 0.029f; // Fork
-const float KP_H = 0.9f; // Handlebar
-const float KD_H = 0.012f; // Handlebar
+/*In the original implementation by georgias and simonas, the angles 
+were in degree. The gains were tuned for degrees as well. Now that all 
+angles are converted to radians, the gain needs to be compensated to give 
+the same value
+former: Kp_old*error_deg
+New Kp_new*error_rad = Kp_old*rad2deg * error_deg*deg2rad 
+                     = Kp_old*error_deg */
+const float KP_F = 2.0f * RAD_TO_DEG; // Fork
+const float KD_F = 0.029f * RAD_TO_DEG; // Fork
+const float KP_H = 0.9f * RAD_TO_DEG; // Handlebar
+const float KD_H = 0.012f * RAD_TO_DEG; // Handlebar
 
 // Steer into lean gains (see 'Some recent developments in bicycle dynamics and control', A. L. Schwab et al., 2008)
-const uint8_t K_SIL1 = 8; // gain for the steer into lean controller when below stable speed range
-const float K_SIL2 = 0.7; // gain for the steer into lean controller when above stable speed range
-const float V_AVERAGE = 7; // value somewhere in the stable speed range. (take the average of min and max stable speed)
+const uint8_t K_SIL1 = 8; // [Ns^2/rad] gain for the steer into lean controller when below stable speed range
+const float K_SIL2 = 0.7; // [Ns/rad] gain for the steer into lean controller when above stable speed range
+const float V_AVERAGE = 7; // [m/s] value somewhere in the stable speed range. (take the average of min and max stable speed)
 
 // Model matching gains: The "_Vx" indicates that the coefficient
 //  is multiplied with speed to the power of x.
@@ -236,7 +241,7 @@ const uint8_t STEER_MVING_AVG_SMPL_LEN = 10;
 
 //---------------------------------- IMU -------------------------------------//
 #if USE_IMU
-const uint32_t WIRE_FREQ = 400000; // Frequency set by bolderflight example. It seems to work so I did not alter it.
+const uint32_t WIRE_FREQ = 400000; // [Hz] Frequency set by bolderflight example. It seems to work so I did not alter it.
 #endif
 
 //--------------------------- Kalman filtering -------------------------------//
@@ -269,7 +274,7 @@ const uint8_t encdr_pin2_pedal = 22; //1 of 2 pins to read out the pedal encoder
 #endif
 
 //------------------------------ PD Control ----------------------------------//
-float error_prev = 0.0f; // Variable to store the previos mismatch between handlebar and fork
+float error_prev = 0.0f; // [rad] Variable to store the previos mismatch between handlebar and fork
 uint64_t control_iteration_counter = 0; // TODO: Ensure it never overflows!
 
 //-------------------------- Switch debouncing -------------------------------//
@@ -485,13 +490,13 @@ void BikeMeasurements::measure_steer_angles(){
   the encoders must give an output int the 0-180 degrees range. 
   */
   // Handlebar
-  m_hand_angle = ((float)enc_counts_hand / HAND_ENC_MAX_VAL) * FULL_ROTATION_DEG - HAND_ENC_BIAS;
-  if (m_hand_angle > HALF_ROTATION_DEG) 
-    m_hand_angle = m_hand_angle - FULL_ROTATION_DEG; // CCW handlebar rotation gives 360 deg-> 310 deg. Subtract 360 to get 0-180 deg CCW
+  m_hand_angle = ((float)enc_counts_hand / HAND_ENC_MAX_VAL) * 2*PI - HAND_ENC_BIAS;
+  if (m_hand_angle > PI) 
+    m_hand_angle = m_hand_angle - 2*PI; // CCW handlebar rotation gives 360 deg-> 310 deg. Subtract 2 pi to get 0-180 deg CCW
   // Fork
-  m_fork_angle = -(((float)enc_counts_fork / FORK_ENC_MAX_VAL) * FULL_ROTATION_DEG + FORK_ENC_BIAS); //Minus sign to get minus values from fork encoder.
-  if (m_fork_angle < -HALF_ROTATION_DEG) 
-    m_fork_angle = m_fork_angle + FULL_ROTATION_DEG; // CW fork rotation gives -360 deg-> -310 deg. Add 360 to get 0-180 deg CCW
+  m_fork_angle = -(((float)enc_counts_fork / FORK_ENC_MAX_VAL) * 2*PI + FORK_ENC_BIAS); //Minus sign to get minus values from fork encoder.
+  if (m_fork_angle < -PI) 
+    m_fork_angle = m_fork_angle + 2*PI; // CW fork rotation gives -360 deg-> -310 deg. Add 2 pi to get 0-180 deg CCW
 
 
   //------[Compensate for difference in range of motion of handelbar and fork
@@ -531,9 +536,9 @@ void BikeMeasurements::calculate_roll_states(){
   float omega_z = IMU.gyro_z_radps();
 
   //having dt, change the propegation model and input model according to Sanjurjo
-  F << 1, -m_dt_IMU_meas,
+  F << 1, -m_dt_IMU_meas*MICRO_TO_UNIT,
        0, 1;
-  B << m_dt_IMU_meas,
+  B << m_dt_IMU_meas*MICRO_TO_UNIT,
        0;
 
   // calculate the lean angle measurement according to Sanjuro
@@ -545,11 +550,11 @@ void BikeMeasurements::calculate_roll_states(){
   gyro_kalman.next_step(u, z, (double)m_dt_IMU_meas);
 
   //update lean states
-  m_lean_rate = omega_x - gyro_kalman.bias();
-  m_lean_angle = gyro_kalman.phi();
+  m_lean_rate = omega_x - gyro_kalman.bias(); // [rad/s]
+  m_lean_angle = gyro_kalman.phi(); // [rad]
 
   // store current roll rate for next itteration
-  m_omega_x_old = omega_x; // You need u_k-1 to calculate x_k. There is one step difference
+  m_omega_x_old = omega_x; // [rad/s] You need u_k-1 to calculate x_k. There is one step difference
 }
 
 void BikeMeasurements::calc_lean_angle_meas(float omega_x, float omega_y, float omega_z){
@@ -559,16 +564,16 @@ void BikeMeasurements::calc_lean_angle_meas(float omega_x, float omega_y, float 
   float phi_d, phi_w, tmp, W;
 
   // Lean angle estimate based on constant cornering (good for small lean angles)
-  phi_d = std::atan((omega_z*m_bike_speed)/GRAVITY);
+  phi_d = std::atan((omega_z*m_bike_speed)/GRAVITY); // [rad]
 
   // Lean angle astimate based on zero tilt rate (good for large lean angles)
-  phi_w = sgn(omega_z)*std::asin(omega_y/std::sqrt(omega_y*omega_y + omega_z*omega_z));
+  phi_w = sgn(omega_z)*std::asin(omega_y/std::sqrt(omega_y*omega_y + omega_z*omega_z)); // [rad]
   
   // Use the best method based on lean angle size
   tmp = (m_lean_angle/PHI_METHOD_WEIGHT);
   W = std::exp(-tmp*tmp); // weight
 
-  m_lean_angle_meas = W*phi_d + (1-W)*phi_w;
+  m_lean_angle_meas = W*phi_d + (1-W)*phi_w; // [rad]
 }
 
 
@@ -1071,11 +1076,12 @@ float riemann_integrate(float value, uint32_t dt){
 
 //================= [Calculate Derivative Backward Euler] =================//
 float calc_bckwrd_derivative(float val_cur, float& val_prev, uint32_t dt){
+  //TODO: Make sure the iput 'dt' is always in microseconds
   /* Calculate the derivative with backward Euler. The previous value is updated 
   to the current after that values derivative is calulated. WARNING: This should 
   be the only place where the value of 'previous' is altered.
   */
-  float derivative = (val_cur - val_prev)/(dt * 1e-6);
+  float derivative = (val_cur - val_prev)/(dt * MICRO_TO_UNIT);
   val_prev = val_cur;
   return derivative;
 }
