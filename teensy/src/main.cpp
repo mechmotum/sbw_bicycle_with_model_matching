@@ -131,11 +131,11 @@ void print_to_SD(BikeMeasurements bike, float command_fork, float command_hand);
 #endif
 
 /*copied from https://stackoverflow.com/questions/1903954/is-there-a-standard-sign-function-signum-sgn-in-c-c 
-made by user79758 and stef.
+made by user79758 and stef, altered to fit current implementation.
 Under https://creativecommons.org/licenses/by-sa/2.5/ (original post),
 and https://creativecommons.org/licenses/by-sa/4.0/ (edited post)*/
 template <typename T> 
-int sgn(T val) { return (T(0) < val) - (val < T(0));} //lkjlkj //sign should not give zero in this specific instance
+int sgn(T val) { return (T(0) <= val) - (val < T(0));} //altered to give 1 at zero. (so no longer sigmund function) This was required for the implementation regarding of Sanjurjo
 
 //============================= Global Variables =============================//
 //-------------------------------- Constants ---------------------------------//
