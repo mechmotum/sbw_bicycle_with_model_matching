@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import dill
 import inspect
 import scipy.signal as sign
+from math import ceil
 
 ##----Define constants
 # Steer into lean conroller
@@ -49,6 +50,11 @@ class VariableStateSpaceSystem:
                 self.mat[key] = val(var)
             else:
                 self.mat[key] = val()
+        # check if C and D are defined. If not make them identity and zero respectively.
+        if "C" not in self.mat:
+            self.mat["C"] = np.eye(self.mat["A"].shape[0])
+        if "D" not in self.mat:
+            self.mat["D"] = np.zeros((self.mat["A"].shape[0], self.mat["B"].shape[1]))
 
 
 class VariableController:
@@ -176,8 +182,51 @@ sil_funs = {
 sil_ctrl = VariableController(sil_funs)
 
 ###--------[SIMULATE
-# Simulate eigenvalues over speed
-sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl)
+##--Simulate eigenvalues over speed
+# sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl)
 
-# Simulate dynamic behaviour # sim_dynamics()
-# sign.StateSpace(bike_plant["A"],bike_plant["B"], )
+##--Simulate dynamic behaviour 
+#Setup
+vel = 5 # [m/s] Static velocity of the bicycle
+dt = 0.1 # [s] Time step of the micro controller
+h = 0.01 # [s] Resolution of the continuous simulation (ODE)
+sim_steps = ceil(dt/h) # number of steps in the simulation during a timestep 'dt'
+time = 0 # [s] variable that keeps track of the current time
+x0 = np.array([1,0,1,0]) # initial state (phi, delta, d_phi, d_delta)
+
+
+bike_plant.calc_mtrx(vel) # Initialize bicycle system at specific speed
+A_bike = bike_plant.mat["A"]
+B_bike = bike_plant.mat["B"]
+C_bike = bike_plant.mat["C"]
+D_bike = bike_plant.mat["D"]
+n = A_bike.shape[0]
+m = B_bike.shape[1]
+p = n
+
+sc_bike_plant = sign.StateSpace(A_bike,B_bike,C_bike,D_bike) #Speed constant state space object
+
+u = 0
+step_num = 100
+
+#Simulate
+T_vec = np.empty((step_num*sim_steps,))
+y_vec = np.empty((step_num*sim_steps, p))
+x_vec = np.empty((step_num*sim_steps, n))
+time_vec = np.linspace(0, dt, sim_steps)
+u_vec = u * np.ones((time_vec.shape[0], m))
+for k in range(step_num):
+    T,y,x = sign.lsim(sc_bike_plant,u_vec,time_vec,x0,interp=True)
+    T_vec[k*sim_steps:(k+1)*sim_steps] = T + time
+    y_vec[k*sim_steps:(k+1)*sim_steps, :] = y
+    x_vec[k*sim_steps:(k+1)*sim_steps, :] = x
+    x0 = x[-1,:]
+    time = time + dt
+
+#Test plot
+fig = plt.figure()    
+plt.title("simulation")
+plt.plot(T_vec, y_vec)
+plt.xlabel("Time [s]")
+plt.ylabel("states")
+plt.show()
