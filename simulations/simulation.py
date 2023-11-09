@@ -13,7 +13,7 @@ K_SIL_H = -0.7
 
 ## Define simulation parameters
 SIM_PAR_PLANT = {
-    "vel" : 3.5, # [m/s] Static velocity of the bicycle
+    "vel" : 5.5, # [m/s] Static velocity of the bicycle
     "dt" : 0.01, # [s] Time step of the micro controller
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
@@ -127,6 +127,20 @@ def sil_gain_G_fun():
     '''
     return np.eye(2)
 
+def zero_gain_F_fun():
+    '''
+    Dummy functions to create the zero control case
+    TODO: get rid of the magic numbers
+    '''
+    return np.zeros((2,4))
+
+def zero_gain_G_fun():
+    '''
+    Dummy functions to create the zero control case
+    TODO: get rid of the magic numbers
+    '''
+    return np.eye(2)
+
 def sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl):
     eigenvals = {
         "plant": [None for k in range(len(SPEEDRANGE))],
@@ -174,42 +188,6 @@ def sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl):
         plt.legend(["real","imag"])
     plt.show()
     return
-
-###---------------------------------[START]---------------------------------###
-
-###--------[INITIALIZATION
-##----Set up the matrices (created by [...].py)
-with open("bike_and_ref_variable_dependend_system_matrices","rb") as inf:
-    sys_mtrx = dill.load(inf)
-bike_plant = VariableStateSpaceSystem(sys_mtrx["plant"]) # The real bicycle
-bike_ref = VariableStateSpaceSystem(sys_mtrx["ref"]) #The reference bicycle
-
-##----Set up controllers 
-#Model matching (created by [...].py)
-with open("model_matching_gains", "rb") as inf:
-    mm_gain_fun = dill.load(inf)
-mm_funs = {
-    "F": mm_gain_fun["F"],
-    "G": mm_gain_fun["G"]
-}
-mm_ctrl = VariableController(mm_funs)
-
-#Steer into lean controller
-# TODO: set correct V_AVG
-# VariableController uses functions as input.
-sil_funs = {
-    "F": sil_gain_F_fun, 
-    "G": sil_gain_G_fun
-}
-sil_ctrl = VariableController(sil_funs)
-
-###--------[SIMULATE
-##--Simulate eigenvalues over speed
-# sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl)
-
-##--Simulate dynamic behaviour 
-u_ref = np.array([0,0])
-
 
 def sim_setup_ss(par,system):
     system.calc_mtrx(par["vel"]) 
@@ -286,15 +264,56 @@ def simulate(par,system,ctrlr,u_ref):
             # Actuator artifacts
         #...
 
-        #Convert control to vector
+        #Convert control to lsim control input vector
         u_vec = u * np.ones((time_vec.shape[0], m))
     #end of loop
     
-    return (T_vec, y_vec)
+    return (T_vec, y_vec, x_vec)
 
+###---------------------------------[START]---------------------------------###
+
+###--------[INITIALIZATION
+##----Set up the matrices (created by [...].py)
+with open("bike_and_ref_variable_dependend_system_matrices","rb") as inf:
+    sys_mtrx = dill.load(inf)
+bike_plant = VariableStateSpaceSystem(sys_mtrx["plant"]) # The real bicycle
+bike_ref = VariableStateSpaceSystem(sys_mtrx["ref"]) #The reference bicycle
+
+##----Set up controllers 
+#Model matching (created by [...].py)
+with open("model_matching_gains", "rb") as inf:
+    mm_gain_fun = dill.load(inf)
+mm_funs = {
+    "F": mm_gain_fun["F"],
+    "G": mm_gain_fun["G"]
+}
+mm_ctrl = VariableController(mm_funs)
+
+#Steer into lean controller
+# TODO: set correct V_AVG
+# VariableController uses functions as input.
+sil_funs = {
+    "F": sil_gain_F_fun, 
+    "G": sil_gain_G_fun
+}
+sil_ctrl = VariableController(sil_funs)
+
+#Zero controller (no control)
+zero_funs = {
+    "F": zero_gain_F_fun, 
+    "G": zero_gain_G_fun
+}
+zero_ctrl = VariableController(zero_funs)
+
+###--------[SIMULATE
+##--Simulate eigenvalues over speed
+# sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl)
+
+##--Simulate dynamic behaviour 
+u_ref = np.array([0,0])
 
 #Simulate
-time, output = simulate(SIM_PAR_PLANT,bike_plant,mm_ctrl,u_ref)
+time, output, states = simulate(SIM_PAR_PLANT,bike_plant,zero_ctrl,u_ref)
 
 #Test plot
 fig = plt.figure()    
