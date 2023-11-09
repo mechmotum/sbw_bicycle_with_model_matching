@@ -11,6 +11,28 @@ SIL_AVG_SPEED = 6
 K_SIL_L = -8
 K_SIL_H = -0.7
 
+## Define simulation parameters
+SIM_PAR_PLANT = {
+    "vel" : 3.5, # [m/s] Static velocity of the bicycle
+    "dt" : 0.01, # [s] Time step of the micro controller
+    "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
+    "time" : 0, # [s] variable that keeps track of the current time
+    "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta)
+    "step_num " : 1000 # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
+}
+
+SIM_PAR_REF = {
+    "vel" : 3.5, # [m/s] Static velocity of the bicycle
+    "dt" : 0.01, # [s] Time step of the micro controller
+    "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
+    "time" : 0, # [s] variable that keeps track of the current time
+    "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta)
+    "step_num " : 1000 # number of times the continious plant is simulatied for dt time. total sim time = dt*step_num)
+}
+
+SIM_PAR_PLANT["sim_steps"] = ceil(SIM_PAR_PLANT["dt"]/SIM_PAR_PLANT["h"]) # number of steps in the simulation during a timestep 'dt'
+SIM_PAR_REF["sim_steps"] = ceil(SIM_PAR_REF["dt"]/SIM_PAR_REF["h"]) # number of steps in the simulation during a timestep 'dt'
+
 # Simulation
 SIM_RANGE = {"start": 0.01, "stop":10} # zero can not be in the range, as due to the mm fixed variables, A_ref is dependent on v via 1/v. So v=0 causes inf/nan.
 SIM_STEP = 0.01
@@ -186,47 +208,99 @@ sil_ctrl = VariableController(sil_funs)
 # sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl)
 
 ##--Simulate dynamic behaviour 
-#Setup
-vel = 5 # [m/s] Static velocity of the bicycle
-dt = 0.1 # [s] Time step of the micro controller
-h = 0.01 # [s] Resolution of the continuous simulation (ODE)
-sim_steps = ceil(dt/h) # number of steps in the simulation during a timestep 'dt'
-time = 0 # [s] variable that keeps track of the current time
-x0 = np.array([1,0,1,0]) # initial state (phi, delta, d_phi, d_delta)
+u_ref = np.array([0,0])
 
 
-bike_plant.calc_mtrx(vel) # Initialize bicycle system at specific speed
-A_bike = bike_plant.mat["A"]
-B_bike = bike_plant.mat["B"]
-C_bike = bike_plant.mat["C"]
-D_bike = bike_plant.mat["D"]
-n = A_bike.shape[0]
-m = B_bike.shape[1]
-p = n
+def sim_setup_ss(par,system):
+    system.calc_mtrx(par["vel"]) 
+    par["ss_model"] = sign.StateSpace(
+        system.mat["A"],
+        system.mat["B"],
+        system.mat["C"],
+        system.mat["D"]
+        )
 
-sc_bike_plant = sign.StateSpace(A_bike,B_bike,C_bike,D_bike) #Speed constant state space object
+    par["n"] = system.mat["A"].shape[0]
+    par["m"] = system.mat["B"].shape[1]
+    par["p"] = system.mat["C"].shape[0]
+    return par
 
-u = 0
-step_num = 100
+def sim_setup_ctrl(par,ctrlr):
+    ctrlr.calc_gain(par["vel"])
+    par["F"] = ctrlr.gain["F"]
+    par["G"] = ctrlr.gain["G"]
+    return par
+
+def simulate(par,system,ctrlr,u_ref):
+    par = sim_setup_ss(par,system)
+    par = sim_setup_ctrl(par,ctrlr)
+
+    vel = par["vel"]
+    dt = par["dt"]
+    time = par["time"]
+    sim_steps = par["sim_steps"]
+    step_num = par["step_num "]
+    
+    ss_model = par["ss_model"]
+    n = par["n"]
+    m = par["m"]
+    p = par["p"]
+
+    F = par["F"]
+    G = par["G"]
+    
+    # Prealocate return values for speed
+    T_vec = np.empty((step_num*sim_steps,))
+    y_vec = np.empty((step_num*sim_steps, p))
+    x_vec = np.empty((step_num*sim_steps, n))
+    
+    # initialize lsim input
+    time_vec = np.linspace(0, dt, sim_steps)
+    x0 = par["x0"]
+    u = F@x0 + G@u_ref
+    u_vec = u * np.ones((time_vec.shape[0], m))
+
+    # Run simulation
+    for k in range(step_num):
+        #--[Simulate ODE
+        T,y,x = sign.lsim(ss_model,u_vec,time_vec,x0,interp=True)
+
+        #--[Sensor artifacts
+        # ...
+        
+        #--[Store values
+        T_vec[k*sim_steps:(k+1)*sim_steps] = T + time
+        y_vec[k*sim_steps:(k+1)*sim_steps, :] = y
+        x_vec[k*sim_steps:(k+1)*sim_steps, :] = x
+
+        #--[Update current state, and time
+        x0 = x[-1,:]
+        time = time + dt
+        
+        #--[Calculate Controller
+        u = F@x0 + G@u_ref
+
+            # Controller artifacts
+        #...
+
+            # Actuator artifacts
+        #...
+
+        #Convert control to vector
+        u_vec = u * np.ones((time_vec.shape[0], m))
+    #end of loop
+    
+    return (T_vec, y_vec)
+
 
 #Simulate
-T_vec = np.empty((step_num*sim_steps,))
-y_vec = np.empty((step_num*sim_steps, p))
-x_vec = np.empty((step_num*sim_steps, n))
-time_vec = np.linspace(0, dt, sim_steps)
-u_vec = u * np.ones((time_vec.shape[0], m))
-for k in range(step_num):
-    T,y,x = sign.lsim(sc_bike_plant,u_vec,time_vec,x0,interp=True)
-    T_vec[k*sim_steps:(k+1)*sim_steps] = T + time
-    y_vec[k*sim_steps:(k+1)*sim_steps, :] = y
-    x_vec[k*sim_steps:(k+1)*sim_steps, :] = x
-    x0 = x[-1,:]
-    time = time + dt
+time, output = simulate(SIM_PAR_PLANT,bike_plant,mm_ctrl,u_ref)
 
 #Test plot
 fig = plt.figure()    
 plt.title("simulation")
-plt.plot(T_vec, y_vec)
+plt.plot(time, output)
 plt.xlabel("Time [s]")
 plt.ylabel("states")
+plt.legend(("phi", "theta","d_phi","d_theta"))
 plt.show()
