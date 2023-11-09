@@ -11,9 +11,11 @@ SIL_AVG_SPEED = 6
 K_SIL_L = -8
 K_SIL_H = -0.7
 
+NEG_CTRLRS = "sil"
+
 ## Define simulation parameters
 SIM_PAR_PLANT = {
-    "vel" : 5.5, # [m/s] Static velocity of the bicycle
+    "vel" : 3.5, # [m/s] Static velocity of the bicycle
     "dt" : 0.01, # [s] Time step of the micro controller
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
@@ -141,6 +143,16 @@ def zero_gain_G_fun():
     '''
     return np.eye(2)
 
+def mm_sil_gain_F_fun(speed):
+    mm_ctrl.calc_gain(speed)
+    sil_ctrl.calc_gain(speed)
+    return mm_ctrl.gain["F"] - mm_ctrl.gain["G"]@sil_ctrl.gain["F"]
+
+def mm_sil_gain_G_fun(speed):
+    mm_ctrl.calc_gain(speed)
+    sil_ctrl.calc_gain(speed)
+    return mm_ctrl.gain["G"]@sil_ctrl.gain["G"]
+
 def sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl):
     eigenvals = {
         "plant": [None for k in range(len(SPEEDRANGE))],
@@ -189,7 +201,7 @@ def sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl):
     plt.show()
     return
 
-def sim_setup_ss(par,system):
+def sim_setup(par,system,ctrl):
     system.calc_mtrx(par["vel"]) 
     par["ss_model"] = sign.StateSpace(
         system.mat["A"],
@@ -201,17 +213,22 @@ def sim_setup_ss(par,system):
     par["n"] = system.mat["A"].shape[0]
     par["m"] = system.mat["B"].shape[1]
     par["p"] = system.mat["C"].shape[0]
+
+    if len(ctrl.keys()) == 1:
+        for name in ctrl.keys():
+            ctrl[name].calc_gain(par["vel"])
+            F = ctrl[name].gain["F"] * ((np.int8)(name != NEG_CTRLRS) - (np.int8)(name == NEG_CTRLRS)) #While u_mm = +F*x, u_sil = -F*x
+            G = ctrl[name].gain["G"]
+    else: 
+        F = np.zeros((par["m"],par["n"])) # u = F*x
+        G = np.eye((par["m"])) # u = G*u_ref
+        print("None, or multiple controllers picked. Only chose one\nZero control used instead")
+    par["F"] = F
+    par["G"] = G
     return par
 
-def sim_setup_ctrl(par,ctrlr):
-    ctrlr.calc_gain(par["vel"])
-    par["F"] = ctrlr.gain["F"]
-    par["G"] = ctrlr.gain["G"]
-    return par
-
-def simulate(par,system,ctrlr,u_ref):
-    par = sim_setup_ss(par,system)
-    par = sim_setup_ctrl(par,ctrlr)
+def simulate(par,system,ctrlrs,u_ref):
+    par = sim_setup(par,system,ctrlrs)
 
     vel = par["vel"]
     dt = par["dt"]
@@ -271,7 +288,6 @@ def simulate(par,system,ctrlr,u_ref):
     return (T_vec, y_vec, x_vec)
 
 ###---------------------------------[START]---------------------------------###
-
 ###--------[INITIALIZATION
 ##----Set up the matrices (created by [...].py)
 with open("bike_and_ref_variable_dependend_system_matrices","rb") as inf:
@@ -298,6 +314,13 @@ sil_funs = {
 }
 sil_ctrl = VariableController(sil_funs)
 
+#Model matching a reference plant that uses steer-into-lean control
+mm_sil_fun = {
+    "F" : mm_sil_gain_F_fun,
+    "G" : mm_sil_gain_G_fun
+}
+mm_sil_ctrl = VariableController(mm_sil_fun)
+
 #Zero controller (no control)
 zero_funs = {
     "F": zero_gain_F_fun, 
@@ -310,15 +333,32 @@ zero_ctrl = VariableController(zero_funs)
 # sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl)
 
 ##--Simulate dynamic behaviour 
+#Input
 u_ref = np.array([0,0])
 
+#Linear controller to apply
+controller = {
+    # "mm": mm_ctrl,
+    # "sil" : sil_ctrl
+    "mm+sil" : mm_sil_ctrl
+    # "zero" : zero_ctrl
+}
+
+controller_ref = {
+    # "mm": mm_ctrl,
+    "sil" : sil_ctrl
+    # "mm+sil" : mm_sil_ctrl
+    # "zero" : zero_ctrl
+}
+
 #Simulate
-time, output, states = simulate(SIM_PAR_PLANT,bike_plant,zero_ctrl,u_ref)
+time_mm, output_mm, states_mm = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ref)
+time_ref, output_ref, states_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ref)
 
 #Test plot
 fig = plt.figure()    
 plt.title("simulation")
-plt.plot(time, output)
+plt.plot(time_mm, output_mm, time_ref, output_ref)
 plt.xlabel("Time [s]")
 plt.ylabel("states")
 plt.legend(("phi", "theta","d_phi","d_theta"))
