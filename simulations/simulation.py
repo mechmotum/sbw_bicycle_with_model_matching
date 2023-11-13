@@ -5,6 +5,7 @@ import inspect
 import scipy.signal as sign
 from math import ceil
 
+
 ##----Define constants
 # Steer into lean conroller
 SIL_AVG_SPEED = 6
@@ -14,13 +15,19 @@ K_SIL_H = -0.7
 NEG_CTRLRS = "sil"
 
 ## Define simulation parameters
+# Eigenvalue simulation
+SIM_RANGE = {"start": 0.01, "stop":10} # zero can not be in the range, as due to the mm fixed variables, A_ref is dependent on v via 1/v. So v=0 causes inf/nan.
+SIM_STEP = 0.01
+SPEEDRANGE = np.linspace(SIM_RANGE["start"] , SIM_RANGE["stop"] , num=int(round((SIM_RANGE["stop"]-SIM_RANGE["start"]) / SIM_STEP)))
+
+# System response simulation
 SIM_PAR_PLANT = {
     "vel" : 3.5, # [m/s] Static velocity of the bicycle
     "dt" : 0.01, # [s] Time step of the micro controller
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta)
-    "step_num " : 1000 # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
+    "step_num" : 1000 # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
 }
 
 SIM_PAR_REF = {
@@ -29,16 +36,12 @@ SIM_PAR_REF = {
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta)
-    "step_num " : 1000 # number of times the continious plant is simulatied for dt time. total sim time = dt*step_num)
+    "step_num" : 1000 # number of times the continious plant is simulatied for dt time. total sim time = dt*step_num)
 }
 
 SIM_PAR_PLANT["sim_steps"] = ceil(SIM_PAR_PLANT["dt"]/SIM_PAR_PLANT["h"]) # number of steps in the simulation during a timestep 'dt'
 SIM_PAR_REF["sim_steps"] = ceil(SIM_PAR_REF["dt"]/SIM_PAR_REF["h"]) # number of steps in the simulation during a timestep 'dt'
 
-# Simulation
-SIM_RANGE = {"start": 0.01, "stop":10} # zero can not be in the range, as due to the mm fixed variables, A_ref is dependent on v via 1/v. So v=0 causes inf/nan.
-SIM_STEP = 0.01
-SPEEDRANGE = np.linspace(SIM_RANGE["start"] , SIM_RANGE["stop"] , num=int(round((SIM_RANGE["stop"]-SIM_RANGE["start"]) / SIM_STEP)))
 
 ##----Define classes
 # State space system
@@ -202,17 +205,23 @@ def sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl):
     return
 
 def sim_setup(par,system,ctrl):
-    system.calc_mtrx(par["vel"]) 
-    par["ss_model"] = sign.StateSpace(
-        system.mat["A"],
-        system.mat["B"],
-        system.mat["C"],
-        system.mat["D"]
-        )
+    system.calc_mtrx(par["vel"])
 
     par["n"] = system.mat["A"].shape[0]
     par["m"] = system.mat["B"].shape[1]
     par["p"] = system.mat["C"].shape[0]
+    
+    B_extended = np.hstack((system.mat["B"], np.eye(par["n"]), np.zeros((par["n"],par["n"]))))
+    D_extended = np.hstack((system.mat["D"], np.zeros((par["n"],par["n"])), np.eye(par["n"])))
+
+    par["m_ext"] = B_extended.shape[1]
+
+    par["ss_model"] = sign.StateSpace(
+        system.mat["A"],
+        B_extended,
+        system.mat["C"],
+        D_extended
+        )
 
     if len(ctrl.keys()) == 1:
         for name in ctrl.keys():
@@ -227,6 +236,16 @@ def sim_setup(par,system,ctrl):
     par["G"] = G
     return par
 
+def measurement_artifacts(par,u_vec):
+    # noise: np.random.normal(0,1,100)
+    return u_vec
+
+def control_artifacts(u):
+    return u
+
+def process_artifacts(par,u_vec):
+    return u_vec
+
 def simulate(par,system,ctrlrs,u_ref):
     par = sim_setup(par,system,ctrlrs)
 
@@ -234,16 +253,17 @@ def simulate(par,system,ctrlrs,u_ref):
     dt = par["dt"]
     time = par["time"]
     sim_steps = par["sim_steps"]
-    step_num = par["step_num "]
+    step_num = par["step_num"]
     
     ss_model = par["ss_model"]
     n = par["n"]
     m = par["m"]
+    m_ext = par["m_ext"]
     p = par["p"]
 
     F = par["F"]
     G = par["G"]
-    
+
     # Prealocate return values for speed
     T_vec = np.empty((step_num*sim_steps,))
     y_vec = np.empty((step_num*sim_steps, p))
@@ -252,16 +272,21 @@ def simulate(par,system,ctrlrs,u_ref):
     # initialize lsim input
     time_vec = np.linspace(0, dt, sim_steps)
     x0 = par["x0"]
-    u = F@x0 + G@u_ref
-    u_vec = u * np.ones((time_vec.shape[0], m))
+
+    u = F@x0 + G@u_ref # Calculate clean control input
+    u = control_artifacts(u) # Implement control artifacts
+    
+    # go from discreet input to 'continuous' simulation input
+    u_vec = u * np.ones((time_vec.shape[0], m)) 
+    u_vec = np.hstack((u_vec, np.zeros((time_vec.shape[0], m_ext-m))))
+
+    u_vec = measurement_artifacts(par,u_vec) # Implement 'continuous' measurement artifacts
+    u_vec = process_artifacts(par,u_vec) # Implement 'continuous' process artifacts
 
     # Run simulation
     for k in range(step_num):
         #--[Simulate ODE
         T,y,x = sign.lsim(ss_model,u_vec,time_vec,x0,interp=True)
-
-        #--[Sensor artifacts
-        # ...
         
         #--[Store values
         T_vec[k*sim_steps:(k+1)*sim_steps] = T + time
@@ -270,19 +295,36 @@ def simulate(par,system,ctrlrs,u_ref):
 
         #--[Update current state, and time
         x0 = x[-1,:]
+        y0 = y[-1,:]
         time = time + dt
         
-        #--[Calculate Controller
-        u = F@x0 + G@u_ref
-
+        #--[Calculate input
+        '''
+        As lsim only takes a single B matrix,
+        the system has been turned into an extended system 
+        to include disturbances.
+        B = [B, B_dist, zero] = [B, eye, zero]
+        D = [D, zero, D_dist] = [B, zero, eye]
+        u = [u    //input (m x 1)
+             v    //process disturbance (n x 1)
+             w]   //measurement disturbance (n x 1)
+        '''
+        # Discreet time input 'u'
+            # Controller input
+        u = F@y0 + G@u_ref #using y0 to get the sensor noise as well
+        
             # Controller artifacts
-        #...
+        u = control_artifacts(u)
+        
+        # Continuous time input 'u_vec'
+        u_vec[:,:m] = u * np.ones((time_vec.shape[0], m))
+
+            # Sensor artifacts
+        u_vec = measurement_artifacts(par,u_vec)
 
             # Actuator artifacts
-        #...
+        u_vec = process_artifacts(par,u_vec)
 
-        #Convert control to lsim control input vector
-        u_vec = u * np.ones((time_vec.shape[0], m))
     #end of loop
     
     return (T_vec, y_vec, x_vec)
@@ -353,12 +395,12 @@ controller_ref = {
 
 #Simulate
 time_mm, output_mm, states_mm = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ref)
-time_ref, output_ref, states_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ref)
+# time_ref, output_ref, states_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ref)
 
 #Test plot
 fig = plt.figure()    
 plt.title("simulation")
-plt.plot(time_mm, output_mm, time_ref, output_ref)
+plt.plot(time_mm, output_mm)#, time_ref, output_ref)
 plt.xlabel("Time [s]")
 plt.ylabel("states")
 plt.legend(("phi", "theta","d_phi","d_theta"))
