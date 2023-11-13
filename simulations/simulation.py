@@ -3,10 +3,11 @@ import matplotlib.pyplot as plt
 import dill
 import inspect
 import scipy.signal as sign
-from math import ceil
-
+import math
 
 ##----Define constants
+GRAVITY = 9.81
+
 # Steer into lean conroller
 SIL_AVG_SPEED = 6
 K_SIL_L = -8
@@ -39,9 +40,15 @@ SIM_PAR_REF = {
     "step_num" : 1000 # number of times the continious plant is simulatied for dt time. total sim time = dt*step_num)
 }
 
-SIM_PAR_PLANT["sim_steps"] = ceil(SIM_PAR_PLANT["dt"]/SIM_PAR_PLANT["h"]) # number of steps in the simulation during a timestep 'dt'
-SIM_PAR_REF["sim_steps"] = ceil(SIM_PAR_REF["dt"]/SIM_PAR_REF["h"]) # number of steps in the simulation during a timestep 'dt'
+SIM_PAR_PLANT["sim_steps"] = math.ceil(SIM_PAR_PLANT["dt"]/SIM_PAR_PLANT["h"]) # number of steps in the simulation during a timestep 'dt'
+SIM_PAR_REF["sim_steps"] = math.ceil(SIM_PAR_REF["dt"]/SIM_PAR_REF["h"]) # number of steps in the simulation during a timestep 'dt'
 
+# Kalman related parameters
+KALMAN_PAR = {
+    "Q" : np.array([[1,0],[0,1]]),
+    "R" : np.array([1]),
+    "phi_weight": 0.05
+}
 
 ##----Define classes
 # State space system
@@ -103,7 +110,64 @@ class VariableController:
                 self.gain[key] = val()
         
 
+class KalmanSanjurjo:
+    def __init__(self,par,speed,dt):
+        self.speed = speed
+        self.PHI_WEIGHT = par["phi_weight"]
+        self.Q = par["Q"]
+        self.R = par["R"]
+        self.F = np.array([[1,-dt],[0,1]])
+        self.B = np.array([[dt],[0]])
+        self.H = np.array([[1,0]])
+        self.I = np.eye(self.Q.shape[0])
+        self.x_post = np.array([[0],[0]])
+        self.P_post = np.zeros_like(self.Q)
+        self.omega_x = 0
+        self.omega_y = 0
+        self.omega_z = 0
+        return
+
+    def __calc_omega(self): #TODO: WRITE THIS FUNCTION!!!
+        self.omega_x = 0.1
+        self.omega_y = 0.1
+        self.omega_z = 0.1
+        return [self.omega_x, self.omega_y, self.omega_z]
+
+    def __calc_measurement(self): #NOTE uses omega(k)
+        phi_d = math.atan(self.omega_z*self.speed/GRAVITY)
+        phi_omega = sgn(self.omega_z) * math.asin(self.omega_y/math.sqrt(self.omega_y**2 + self.omega_z**2))
+        W = math.exp(-(self.x_post[0])**2/self.PHI_WEIGHT) #By using x.post, make sure this function is called before __update() to get the previous state estimate
+        phi_measured = (W*phi_d + (1-W)*phi_omega)
+        return phi_measured
+
+    def __predict(self,u): #NOTE uses omega(k-1)
+        self.x_prio = self.F@self.x_post + self.B@u #TODO: Make sure to use omega(k-1)
+        self.P_prio = self.F@self.P_post@(self.F.T) + self.Q
+        return
+
+    def __update(self,z):
+        S = self.H@self.P_prio@(self.H.T) + self.R
+        K = self.P_prio@(self.H.T) * (1/S) #1/S Since IN THIS SPECIFIC CASE 'S' is a scalar (and we are not writing this class to be general implementable)
+        self.x_post = self.x_prio + K@(z - self.H@self.x_prio)
+        self.P_post = (self.I - K@self.H)@self.P_prio
+        return
+    
+    def next_step(self):
+        u = np.array([[self.omega_x]])
+        self.__predict(u)
+
+        self.__calc_omega() #update omega (k-1 -> k)
+
+        z = self.__calc_measurement()
+        self.__update(z)
+
+        return (self.x_post[0], self.x_post[1]) #return phi and bias
+
+
 ##----Define functions
+def sgn(x):
+    return ((int)(x >= 0) - (int)(x < 0))
+
 ## gain calculation function for steer into lean controller
 def sil_gain_F_fun(speed):
     '''
@@ -246,10 +310,9 @@ def control_artifacts(u):
 def process_artifacts(par,u_vec):
     return u_vec
 
-def simulate(par,system,ctrlrs,u_ref):
+def simulate(par,system,ctrlrs,u_ref,phi_kalman):
     par = sim_setup(par,system,ctrlrs)
 
-    vel = par["vel"]
     dt = par["dt"]
     time = par["time"]
     sim_steps = par["sim_steps"]
@@ -272,8 +335,11 @@ def simulate(par,system,ctrlrs,u_ref):
     # initialize lsim input
     time_vec = np.linspace(0, dt, sim_steps)
     x0 = par["x0"]
+    y0 = x0
+    
+    # phi, bias = phi_kalman.next_step() #TODO: integrate the phi measurement with the y0 / x0 states... How does the modular artifacts, x0/y0, and Kalman interact???
 
-    u = F@x0 + G@u_ref # Calculate clean control input
+    u = F@y0 + G@u_ref # Calculate control input from measurements
     u = control_artifacts(u) # Implement control artifacts
     
     # go from discreet input to 'continuous' simulation input
@@ -295,7 +361,7 @@ def simulate(par,system,ctrlrs,u_ref):
 
         #--[Update current state, and time
         x0 = x[-1,:]
-        y0 = y[-1,:]
+        y0 = y[-1,:] #TODO: not the actual measured output by the bicycle... sorta. We do not measure y0, but we calculate it.....
         time = time + dt
         
         #--[Calculate input
@@ -309,6 +375,9 @@ def simulate(par,system,ctrlrs,u_ref):
              v    //process disturbance (n x 1)
              w]   //measurement disturbance (n x 1)
         '''
+        #Kalman filter to estimate phi 
+        # phi, bias = phi_kalman.next_step() #TODO: integrate the phi measurement with the y0 / x0 states... How does the modular artifacts and Kalman interact???
+
         # Discreet time input 'u'
             # Controller input
         u = F@y0 + G@u_ref #using y0 to get the sensor noise as well
@@ -320,7 +389,8 @@ def simulate(par,system,ctrlrs,u_ref):
         u_vec[:,:m] = u * np.ones((time_vec.shape[0], m))
 
             # Sensor artifacts
-        u_vec = measurement_artifacts(par,u_vec)
+        u_vec = measurement_artifacts(par,u_vec) #TODO: is this logical for my application? I measure delta and omega stuff.... 
+                                                 #NOTE: While the motors are continuously on, the measurements are only taken at dt time intervals....
 
             # Actuator artifacts
         u_vec = process_artifacts(par,u_vec)
@@ -393,14 +463,19 @@ controller_ref = {
     # "zero" : zero_ctrl
 }
 
+phi_kalman = KalmanSanjurjo(
+    KALMAN_PAR,
+    SIM_PAR_PLANT["vel"],
+    SIM_PAR_PLANT["dt"])
+
 #Simulate
-time_mm, output_mm, states_mm = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ref)
+time, output, states = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ref,phi_kalman)
 # time_ref, output_ref, states_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ref)
 
 #Test plot
 fig = plt.figure()    
 plt.title("simulation")
-plt.plot(time_mm, output_mm)#, time_ref, output_ref)
+plt.plot(time, output)#, time_ref, output_ref)
 plt.xlabel("Time [s]")
 plt.ylabel("states")
 plt.legend(("phi", "theta","d_phi","d_theta"))
