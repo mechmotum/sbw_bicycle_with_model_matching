@@ -141,7 +141,7 @@ class KalmanSanjurjo:
         self.omega_z = 0
         return
 
-    def __calc_omega(self,par,bike_state):
+    def __calc_omega(self,par,bike_state): #TODO: should this function be inside the kalman class?
         ''' NOTE: the assumption is made that the bicycle
         will move on a flat level ground. (As meijaard does
         with their bicycle model.) This means pitch and pitch 
