@@ -6,7 +6,12 @@ import scipy.signal as sign
 import math
 
 ##----Define constants
-GRAVITY = 9.81
+# Physical constants
+GRAVITY = 9.81 #[m/s^2]
+
+# parameter taken from bicycle model #TODO: this should be automated. aka, I should not have to look this up in anouther file
+WHEELBASE_PLANT = 1.064 #[m]
+WHEELBASE_REF = 1.064 #[m]
 
 # Steer into lean conroller
 SIL_AVG_SPEED = 6
@@ -24,22 +29,24 @@ SPEEDRANGE = np.linspace(SIM_RANGE["start"] , SIM_RANGE["stop"] , num=int(round(
 # System response simulation
 SIM_PAR_PLANT = {
     "vel" : 3.5, # [m/s] Static velocity of the bicycle
+    "wheelbase" : WHEELBASE_PLANT, # [m] wheelbase of the bicycle
     "dt" : 0.01, # [s] Time step of the micro controller
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
     "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
-    "step_num" : 1000 # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
+    "step_num" : 1000*2 # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
 }
 
 SIM_PAR_REF = {
     "vel" : 3.5, # [m/s] Static velocity of the bicycle
+    "wheelbase" : WHEELBASE_REF, # [m] wheelbase of the bicycle
     "dt" : 0.01, # [s] Time step of the micro controller
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta)
     "d_delta0" : 0, #Initial guess of steer rate for the y0 vector
-    "step_num" : 1000 # number of times the continious plant is simulatied for dt time. total sim time = dt*step_num)
+    "step_num" : 1000*2 # number of times the continious plant is simulatied for dt time. total sim time = dt*step_num)
 }
 
 SIM_PAR_PLANT["sim_steps"] = math.ceil(SIM_PAR_PLANT["dt"]/SIM_PAR_PLANT["h"]) # number of steps in the simulation during a timestep 'dt'
@@ -52,8 +59,8 @@ C_MATRIX_BIKE = np.array([[0,1,0,0],[0,0,1,0]])
 KALMAN_PAR = {
     "x0" : np.array([[0],[0]]),
     "P0" : np.array([[0,0],[0,0]]),
-    "Q" : np.array([[1,0],[0,1]]),
-    "R" : np.array([1]),
+    "Q" : np.array([[5e-7,0],[0,1e-8]]),
+    "R" : np.array([0.1]),
     "phi_weight": 0.05
 }
 
@@ -134,16 +141,26 @@ class KalmanSanjurjo:
         self.omega_z = 0
         return
 
-    def __calc_omega(self): #TODO: WRITE THIS FUNCTION!!!
-        self.omega_x = 0.1
-        self.omega_y = 0.1
-        self.omega_z = 0.1
-        return [self.omega_x, self.omega_y, self.omega_z]
+    def __calc_omega(self,par,bike_state):
+        ''' NOTE: the assumption is made that the bicycle
+        will move on a flat level ground. (As meijaard does
+        with their bicycle model.) This means pitch and pitch 
+        rate are assumed zero.
+        '''
+        phi = bike_state[0]
+        delta = bike_state[1]
+        d_phi = bike_state[2]
+
+        d_psi = self.speed*math.tan(delta)/par["wheelbase"]
+        self.omega_x = d_phi
+        self.omega_y = math.sin(phi)*d_psi
+        self.omega_z = math.cos(phi)*d_psi
+        return
 
     def __calc_measurement(self): #NOTE uses omega(k)
         phi_d = math.atan(self.omega_z*self.speed/GRAVITY)
         phi_omega = sgn(self.omega_z) * math.asin(self.omega_y/math.sqrt(self.omega_y**2 + self.omega_z**2))
-        W = math.exp(-(self.x_post[0])**2/self.PHI_WEIGHT) #By using x.post, make sure this function is called before __update() to get the previous state estimate
+        W = math.exp(-(self.x_post[0][0])**2/self.PHI_WEIGHT) #By using x.post, make sure this function is called before __update() to get the previous state estimate
         phi_measured = (W*phi_d + (1-W)*phi_omega)
         return phi_measured
 
@@ -159,11 +176,11 @@ class KalmanSanjurjo:
         self.P_post = (self.I - K@self.H)@self.P_prio
         return
     
-    def next_step(self):
+    def next_step(self,par,bike_state):
         u = np.array([[self.omega_x]])
         self.__predict(u)
 
-        self.__calc_omega() #update omega (k-1 -> k)
+        self.__calc_omega(par,bike_state) #update omega (k-1 -> k)
 
         z = self.__calc_measurement()
         self.__update(z)
@@ -314,8 +331,8 @@ def IMU_artifacts(par,u_vec):
     # noise: np.random.normal(0,1,100)
     return u_vec
 
-def encoder_artifacts():
-    return
+def encoder_artifacts(u):
+    return u
 
 def control_artifacts(u):
     return u
@@ -346,6 +363,7 @@ def simulate(par,system,ctrlrs,u_ref,phi_kalman):
     T_vec = np.empty((step_num*sim_steps,))
     y_vec = np.empty((step_num*sim_steps, p))
     x_vec = np.empty((step_num*sim_steps, n))
+    y0_vec = np.empty((step_num*sim_steps, n))
     
     #--[Initialize lsim input
     # Time and state
@@ -397,14 +415,14 @@ def simulate(par,system,ctrlrs,u_ref,phi_kalman):
         past_delta = delta
 
             #Calculate roll angle
-        phi, bias = phi_kalman.next_step()
+        phi, bias = phi_kalman.next_step(par,x0)
 
             #Measure roll rate
         d_phi = y_meas[1] - bias
 
             #Make measured state vector
         y0 = np.array([phi,delta,d_phi,d_delta])
-        
+        y0_vec[k*sim_steps:(k+1)*sim_steps, :] = y0 * np.ones_like(x)
 
         #--[Calculate input
         '''
@@ -436,7 +454,7 @@ def simulate(par,system,ctrlrs,u_ref,phi_kalman):
 
     #end of loop
     
-    return (T_vec, y_vec, x_vec)
+    return (T_vec, y_vec, x_vec, y0_vec)
 
 ###---------------------------------[START]---------------------------------###
 ###--------[INITIALIZATION
@@ -491,15 +509,15 @@ u_ref = np.array([0,0])
 
 #Linear controller to apply
 controller = {
-    # "mm": mm_ctrl,
+    "mm": mm_ctrl
     # "sil" : sil_ctrl
-    "mm+sil" : mm_sil_ctrl
+    # "mm+sil" : mm_sil_ctrl
     # "zero" : zero_ctrl
 }
 
 controller_ref = {
-    # "mm": mm_ctrl,
-    "sil" : sil_ctrl
+    "mm": mm_ctrl
+    # "sil" : sil_ctrl
     # "mm+sil" : mm_sil_ctrl
     # "zero" : zero_ctrl
 }
@@ -510,13 +528,13 @@ phi_kalman = KalmanSanjurjo(
     SIM_PAR_PLANT["dt"])
 
 #Simulate
-time, output, states = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ref,phi_kalman)
-# time_ref, output_ref, states_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ref)
+time, output, states, calc_states = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ref,phi_kalman)
+time_ref, output_ref, states_ref, calc_states_ref = simulate(SIM_PAR_REF,bike_plant,controller_ref,u_ref,phi_kalman)
 
 #Test plot
 fig = plt.figure()    
 plt.title("simulation")
-plt.plot(time, output)#, time_ref, output_ref)
+plt.plot(time, states, time_ref, states_ref)
 plt.xlabel("Time [s]")
 plt.ylabel("states")
 plt.legend(("phi", "theta","d_phi","d_theta"))
