@@ -27,7 +27,8 @@ SIM_PAR_PLANT = {
     "dt" : 0.01, # [s] Time step of the micro controller
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
-    "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta)
+    "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
+    "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
     "step_num" : 1000 # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
 }
 
@@ -37,14 +38,20 @@ SIM_PAR_REF = {
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta)
+    "d_delta0" : 0, #Initial guess of steer rate for the y0 vector
     "step_num" : 1000 # number of times the continious plant is simulatied for dt time. total sim time = dt*step_num)
 }
 
 SIM_PAR_PLANT["sim_steps"] = math.ceil(SIM_PAR_PLANT["dt"]/SIM_PAR_PLANT["h"]) # number of steps in the simulation during a timestep 'dt'
 SIM_PAR_REF["sim_steps"] = math.ceil(SIM_PAR_REF["dt"]/SIM_PAR_REF["h"]) # number of steps in the simulation during a timestep 'dt'
 
+# Sensor placements matrix
+C_MATRIX_BIKE = np.array([[0,1,0,0],[0,0,1,0]])
+
 # Kalman related parameters
 KALMAN_PAR = {
+    "x0" : np.array([[0],[0]]),
+    "P0" : np.array([[0,0],[0,0]]),
     "Q" : np.array([[1,0],[0,1]]),
     "R" : np.array([1]),
     "phi_weight": 0.05
@@ -88,7 +95,7 @@ class VariableStateSpaceSystem:
         if "C" not in self.mat:
             self.mat["C"] = np.eye(self.mat["A"].shape[0])
         if "D" not in self.mat:
-            self.mat["D"] = np.zeros((self.mat["A"].shape[0], self.mat["B"].shape[1]))
+            self.mat["D"] = np.zeros((self.mat["C"].shape[0], self.mat["B"].shape[1]))
 
 
 class VariableController:
@@ -120,8 +127,8 @@ class KalmanSanjurjo:
         self.B = np.array([[dt],[0]])
         self.H = np.array([[1,0]])
         self.I = np.eye(self.Q.shape[0])
-        self.x_post = np.array([[0],[0]])
-        self.P_post = np.zeros_like(self.Q)
+        self.x_post = par["x0"]
+        self.P_post = par["P0"]
         self.omega_x = 0
         self.omega_y = 0
         self.omega_z = 0
@@ -161,7 +168,7 @@ class KalmanSanjurjo:
         z = self.__calc_measurement()
         self.__update(z)
 
-        return (self.x_post[0], self.x_post[1]) #return phi and bias
+        return (self.x_post[0,0], self.x_post[1,0]) #return phi and bias
 
 
 ##----Define functions
@@ -169,6 +176,9 @@ def sgn(x):
     return ((int)(x >= 0) - (int)(x < 0))
 
 ## gain calculation function for steer into lean controller
+def sensor_matrix_bike():
+    return C_MATRIX_BIKE
+
 def sil_gain_F_fun(speed):
     '''
     Feedback part of the SiL controller.
@@ -275,8 +285,8 @@ def sim_setup(par,system,ctrl):
     par["m"] = system.mat["B"].shape[1]
     par["p"] = system.mat["C"].shape[0]
     
-    B_extended = np.hstack((system.mat["B"], np.eye(par["n"]), np.zeros((par["n"],par["n"]))))
-    D_extended = np.hstack((system.mat["D"], np.zeros((par["n"],par["n"])), np.eye(par["n"])))
+    B_extended = np.hstack((system.mat["B"], np.eye(par["n"]), np.zeros((par["n"],par["p"]))))
+    D_extended = np.hstack((system.mat["D"], np.zeros((par["p"],par["n"])), np.eye(par["p"])))
 
     par["m_ext"] = B_extended.shape[1]
 
@@ -300,9 +310,12 @@ def sim_setup(par,system,ctrl):
     par["G"] = G
     return par
 
-def measurement_artifacts(par,u_vec):
+def IMU_artifacts(par,u_vec):
     # noise: np.random.normal(0,1,100)
     return u_vec
+
+def encoder_artifacts():
+    return
 
 def control_artifacts(u):
     return u
@@ -311,8 +324,10 @@ def process_artifacts(par,u_vec):
     return u_vec
 
 def simulate(par,system,ctrlrs,u_ref,phi_kalman):
+    #--[Get all parameters
     par = sim_setup(par,system,ctrlrs)
 
+    #--[Assign for shorter notation
     dt = par["dt"]
     time = par["time"]
     sim_steps = par["sim_steps"]
@@ -327,18 +342,25 @@ def simulate(par,system,ctrlrs,u_ref,phi_kalman):
     F = par["F"]
     G = par["G"]
 
-    # Prealocate return values for speed
+    #--[Prealocate return values for speed
     T_vec = np.empty((step_num*sim_steps,))
     y_vec = np.empty((step_num*sim_steps, p))
     x_vec = np.empty((step_num*sim_steps, n))
     
-    # initialize lsim input
+    #--[Initialize lsim input
+    # Time and state
     time_vec = np.linspace(0, dt, sim_steps)
     x0 = par["x0"]
-    y0 = x0
-    
-    # phi, bias = phi_kalman.next_step() #TODO: integrate the phi measurement with the y0 / x0 states... How does the modular artifacts, x0/y0, and Kalman interact???
 
+    # Initial 'measurements'
+    phi = phi_kalman.x_post[0,0]
+    past_delta = x0[1]
+    d_phi = x0[2]
+    d_delta = par["d_delta0"]
+
+    y0 = np.array([phi,past_delta,d_phi,d_delta]) #TODO: How does the modular artifacts, x0/y0, and Kalman interact???
+    
+    # Calculate initial control
     u = F@y0 + G@u_ref # Calculate control input from measurements
     u = control_artifacts(u) # Implement control artifacts
     
@@ -346,7 +368,7 @@ def simulate(par,system,ctrlrs,u_ref,phi_kalman):
     u_vec = u * np.ones((time_vec.shape[0], m)) 
     u_vec = np.hstack((u_vec, np.zeros((time_vec.shape[0], m_ext-m))))
 
-    u_vec = measurement_artifacts(par,u_vec) # Implement 'continuous' measurement artifacts
+    # u_vec = measurement_artifacts(par,u_vec) # Implement 'continuous' measurement artifacts
     u_vec = process_artifacts(par,u_vec) # Implement 'continuous' process artifacts
 
     # Run simulation
@@ -356,14 +378,34 @@ def simulate(par,system,ctrlrs,u_ref,phi_kalman):
         
         #--[Store values
         T_vec[k*sim_steps:(k+1)*sim_steps] = T + time
-        y_vec[k*sim_steps:(k+1)*sim_steps, :] = y
+        y_vec[k*sim_steps:(k+1)*sim_steps, :] = y.reshape((time_vec.shape[0],p))
         x_vec[k*sim_steps:(k+1)*sim_steps, :] = x
 
         #--[Update current state, and time
         x0 = x[-1,:]
-        y0 = y[-1,:] #TODO: not the actual measured output by the bicycle... sorta. We do not measure y0, but we calculate it.....
         time = time + dt
+        y_meas = y.reshape((time_vec.shape[0],p))[-1,:]
+
+        #--[Calculate states from sensor readings
+        # Measurements will also be taken in descreete steps
+
+            #Measure steer angle
+        delta = y_meas[0]
         
+            #Calculate steer rate
+        d_delta = (delta - past_delta)/dt #backwards euler
+        past_delta = delta
+
+            #Calculate roll angle
+        phi, bias = phi_kalman.next_step()
+
+            #Measure roll rate
+        d_phi = y_meas[1] - bias
+
+            #Make measured state vector
+        y0 = np.array([phi,delta,d_phi,d_delta])
+        
+
         #--[Calculate input
         '''
         As lsim only takes a single B matrix,
@@ -375,12 +417,9 @@ def simulate(par,system,ctrlrs,u_ref,phi_kalman):
              v    //process disturbance (n x 1)
              w]   //measurement disturbance (n x 1)
         '''
-        #Kalman filter to estimate phi 
-        # phi, bias = phi_kalman.next_step() #TODO: integrate the phi measurement with the y0 / x0 states... How does the modular artifacts and Kalman interact???
-
         # Discreet time input 'u'
             # Controller input
-        u = F@y0 + G@u_ref #using y0 to get the sensor noise as well
+        u = F@y0 + G@u_ref
         
             # Controller artifacts
         u = control_artifacts(u)
@@ -389,8 +428,8 @@ def simulate(par,system,ctrlrs,u_ref,phi_kalman):
         u_vec[:,:m] = u * np.ones((time_vec.shape[0], m))
 
             # Sensor artifacts
-        u_vec = measurement_artifacts(par,u_vec) #TODO: is this logical for my application? I measure delta and omega stuff.... 
-                                                 #NOTE: While the motors are continuously on, the measurements are only taken at dt time intervals....
+        # u_vec = measurement_artifacts(par,u_vec) #TODO: is this logical for my application? I measure delta and omega stuff.... 
+        #                                          #NOTE: While the motors are continuously on, the measurements are only taken at dt time intervals....
 
             # Actuator artifacts
         u_vec = process_artifacts(par,u_vec)
@@ -404,6 +443,8 @@ def simulate(par,system,ctrlrs,u_ref,phi_kalman):
 ##----Set up the matrices (created by [...].py)
 with open("bike_and_ref_variable_dependend_system_matrices","rb") as inf:
     sys_mtrx = dill.load(inf)
+sys_mtrx["plant"]["C"] = sensor_matrix_bike
+sys_mtrx["ref"]["C"] = sensor_matrix_bike
 bike_plant = VariableStateSpaceSystem(sys_mtrx["plant"]) # The real bicycle
 bike_ref = VariableStateSpaceSystem(sys_mtrx["ref"]) #The reference bicycle
 
