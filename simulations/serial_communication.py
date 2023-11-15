@@ -43,16 +43,19 @@ teensy_serial.open()
 
 
 #-------[Create data to send
-output = np.array([1.00025], dtype=np.float32)
+output = np.array([123, 12.5, 15.5, 4846, 45354.1, 465, -1], dtype=np.float32)
 
 
 ##------Communicate
 while True:
-    time.sleep(0.1)
+    time.sleep(1)
     teensy_serial.write(output.tobytes())
     if teensy_serial.in_waiting:
         input_b = teensy_serial.read_until(b'\r\n').rstrip(b'\r\n')
-        output = np.frombuffer(input_b, dtype=np.float32)
+        input = np.frombuffer(input_b, dtype=np.float32)
+        print(input)
+        output = (input[0]/input[1])*np.ones((7,), dtype=np.float32) #Be aware that every array you make has to specify that its numbers are float32
+
 
 
 # SITES
