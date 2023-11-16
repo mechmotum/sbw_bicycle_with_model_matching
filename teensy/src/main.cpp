@@ -20,7 +20,7 @@ a_hand = 41; // Analog output pin of the handlebar motor drive
 
 //============================== Compile modes ===============================//
 #define USE_IMU 1
-#define USE_BT 1
+#define USE_BT 0
 #define USE_SD 0
 #define USE_PEDAL_CADANCE 0
 #define SERIAL_DEBUG 0
@@ -371,6 +371,10 @@ Eigen::Matrix<float,2,2> P_post {{0,0},{0,0}};
 
 SimpleKalman gyro_kalman(F, B, H, Q, R, P_post);
 
+//------------------------------ Simulation ----------------------------------//
+// uint16_t no_com_cntr = 0; //counts the times the control loop was entered but no serial data was available
+SimulationMeasurements sim_meas{};
+
 //============================== [Main Setup] ==================================//
 void setup(){
   //------[Initialize communications
@@ -378,15 +382,9 @@ void setup(){
   #if USE_BT
   bt_setup(); //initialize bluetooth connection and write log header
   #endif
-  #if SERIAL_DEBUG
+  
   Serial.begin(115200); // Communication with PC through micro-USB
-  /*NOTE: Wait with startup procedure untill one opens a serial monitor.
-  Since the power to the microcontroller and to the rest of the bicycle
-  is now not synchronus anymore.
-  > First start the motors, then open a serial monitor.
-  > If the motors are turned off, also turn of the microcontroller*/
-  while(!Serial){} 
-  #endif
+  while(!Serial){} //Wait with startup untill serial communication has started
   
   //------[Setup INPUT pins
   pinMode(hand_switch,      INPUT);
@@ -469,39 +467,61 @@ void loop(){
     //                                 );
 
     //------[initialize local variables
-    static BikeMeasurements sbw_bike{};
-    float error, derror_dt;
-    double command_fork = 0;
-    double command_hand = 0;
+    if(Serial.available()){
+      static BikeMeasurements sbw_bike{};
+      float error, derror_dt;
+      double command_fork = 0;
+      double command_hand = 0;
 
-    //------[measure bike states and inputs
-    sbw_bike.calculate_bike_speed();
-    sbw_bike.calculate_roll_states();
-    sbw_bike.measure_steer_angles();
-    sbw_bike.calculate_fork_rate(); //also calculates moving average of fork angle and sets it
-    sbw_bike.measure_hand_torque();
+      //------[measure bike states and inputs
+      sim_meas.get_sim_meas();
+      
+      sbw_bike.calculate_bike_speed();
+      sbw_bike.calculate_roll_states();
+      sbw_bike.measure_steer_angles();
+      sbw_bike.calculate_fork_rate(); //also calculates moving average of fork angle and sets it
+      sbw_bike.measure_hand_torque();
 
-    //------[Perform steering control
-    calc_pd_errors(sbw_bike, error, derror_dt);
-    calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
-    // calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
-    // calc_sil_control(sbw_bike, command_fork, command_hand);
-    
-    actuate_steer_motors(command_fork, command_hand);
+      //------[Perform steering control
+      calc_pd_errors(sbw_bike, error, derror_dt);
+      calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
+      // calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
+      // calc_sil_control(sbw_bike, command_fork, command_hand);
+      
+      //------[Actuate motors
+      // actuate_steer_motors(command_fork, command_hand); //Not necessary for simulation purpose
+      float cmd_h = (float)command_hand;
+      float cmd_f = (float)command_fork;
+      byte_tx_float32(&cmd_h);
+      byte_tx_float32(&cmd_f);
+      Serial.println();
 
-    //------[Increase counters
-    control_iteration_counter++;
 
-    //------[Data monitoring
-    #if USE_BT
-    print_to_bt(sbw_bike,command_fork,command_hand);
-    #endif
-    #if SERIAL_DEBUG
-    print_to_serial(sbw_bike,command_fork,command_hand);
-    #endif
-    #if USE_SD
-    print_to_SD(sbw_bike,command_fork,command_hand);
-    #endif
+      //------[Increase counters
+      control_iteration_counter++;
+
+      //------[Data monitoring
+      #if USE_BT
+      print_to_bt(sbw_bike,command_fork,command_hand);
+      #endif
+      #if SERIAL_DEBUG
+      print_to_serial(sbw_bike,command_fork,command_hand);
+      #endif
+      #if USE_SD
+      print_to_SD(sbw_bike,command_fork,command_hand);
+      #endif
+
+      // no_com_cntr = 0; //reset counter as you have communication again.
+    }
+    else{
+      // no_com_cntr++;
+      // if(no_com_cntr > 1000){ // 1000 is one second
+        float error = -99.0;
+        byte_tx_float32(&error);
+        byte_tx_float32(&error);
+        Serial.println();
+      // }
+    }
   }
 }
 
@@ -514,8 +534,8 @@ void loop(){
 //=========================== [Get steer angles] ===============================//
 void BikeMeasurements::measure_steer_angles(){
   //------[Read encoder values
-  uint16_t enc_counts_hand = read_motor_encoder(cs_hand); //SPI communication with Handlebar encoder
-  uint16_t enc_counts_fork = read_motor_encoder(cs_fork); //SPI communication with Fork encoder
+  uint16_t enc_counts_hand = sim_meas.get_sim_encoder_h(); //read_motor_encoder(cs_hand); //SPI communication with Handlebar encoder
+  uint16_t enc_counts_fork = sim_meas.get_sim_encoder_f(); //read_motor_encoder(cs_fork); //SPI communication with Fork encoder
 
   //------[Time since last measurement
   update_dtime(m_dt_steer_meas, since_last_steer_meas); // time between to calls to the motor encoder value, used for calculating derivatives
@@ -549,8 +569,9 @@ void BikeMeasurements::measure_steer_angles(){
 
 //=========================== [Get handlebar torque] ===============================//
 void BikeMeasurements::measure_hand_torque(){
-  uint8_t voltage = TEENSY_ANALOG_VOLTAGE * analogRead(a_torque)/HAND_TORQUE_RESOLUTION;
-  m_hand_torque = voltage ; //TEMP REMOVE AFTER MEASUREMENT TEST!
+  // uint8_t voltage = TEENSY_ANALOG_VOLTAGE * analogRead(a_torque)/HAND_TORQUE_RESOLUTION;
+  // m_hand_torque = voltage ; //TEMP REMOVE AFTER MEASUREMENT TEST!
+  m_hand_torque = sim_meas.get_sim_torque_h();
 }
 
 
@@ -569,9 +590,9 @@ void BikeMeasurements::calculate_roll_states(){
 
   //Get gyro measurements
   get_IMU_data(m_dt_IMU_meas);
-  float omega_x = IMU.gyro_x_radps();
-  float omega_y = IMU.gyro_y_radps();
-  float omega_z = IMU.gyro_z_radps();
+  float omega_x = sim_meas.get_sim_omega_x(); //IMU.gyro_x_radps();
+  float omega_y = sim_meas.get_sim_omega_y(); //IMU.gyro_y_radps();
+  float omega_z = sim_meas.get_sim_omega_z(); //IMU.gyro_z_radps();
 
   //having dt, change the propegation model and input model according to Sanjurjo
   F << 1, -m_dt_IMU_meas*MICRO_TO_UNIT,
@@ -608,8 +629,7 @@ void BikeMeasurements::calc_lean_angle_meas(float omega_x, float omega_y, float 
   phi_w = sgn(omega_z)*std::asin(omega_y/std::sqrt(omega_y*omega_y + omega_z*omega_z)); // [rad]
   
   // Use the best method based on lean angle size
-  tmp = (m_lean_angle/PHI_METHOD_WEIGHT);
-  W = std::exp(-tmp*tmp); // weight
+  W = std::exp(-m_lean_angle*m_lean_angle/PHI_METHOD_WEIGHT); // weight
 
   m_lean_angle_meas = W*phi_d + (1-W)*phi_w; // [rad]
 }
@@ -624,7 +644,7 @@ void BikeMeasurements::calculate_bike_speed(){
   the tick count of the current and previous loop will most of the time be zero.
   To have a meaningfull value, the value of this loop and that of 
   WHEEL_COUNTS_LENGTH ago are compared.*/
-  int32_t current_wheel_count = wheel_counter.read();
+  int32_t current_wheel_count = sim_meas.get_sim_speed_ticks();//wheel_counter.read();
   int32_t previous_wheel_count = wheel_counts[wheel_counts_index];
   wheel_counts[wheel_counts_index] = current_wheel_count;
 
@@ -644,8 +664,8 @@ void BikeMeasurements::calculate_bike_speed(){
   end_of_round_storage */
   if (wheel_counts_index >= WHEEL_COUNTS_LENGTH){
     wheel_counts_index = 0;
-    end_of_array_storage = wheel_counter.read();
-    wheel_counter.write(0);
+    end_of_array_storage = sim_meas.get_sim_speed_ticks(); //wheel_counter.read();
+    // wheel_counter.write(0); //not necessary in simulation as this has to be done on the sim side
   }
 
   /*NOTE #rounds = count_diff/WHEEL_COUNTS_PER_REV. The count_diff is measured 
@@ -692,6 +712,10 @@ void BikeMeasurements::calculate_pedal_cadance(){
 
 //=================== [Get the measurements from simulation] ===================//
 void SimulationMeasurements::get_sim_meas(){
+  /* Retrieve the values of the simulation in specified order.
+  Make sure the order in simulation.py and in this function are
+  equal!
+  */
   // TODO: see how the casting effects the values
   speed_ticks = (int32_t)byte_rx_float32();
   torque_h = (int8_t)byte_rx_float32();
