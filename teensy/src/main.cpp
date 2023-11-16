@@ -812,40 +812,53 @@ void bt_setup(){
   }
 
   //print header for log file.
-  Serial1.print("hand_angle, ");
-  Serial1.print("fork_angle, ");
-  Serial1.print("lean_angle, ");
-  Serial1.print("fork_rate, ");
-  Serial1.print("lean_rate, ");
-  Serial1.print("hand_torque, ");
-  Serial1.print("bike_speed, ");
-  Serial1.print("command_fork, ");
-  Serial1.print("command_hand ");
+  Serial1.print("imu_acc_x, ");
+  Serial1.print("imu_acc_y, ");
+  Serial1.print("imu_acc_z");
   Serial1.print('\n');
+  // Serial1.print("hand_angle, ");
+  // Serial1.print("fork_angle, ");
+  // Serial1.print("lean_angle, ");
+  // Serial1.print("fork_rate, ");
+  // Serial1.print("lean_rate, ");
+  // Serial1.print("hand_torque, ");
+  // Serial1.print("bike_speed, ");
+  // Serial1.print("command_fork, ");
+  // Serial1.print("command_hand ");
+  // Serial1.print('\n');
 }
 
 //========================== [Print to Bluetooth] =========================//
 void print_to_bt(BikeMeasurements& bike, double command_fork, double command_hand){
   if (control_iteration_counter % 100 == 0){ // Limit the printing rate
-      Serial1.print(bike.get_hand_angle());
+      Serial1.print(IMU.accel_x_mps2());
       Serial1.print(",");
-      Serial1.print(bike.get_fork_angle());
+      Serial1.print(IMU.accel_y_mps2());
       Serial1.print(",");
-      Serial1.print(bike.get_lean_angle());
-      Serial1.print(",");
-      Serial1.print(bike.get_fork_rate());
-      Serial1.print(",");
-      Serial1.print(bike.get_lean_rate());
-      Serial1.print(",");
-      Serial1.print(bike.get_hand_torque());
-      Serial1.print(",");
-      Serial1.print(bike.get_bike_speed());
-      Serial1.print(",");
-      Serial1.print(command_fork);
-      Serial1.print(",");
-      Serial1.print(command_hand);
+      Serial1.print(IMU.accel_z_mps2());
       Serial1.print('\n');
   }
+
+  // if (control_iteration_counter % 100 == 0){ // Limit the printing rate
+  //     Serial1.print(bike.get_hand_angle());
+  //     Serial1.print(",");
+  //     Serial1.print(bike.get_fork_angle());
+  //     Serial1.print(",");
+  //     Serial1.print(bike.get_lean_angle());
+  //     Serial1.print(",");
+  //     Serial1.print(bike.get_fork_rate());
+  //     Serial1.print(",");
+  //     Serial1.print(bike.get_lean_rate());
+  //     Serial1.print(",");
+  //     Serial1.print(bike.get_hand_torque());
+  //     Serial1.print(",");
+  //     Serial1.print(bike.get_bike_speed());
+  //     Serial1.print(",");
+  //     Serial1.print(command_fork);
+  //     Serial1.print(",");
+  //     Serial1.print(command_hand);
+  //     Serial1.print('\n');
+  // }
 }
 #endif
 
