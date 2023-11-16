@@ -10,6 +10,13 @@
 /*TODO: include other measurement functions into the BikeMeasurements class, like the IMU*/
 // TODO: make all measurement units into SI units
 
+/* LEFT FOR DOCUMENTATION PURPOSE ONLY [transfer to more appropriate location and remove]
+a_force = 20; // Analog output pin of the force transducer
+a_torque = 21; // Analog output pin of the torque sensor
+a_fork = 40; // Analog output pin of the fork motor drive
+a_hand = 41; // Analog output pin of the handlebar motor drive
+*/
+
 //============================== Compile modes ===============================//
 #define USE_IMU 1
 #define USE_BT 1
@@ -400,6 +407,9 @@ void setup(){
   wheel_counter.write(0);
 }
 
+
+
+//============================== [Main Loop] ===================================//
 void loop(){
   #if USE_SD // may be moved to setup with a while loop
   if (!isOpen) open_file();
@@ -407,8 +417,20 @@ void loop(){
   
   
   if (since_last_loop >= MIN_LOOP_LENGTH_MU){ //K: Sort of have a max freq? (cause that is not garanteed in this way)    
-    since_last_loop = since_last_loop - MIN_LOOP_LENGTH_MU; //reset counter
     
+    since_last_loop = since_last_loop - MIN_LOOP_LENGTH_MU; //reset counter
+
+    if (control_iteration_counter >= CTRL_STARTUP_ITTERATIONS) // Turn on LED when bike is ready
+      digitalWrite(hand_led, HIGH);
+
+    // // Read the switch state
+    // hand_switch_state_prev = hand_switch_state;
+    // hand_switch_value = digitalRead(hand_switch);
+    // hand_switch_state = check_switch(hand_switch_value,
+    //                                 hand_switch_array,
+    //                                 sizeof(hand_switch_array)/sizeof(hand_switch_array[0])
+    //                                 );
+
     //------[initialize local variables
     static BikeMeasurements sbw_bike{};
     float error, derror_dt;
@@ -445,6 +467,8 @@ void loop(){
     #endif
   }
 }
+
+
 
 /*==============================================================================*\
  |                               Helper Functions                               |
