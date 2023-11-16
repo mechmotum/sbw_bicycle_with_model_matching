@@ -812,8 +812,8 @@ void bt_setup(){
   }
 
   //print header for log file.
-  Serial1.print("imu_acc_x, ");
-  Serial1.print("imu_acc_y, ");
+  Serial1.print("imu_acc_x,");
+  Serial1.print("imu_acc_y,");
   Serial1.print("imu_acc_z");
   Serial1.print('\n');
   // Serial1.print("hand_angle, ");
