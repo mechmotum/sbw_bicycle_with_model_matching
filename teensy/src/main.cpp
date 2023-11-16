@@ -570,8 +570,7 @@ void BikeMeasurements::calc_lean_angle_meas(float omega_x, float omega_y, float 
   phi_w = sgn(omega_z)*std::asin(omega_y/std::sqrt(omega_y*omega_y + omega_z*omega_z)); // [rad]
   
   // Use the best method based on lean angle size
-  tmp = (m_lean_angle/PHI_METHOD_WEIGHT);
-  W = std::exp(-tmp*tmp); // weight
+  W = std::exp(-m_lean_angle*m_lean_angle/PHI_METHOD_WEIGHT); // weight
 
   m_lean_angle_meas = W*phi_d + (1-W)*phi_w; // [rad]
 }
