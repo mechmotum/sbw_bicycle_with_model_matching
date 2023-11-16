@@ -1,6 +1,7 @@
 // Note: include the "eigen.h" library first, otherewise there will be compile errors.
 #include "eigen.h" //https://github.com/bolderflight/eigen
 #include "simpleKalman.h"
+#include "teensy_sim_serial.h"
 #include <Arduino.h>
 #include <SPI.h>
 #include <Encoder.h>
@@ -97,6 +98,42 @@ class BikeMeasurements{
     #if USE_PEDAL_CADANCE
     void calculate_pedal_cadance();
     #endif
+};
+
+class SimulationMeasurements{
+  public:
+    //--[Methods
+    //Constructor
+    SimulationMeasurements(){
+      speed_ticks = 0;
+      torque_h = 0;
+      omega_x = 0;
+      omega_y = 0;
+      omega_z = 0;
+      encoder_h = 0;
+      encoder_f = 0;
+    }
+
+    //sim interface
+    void get_sim_meas();
+
+    //Getters
+    int32_t get_sim_speed_ticks(){return speed_ticks;}
+    int8_t get_sim_torque_h(){return torque_h;}
+    float get_sim_omega_x(){return omega_x;}
+    float get_sim_omega_y(){return omega_y;}
+    float get_sim_omega_z(){return omega_z;}
+    uint16_t get_sim_encoder_h(){return encoder_h;}
+    uint16_t get_sim_encoder_f(){return encoder_f;}
+
+  private:
+    int32_t speed_ticks;
+    int8_t torque_h;
+    float omega_x;
+    float omega_y;
+    float omega_z;
+    uint16_t encoder_h;
+    uint16_t encoder_f;
 };
 
 //=========================== Function declarations ===========================//
@@ -651,6 +688,21 @@ void BikeMeasurements::calculate_pedal_cadance(){
   return;
 }
 #endif //USE_PEDAL_CADANCE
+
+
+//=================== [Get the measurements from simulation] ===================//
+void SimulationMeasurements::get_sim_meas(){
+  // TODO: see how the casting effects the values
+  speed_ticks = (int32_t)byte_rx_float32();
+  torque_h = (int8_t)byte_rx_float32();
+  omega_x = byte_rx_float32();
+  omega_y = byte_rx_float32();
+  omega_z = byte_rx_float32();
+  encoder_h = (uint16_t)byte_rx_float32();
+  encoder_f = (uint16_t)byte_rx_float32();
+}
+
+
 
 #if USE_IMU
 void imu_setup(){
