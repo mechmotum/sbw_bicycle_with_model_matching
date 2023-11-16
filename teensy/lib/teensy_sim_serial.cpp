@@ -25,3 +25,8 @@ void byte_tx_float32(float* output){
       Serial.write(bytes_out[i]);
     }
 }
+
+/* SITES
+https://forum.arduino.cc/t/how-to-covert-4-bytes-to-float/612320
+https://www.tutorialspoint.com/c_standard_library/c_function_memcpy.htm
+*/
