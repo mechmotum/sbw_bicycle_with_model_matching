@@ -328,8 +328,8 @@ elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
 Eigen::Matrix<float,2,2> F {{1,0},{0,1}};; 
 Eigen::Matrix<float,2,1> B {{0},{0}}; 
 Eigen::Matrix<float,1,2> H {{1,0}};
-Eigen::Matrix<float,2,2> Q {{0,0},{0,0}};
-Eigen::Matrix<float,1,1> R {0};
+Eigen::Matrix<float,2,2> Q {{5e-7,0},{0,1e-8}};
+Eigen::Matrix<float,1,1> R {0.1};
 Eigen::Matrix<float,2,2> P_post {{0,0},{0,0}};
 
 SimpleKalman gyro_kalman(F, B, H, Q, R, P_post);
