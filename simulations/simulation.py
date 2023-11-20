@@ -4,14 +4,23 @@ import dill
 import inspect
 import scipy.signal as sign
 import math
+import teensy_sim_serial as tss
 
 ##----Define constants
 # Physical constants
 GRAVITY = 9.81 #[m/s^2]
 
+# Hardware in the loop constants
+BAUDRATE = 9600
+DATA_TYPE = np.float32
+SPEED_ARRAY_LENGTH = 500
+TICKS_PER_REV = 192
+# RAD2ECN_TICKS = 
+
 # parameter taken from bicycle model #TODO: this should be automated. aka, I should not have to look this up in anouther file
 WHEELBASE_PLANT = 1.064 #[m]
 WHEELBASE_REF = 1.064 #[m]
+# WHEEL_RADIUS = 0.33#[m] TODO: make sure this is the actual correct one, both in main and here
 
 # Steer into lean conroller
 SIL_AVG_SPEED = 6
@@ -331,6 +340,13 @@ def IMU_artifacts(par,u_vec):
     # noise: np.random.normal(0,1,100)
     return u_vec
 
+def calc_omega(par, bike_states):
+    d_psi = par["speed"]*math.tan(bike_states["delta"])/par["wheelbase"]
+    omega_x = bike_states["d_phi"]
+    omega_y = math.sin(bike_states["phi"])*d_psi
+    omega_z = math.cos(bike_states["phi"])*d_psi
+    return (omega_x, omega_y, omega_z)
+
 def encoder_artifacts(u):
     return u
 
@@ -454,6 +470,160 @@ def simulate(par,system,ctrlrs,u_ref,phi_kalman):
 
     #end of loop
     
+    return (T_vec, y_vec, x_vec, y0_vec)
+
+def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
+    #--[Get all parameters
+    par = sim_setup(par,system,ctrlrs)
+
+    #--[Connect to hardware device
+    hw_com = tss.TeensySimSerial(BAUDRATE,DATA_TYPE)
+    hw_com.reconnect()
+
+    #--[Set initial values for 'sensor' readings
+    speed_ticks = 0
+    torque_h = 0
+    omega_x = 0
+    omega_y = 0
+    omega_z = 0
+    encoder_h = 0
+    encoder_f = 0
+
+    #--[...
+    speed_itterations = 0
+
+    #--[Assign for shorter notation
+    vel = par["vel"]
+    dt = par["dt"]
+    time = par["time"]
+    sim_steps = par["sim_steps"]
+    step_num = par["step_num"]
+    
+    ss_model = par["ss_model"]
+    n = par["n"]
+    m = par["m"]
+    m_ext = par["m_ext"]
+    p = par["p"]
+
+    F = par["F"]
+    G = par["G"]
+
+    #--[Prealocate return values for speed
+    T_vec = np.empty((step_num*sim_steps,))
+    y_vec = np.empty((step_num*sim_steps, p))
+    x_vec = np.empty((step_num*sim_steps, n))
+    y0_vec = np.empty((step_num*sim_steps, n))
+    
+    #--[Initialize lsim input
+    # Time and state (in two forms)
+    time_vec = np.linspace(0, dt, sim_steps)
+    x0 = par["x0"]
+    bike_states = dict
+    for i, key in enumerate(["phi","delta","d_phi","d_delta"]):
+        bike_states[key] = x0[i]
+    # # Initial 'measurements'
+    # phi = phi_kalman.x_post[0,0]
+    # past_delta = x0[1]
+    # d_phi = x0[2]
+    # d_delta = par["d_delta0"]
+
+    # y0 = np.array([phi,past_delta,d_phi,d_delta]) #TODO: How does the modular artifacts, x0/y0, and Kalman interact???
+    
+    # Calculate initial control
+    T_f = 0
+    u = np.array([0,T_f]) + u_ref
+    u = control_artifacts(u) # Implement control artifacts
+    
+    # go from discreet input to 'continuous' simulation input
+    u_vec = u * np.ones((time_vec.shape[0], m)) 
+    u_vec = np.hstack((u_vec, np.zeros((time_vec.shape[0], m_ext-m))))
+
+    # u_vec = measurement_artifacts(par,u_vec) # Implement 'continuous' measurement artifacts
+    u_vec = process_artifacts(par,u_vec) # Implement 'continuous' process artifacts
+
+    # Run simulation
+    for k in range(step_num):
+        #--[Simulate ODE
+        T,y,x = sign.lsim(ss_model,u_vec,time_vec,x0,interp=True)
+        
+        #--[Store values
+        T_vec[k*sim_steps:(k+1)*sim_steps] = T + time
+        y_vec[k*sim_steps:(k+1)*sim_steps, :] = y.reshape((time_vec.shape[0],p))
+        x_vec[k*sim_steps:(k+1)*sim_steps, :] = x
+
+        #--[Update current state, and time
+        x0 = x[-1,:]
+        time = time + dt
+        y_meas = y.reshape((time_vec.shape[0],p))[-1,:]
+
+        #--[Calculate sensor values
+        
+        speed_ticks = speed_ticks + (math.floor((dt*vel)/(2*math.pi*WHEEL_RADIUS)) * TICKS_PER_REV)
+        torque_h = u_ref[1]
+        omega_x, omega_y, omega_z = calc_omega(par,bike_states)
+        encoder_h = y_meas[0] * RAD2ECN_TICKS
+        encoder_f = y_meas[0] * RAD2ECN_TICKS
+
+        #TODO: actually send the reset from the teensy instead of kinda following waht the teensy does.
+        speed_itterations = speed_itterations + 1
+        if (speed_itterations >= SPEED_ARRAY_LENGTH):
+            speed_ticks = 0
+            speed_itterations = 0
+        
+        #--[Send message to controller
+        msg2hw = np.array([speed_ticks, torque_h, omega_x, omega_y, omega_z, encoder_h, encoder_f], dtype=DATA_TYPE)
+        hw_com.sim_tx(msg2hw)
+
+        # # --[Calculate states from sensor readings
+        # # Measurements will also be taken in descreete steps
+
+        #     #Measure steer angle
+        # delta = y_meas[0]
+        
+        #     #Calculate steer rate
+        # d_delta = (delta - past_delta)/dt #backwards euler
+        # past_delta = delta
+
+        #     #Calculate roll angle
+        # phi, bias = phi_kalman.next_step(par,x0)
+
+        #     #Measure roll rate
+        # d_phi = y_meas[1] - bias
+
+        #     #Make measured state vector
+        # y0 = np.array([phi,delta,d_phi,d_delta])
+        # y0_vec[k*sim_steps:(k+1)*sim_steps, :] = y0 * np.ones_like(x)
+
+        #--[Calculate input
+        '''
+        As lsim only takes a single B matrix,
+        the system has been turned into an extended system 
+        to include disturbances.
+        B = [B, B_dist, zero] = [B, eye, zero]
+        D = [D, zero, D_dist] = [B, zero, eye]
+        u = [u    //input (m x 1)
+             v    //process disturbance (n x 1)
+             w]   //measurement disturbance (n x 1)
+        '''
+        # Discreet time input 'u'
+            # Controller input
+        u = F@y0 + G@u_ref
+        
+            # Controller artifacts
+        u = control_artifacts(u)
+        
+        # Continuous time input 'u_vec'
+        u_vec[:,:m] = u * np.ones((time_vec.shape[0], m))
+
+            # Sensor artifacts
+        # u_vec = measurement_artifacts(par,u_vec) #TODO: is this logical for my application? I measure delta and omega stuff.... 
+        #                                          #NOTE: While the motors are continuously on, the measurements are only taken at dt time intervals....
+
+            # Actuator artifacts
+        u_vec = process_artifacts(par,u_vec)
+
+    #end of loop
+
     return (T_vec, y_vec, x_vec, y0_vec)
 
 ###---------------------------------[START]---------------------------------###
