@@ -308,6 +308,10 @@ elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
 #if USE_IMU
   bfs::Mpu9250 IMU; // MPU9250 object
 #endif
+// Calibration matrix. Translate coordinates expressed IMU frame to the Body fixed frame
+Eigen::Matrix<float,3,3> B_ROT_IMU {{1,0,0},
+                                    {0,1,0},
+                                    {0,0,1}};
 
 //--------------------------- SD Card Logging --------------------------------//
 #if USE_SD
@@ -530,10 +534,14 @@ void BikeMeasurements::calculate_roll_states(){
   // TODO: include the IMU class into the BikeMeasurement class
 
   //Get gyro measurements
+  Eigen::Matrix<float,3,1> omega_vec;
+  
   get_IMU_data(m_dt_IMU_meas);
-  float omega_x = IMU.gyro_x_radps();
-  float omega_y = IMU.gyro_y_radps();
-  float omega_z = IMU.gyro_z_radps();
+  omega_vec(0,0) = IMU.gyro_x_radps();
+  omega_vec(1,0) = IMU.gyro_y_radps();
+  omega_vec(2,0) = IMU.gyro_z_radps();
+
+  omega_vec = B_ROT_IMU*omega_vec;
 
   //having dt, change the propegation model and input model according to Sanjurjo
   F << 1, -m_dt_IMU_meas*MICRO_TO_UNIT,
@@ -542,7 +550,7 @@ void BikeMeasurements::calculate_roll_states(){
        0;
 
   // calculate the lean angle measurement according to Sanjuro
-  calc_lean_angle_meas(omega_x, omega_y, omega_z);
+  calc_lean_angle_meas(omega_vec(0,0), omega_vec(1,0), omega_vec(2,0));
   
   // perform the kalman step
   Eigen::Matrix<float,1,1> u{m_omega_x_old};
@@ -550,18 +558,18 @@ void BikeMeasurements::calculate_roll_states(){
   gyro_kalman.next_step(u, z, (double)m_dt_IMU_meas);
 
   //update lean states
-  m_lean_rate = omega_x - gyro_kalman.bias(); // [rad/s]
+  m_lean_rate = omega_vec(0,0) - gyro_kalman.bias(); // [rad/s]
   m_lean_angle = gyro_kalman.phi(); // [rad]
 
   // store current roll rate for next itteration
-  m_omega_x_old = omega_x; // [rad/s] You need u_k-1 to calculate x_k. There is one step difference
+  m_omega_x_old = omega_vec(0,0); // [rad/s] You need u_k-1 to calculate x_k. There is one step difference
 }
 
 void BikeMeasurements::calc_lean_angle_meas(float omega_x, float omega_y, float omega_z){
   /*See Sanjurjo e.a. 2019 "Roll angle estimator based on angular 
     rate measurements for bicycles" for explanation on why these 
     formulas are used.*/
-  float phi_d, phi_w, tmp, W;
+  float phi_d, phi_w, W;
 
   // Lean angle estimate based on constant cornering (good for small lean angles)
   phi_d = std::atan((omega_z*m_bike_speed)/GRAVITY); // [rad]
