@@ -15,12 +15,12 @@ BAUDRATE = 9600
 DATA_TYPE = np.float32
 SPEED_ARRAY_LENGTH = 500
 TICKS_PER_REV = 192
-# RAD2ECN_TICKS = 
+RAD2ECN_TICKS = (math.exp2(13)-1)/(2*math.pi)
 
 # parameter taken from bicycle model #TODO: this should be automated. aka, I should not have to look this up in anouther file
 WHEELBASE_PLANT = 1.064 #[m]
 WHEELBASE_REF = 1.064 #[m]
-# WHEEL_RADIUS = 0.33#[m] TODO: make sure this is the actual correct one, both in main and here
+WHEEL_RADIUS = 0.33#[m] TODO: make sure this is the actual correct one, both in main and here
 
 # Steer into lean conroller
 SIL_AVG_SPEED = 6
@@ -557,12 +557,11 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         y_meas = y.reshape((time_vec.shape[0],p))[-1,:]
 
         #--[Calculate sensor values
-        
         speed_ticks = speed_ticks + (math.floor((dt*vel)/(2*math.pi*WHEEL_RADIUS)) * TICKS_PER_REV)
         torque_h = u_ref[1]
         omega_x, omega_y, omega_z = calc_omega(par,bike_states)
         encoder_h = y_meas[0] * RAD2ECN_TICKS
-        encoder_f = y_meas[0] * RAD2ECN_TICKS
+        encoder_f = y_meas[0] * -RAD2ECN_TICKS
 
         #TODO: actually send the reset from the teensy instead of kinda following waht the teensy does.
         speed_itterations = speed_itterations + 1
@@ -607,8 +606,8 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         '''
         # Discreet time input 'u'
             # Controller input
-        u = F@y0 + G@u_ref
-        
+        u = hw_com.sim_rx()
+        print(u)
             # Controller artifacts
         u = control_artifacts(u)
         

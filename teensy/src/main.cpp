@@ -548,11 +548,11 @@ void BikeMeasurements::measure_steer_angles(){
   the encoders must give an output int the 0-180 degrees range. 
   */
   // Handlebar
-  m_hand_angle = ((float)enc_counts_hand / HAND_ENC_MAX_VAL) * 2*PI - HAND_ENC_BIAS;
+  m_hand_angle = ((float)enc_counts_hand / HAND_ENC_MAX_VAL) * 2*PI;// - HAND_ENC_BIAS;
   if (m_hand_angle > PI) 
     m_hand_angle = m_hand_angle - 2*PI; // CCW handlebar rotation gives 360 deg-> 310 deg. Subtract 2 pi to get 0-180 deg CCW
   // Fork
-  m_fork_angle = -(((float)enc_counts_fork / FORK_ENC_MAX_VAL) * 2*PI + FORK_ENC_BIAS); //Minus sign to get minus values from fork encoder.
+  m_fork_angle = -(((float)enc_counts_fork / FORK_ENC_MAX_VAL) * 2*PI);// + FORK_ENC_BIAS); //Minus sign to get minus values from fork encoder.
   if (m_fork_angle < -PI) 
     m_fork_angle = m_fork_angle + 2*PI; // CW fork rotation gives -360 deg-> -310 deg. Add 2 pi to get 0-180 deg CCW
 
