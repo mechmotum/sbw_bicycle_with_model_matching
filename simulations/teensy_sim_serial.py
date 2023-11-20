@@ -53,8 +53,7 @@ class TeensySimSerial:
         Convert to bytes and send.
         '''
         meas = np.array(meas, dtype=self.data_type)
-        self.com.write(meas.tobytes())
-        return
+        return self.com.write(meas.tobytes())
 
     def sim_rx(self):
         '''

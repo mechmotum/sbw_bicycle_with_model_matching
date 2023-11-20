@@ -341,7 +341,7 @@ def IMU_artifacts(par,u_vec):
     return u_vec
 
 def calc_omega(par, bike_states):
-    d_psi = par["speed"]*math.tan(bike_states["delta"])/par["wheelbase"]
+    d_psi = par["vel"]*math.tan(bike_states["delta"])/par["wheelbase"]
     omega_x = bike_states["d_phi"]
     omega_y = math.sin(bike_states["phi"])*d_psi
     omega_z = math.cos(bike_states["phi"])*d_psi
@@ -518,7 +518,7 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
     # Time and state (in two forms)
     time_vec = np.linspace(0, dt, sim_steps)
     x0 = par["x0"]
-    bike_states = dict
+    bike_states = dict()
     for i, key in enumerate(["phi","delta","d_phi","d_delta"]):
         bike_states[key] = x0[i]
     # # Initial 'measurements'
@@ -606,6 +606,8 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         '''
         # Discreet time input 'u'
             # Controller input
+        while(hw_com.in_waiting()<6):
+            pass
         u = hw_com.sim_rx()
         print(u)
             # Controller artifacts
@@ -697,14 +699,16 @@ phi_kalman = KalmanSanjurjo(
     SIM_PAR_PLANT["dt"])
 
 #Simulate
-time, output, states, calc_states = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ref,phi_kalman)
-time_ref, output_ref, states_ref, calc_states_ref = simulate(SIM_PAR_REF,bike_plant,controller_ref,u_ref,phi_kalman)
+time, output, states, calc_states = hw_in_the_loop_sim(SIM_PAR_PLANT,bike_plant,controller,u_ref)
+# time, output, states, calc_states = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ref,phi_kalman)
+# time_ref, output_ref, states_ref, calc_states_ref = simulate(SIM_PAR_REF,bike_plant,controller_ref,u_ref,phi_kalman)
 
 #Test plot
 fig = plt.figure()    
 plt.title("simulation")
-plt.plot(time, states, time_ref, states_ref)
+plt.plot(time, states)#, time_ref, states_ref)
 plt.xlabel("Time [s]")
 plt.ylabel("states")
 plt.legend(("phi", "theta","d_phi","d_theta"))
+plt.axis((0,10,-5,5))
 plt.show()

@@ -378,12 +378,12 @@ SimulationMeasurements sim_meas{};
 //============================== [Main Setup] ==================================//
 void setup(){
   //------[Initialize communications
-  SPI.begin(); // IMU, fork and steer encoders
+  // SPI.begin(); // IMU, fork and steer encoders
   #if USE_BT
   bt_setup(); //initialize bluetooth connection and write log header
   #endif
   
-  Serial.begin(115200); // Communication with PC through micro-USB
+  Serial.begin(9600); // Communication with PC through micro-USB
   while(!Serial){} //Wait with startup untill serial communication has started
   
   //------[Setup INPUT pins
@@ -419,9 +419,9 @@ void setup(){
 
 
   //------[Setup IMU
-  #if USE_IMU
-    imu_setup();
-  #endif
+  // #if USE_IMU
+  //   imu_setup();
+  // #endif
 
   //------[Setup SD card
   #if USE_SD
@@ -513,15 +513,15 @@ void loop(){
 
       // no_com_cntr = 0; //reset counter as you have communication again.
     }
-    else{
-      // no_com_cntr++;
-      // if(no_com_cntr > 1000){ // 1000 is one second
-        float error = -99.0;
-        byte_tx_float32(&error);
-        byte_tx_float32(&error);
-        Serial.println();
-      // }
-    }
+    // else{
+    //   // no_com_cntr++;
+    //   // if(no_com_cntr > 1000){ // 1000 is one second
+    //     float error = -99.0;
+    //     byte_tx_float32(&error);
+    //     byte_tx_float32(&error);
+    //     Serial.println();
+    //   // }
+    // }
   }
 }
 
@@ -865,11 +865,11 @@ void actuate_steer_motors(double command_fork, double command_hand){
 void get_IMU_data(uint32_t& dt_IMU_meas){
   // TODO: Error handling in the case the die temperature becomes to high (in general: error handling)
   //------[Read out data via I2C
-  if(!IMU.Read()){
-    #if SERIAL_DEBUG
-    Serial.println("IMU read out error");
-    #endif
-  }
+  // if(!IMU.Read()){
+  //   #if SERIAL_DEBUG
+  //   Serial.println("IMU read out error");
+  //   #endif
+  // }
 
   //------[Time since last measurement
   update_dtime(dt_IMU_meas, since_last_IMU_meas); // time between to calls to the IMU
