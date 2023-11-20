@@ -27,7 +27,8 @@ for key, filename in bla.items():
             points_nbr = points_nbr + 1
         rot[key] = np.array([[x_axis/points_nbr], [y_axis/points_nbr], [z_axis/points_nbr]])
 
-B_rot_I = np.hstack((-rot["-x"]/np.linalg.norm(rot["-x"]),
-                    rot["y"]/np.linalg.norm(rot["y"]),
-                    rot["z"]/np.linalg.norm(rot["z"])))
-print(B_rot_I)
+IMU_rot_B = np.hstack((-rot["-x"]/np.linalg.norm(rot["-x"]),
+                       rot["y"]/np.linalg.norm(rot["y"]),
+                       rot["z"]/np.linalg.norm(rot["z"])))
+
+B_rot_IMU = IMU_rot_B.transpose()
