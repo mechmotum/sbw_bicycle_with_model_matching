@@ -61,7 +61,8 @@ KALMAN_PAR = {
     "P0" : np.array([[0,0],[0,0]]),
     "Q" : np.array([[5e-7,0],[0,1e-8]]),
     "R" : np.array([0.1]),
-    "phi_weight": 0.05
+    "phi_weight": 0.05,
+    "sensor_noise_variance": 0.000
 }
 
 ##----Define classes
@@ -128,6 +129,7 @@ class KalmanSanjurjo:
     def __init__(self,par,speed,dt):
         self.speed = speed
         self.PHI_WEIGHT = par["phi_weight"]
+        self.SENS_NOISE_VAR = par["sensor_noise_variance"]
         self.Q = par["Q"]
         self.R = par["R"]
         self.F = np.array([[1,-dt],[0,1]])
@@ -163,7 +165,16 @@ class KalmanSanjurjo:
         W = math.exp(-(self.x_post[0][0])**2/self.PHI_WEIGHT) #By using x.post, make sure this function is called before __update() to get the previous state estimate
         phi_measured = (W*phi_d + (1-W)*phi_omega)
         return phi_measured
-
+    
+    def __add_sensor_noise(self):
+        '''
+        Add zero mean gaussian noise to the omega sensor reading
+        ''' 
+        self.omega_x = self.omega_x + np.random.normal(0.0,self.SENS_NOISE_VAR)
+        self.omega_y = self.omega_y + np.random.normal(0.0,self.SENS_NOISE_VAR)
+        self.omega_z = self.omega_z + np.random.normal(0.0,self.SENS_NOISE_VAR)
+        return
+        
     def __predict(self,u): #NOTE uses omega(k-1)
         self.x_prio = self.F@self.x_post + self.B@u #TODO: Make sure to use omega(k-1)
         self.P_prio = self.F@self.P_post@(self.F.T) + self.Q
@@ -181,6 +192,7 @@ class KalmanSanjurjo:
         self.__predict(u)
 
         self.__calc_omega(par,bike_state) #update omega (k-1 -> k)
+        self.__add_sensor_noise() #TODO: this is not something that should be inside the Kalman Class... find an appropriate structure.
 
         z = self.__calc_measurement()
         self.__update(z)
@@ -516,10 +528,10 @@ controller = {
 }
 
 controller_ref = {
-    "mm": mm_ctrl
+    # "mm": mm_ctrl
     # "sil" : sil_ctrl
     # "mm+sil" : mm_sil_ctrl
-    # "zero" : zero_ctrl
+    "zero" : zero_ctrl
 }
 
 phi_kalman = KalmanSanjurjo(
@@ -529,12 +541,12 @@ phi_kalman = KalmanSanjurjo(
 
 #Simulate
 time, output, states, calc_states = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ref,phi_kalman)
-time_ref, output_ref, states_ref, calc_states_ref = simulate(SIM_PAR_REF,bike_plant,controller_ref,u_ref,phi_kalman)
+time_ref, output_ref, states_ref, calc_states_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ref,phi_kalman)
 
 #Test plot
 fig = plt.figure()    
 plt.title("simulation")
-plt.plot(time, states, time_ref, states_ref)
+plt.plot(time, states[:,0], time_ref, states_ref[:,0])
 plt.xlabel("Time [s]")
 plt.ylabel("states")
 plt.legend(("phi", "theta","d_phi","d_theta"))
