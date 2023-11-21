@@ -12,6 +12,7 @@ GRAVITY = 9.81 #[m/s^2]
 # parameter taken from bicycle model #TODO: this should be automated. aka, I should not have to look this up in anouther file
 WHEELBASE_PLANT = 1.064 #[m]
 WHEELBASE_REF = 1.064 #[m]
+STEER_T_POS = 1 #position in the input vector that corresponds to the steer torque 
 
 # Steer into lean conroller
 SIL_AVG_SPEED = 6
@@ -41,7 +42,8 @@ SIM_PAR_PLANT = {
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
     "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
-    "step_num" : 1000*2 # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
+    "step_num" : 1000*2, # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
+    "torque_noise_gain": 0.1 # size of the torque * gain = noise on the torque (larger torque = higher noise)
 }
 
 SIM_PAR_REF = {
@@ -52,7 +54,8 @@ SIM_PAR_REF = {
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta)
     "d_delta0" : 0, #Initial guess of steer rate for the y0 vector
-    "step_num" : 1000*2 # number of times the continious plant is simulatied for dt time. total sim time = dt*step_num)
+    "step_num" : 1000*2, # number of times the continious plant is simulatied for dt time. total sim time = dt*step_num)
+    "torque_noise_gain": 0.00 # size of the torque * gain = noise on the torque (larger torque = higher noise)
 }
 
 SIM_PAR_PLANT["sim_steps"] = math.ceil(SIM_PAR_PLANT["dt"]/SIM_PAR_PLANT["h"]) # number of steps in the simulation during a timestep 'dt'
@@ -71,7 +74,7 @@ KALMAN_PAR = {
     "Q" : np.array([[5e-7,0],[0,1e-8]]),
     "R" : np.array([0.1]),
     "phi_weight": 0.05,
-    "sensor_noise_variance": 0.000
+    "imu_noise_variance": 0.000
 }
 
 ##----Define classes
@@ -138,7 +141,7 @@ class KalmanSanjurjo:
     def __init__(self,par,speed,dt):
         self.speed = speed
         self.PHI_WEIGHT = par["phi_weight"]
-        self.SENS_NOISE_VAR = par["sensor_noise_variance"]
+        self.IMU_NOISE_VAR = par["imu_noise_variance"]
         self.Q = par["Q"]
         self.R = par["R"]
         self.F = np.array([[1,-dt],[0,1]])
@@ -179,9 +182,9 @@ class KalmanSanjurjo:
         '''
         Add zero mean gaussian noise to the omega sensor reading
         ''' 
-        self.omega_x = self.omega_x + np.random.normal(0.0,self.SENS_NOISE_VAR)
-        self.omega_y = self.omega_y + np.random.normal(0.0,self.SENS_NOISE_VAR)
-        self.omega_z = self.omega_z + np.random.normal(0.0,self.SENS_NOISE_VAR)
+        self.omega_x = self.omega_x + np.random.normal(0.0,self.IMU_NOISE_VAR)
+        self.omega_y = self.omega_y + np.random.normal(0.0,self.IMU_NOISE_VAR)
+        self.omega_z = self.omega_z + np.random.normal(0.0,self.IMU_NOISE_VAR)
         return
         
     def __predict(self,u): #NOTE uses omega(k-1)
@@ -352,6 +355,11 @@ def IMU_artifacts(par,u_vec):
     # noise: np.random.normal(0,1,100)
     return u_vec
 
+def torque_sens_artifact(par,torque):
+    for i, val in enumerate(torque):
+        torque[i] = val + (val*par["torque_noise_gain"])*np.random.uniform()
+    return torque
+
 def encoder_artifacts(u):
     return u
 
@@ -388,7 +396,7 @@ def create_external_input(par):
         offset = offset + par["dt"]
     
     # Create external input vector
-    u_ext[:,1] = 0.1*np.sin(time)
+    u_ext[:,STEER_T_POS] = 0.1*np.sin(time)
     return u_ext
 
 def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
@@ -426,7 +434,8 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
     u_vec = np.zeros((sim_steps, m_ext))
      
         # Calculate external input
-    u_ext = external_input_fun(par) * 0
+    u_ext = external_input_fun(par)
+    u_ext[:,STEER_T_POS] = torque_sens_artifact(par,u_ext[:,STEER_T_POS])
 
     #--[Initial 'measurements'
     phi = phi_kalman.x_post[0,0]
@@ -501,7 +510,7 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
         y0 = np.array([phi,delta,d_phi,d_delta])
     #end of loop
     
-    return (T_vec, y_vec, x_vec, y0_vec)
+    return (T_vec, y_vec, x_vec, y0_vec, u_ext)
 
 ###---------------------------------[START]---------------------------------###
 ###--------[INITIALIZATION
@@ -575,24 +584,33 @@ phi_kalman = KalmanSanjurjo(
     SIM_PAR_PLANT["dt"])
 
 #Simulate
-time, output, states, calc_states = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
-time_ref, output_ref, states_ref, calc_states_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman)
+time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
+time_ref, output_ref, states_ref, calc_states_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman)
 
-# time, output, states, calc_states = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
-# time_ref, output_ref, states_ref, calc_states_ref = simulate(SIM_PAR_REF,bike_plant,controller,u_ext_fun,phi_kalman)
+# time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
+time1, output1, states1, calc_states1, ext_input1 = simulate(SIM_PAR_REF,bike_plant,controller,u_ext_fun,phi_kalman)
 
 
 #Test plot
 fig = plt.figure()    
 plt.title("simulation")
-plt.plot(time, states[:,0], time_ref, states_ref[:,0])
+plt.plot(time, states[:,0], time1,states1[:,0] ,time_ref, states_ref[:,0])
 # plt.plot(time, states, time_ref, states_ref)
-# plt.plot(time_ref, states_ref)
+# plt.plot(time, states)
 plt.xlabel("Time [s]")
 plt.ylabel("states")
-plt.legend(("phi", "phi_ref"))
-# plt.legend(("phi", "delta", "d_phi", "d_delta","phi_ref", "delta_ref", "d_phi_ref", "d_delta_ref"))
+plt.legend(("phi", "phi_noiseless","phi_ref"))
+# plt.legend(("phi", "delta", "d_phi", "d_delta"))#,"phi_ref", "delta_ref", "d_phi_ref", "d_delta_ref"))
+# plt.show()
+
+fig = plt.figure()    
+plt.title("simulation")
+plt.plot(time, ext_input[:,1])# ,time_ref, ext_input1[:,1])
+plt.xlabel("Time [s]")
+plt.ylabel("states")
+plt.legend(("phi", "delta", "d_phi", "d_delta"))
 plt.show()
+
 
 # for i in range(4):
 #     fig = plt.figure()       
