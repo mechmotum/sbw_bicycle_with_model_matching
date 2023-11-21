@@ -3,7 +3,7 @@ import csv
 import numpy as np
 PATH = "..\\teensy\\logs\\"
 FILENAME_X = "against_the_wall_gravity-X.log"
-FILENAME_Y = "against_the_wall_gravity-X.log"
+FILENAME_Y = "hanging_parallel_groundY.log"
 FILENAME_Z = "Flat_on_ground_gravityZ.log"
 
 bla = {
@@ -31,4 +31,6 @@ IMU_rot_B = np.hstack((-rot["-x"]/np.linalg.norm(rot["-x"]),
                        rot["y"]/np.linalg.norm(rot["y"]),
                        rot["z"]/np.linalg.norm(rot["z"])))
 
-B_rot_IMU = IMU_rot_B.transpose()
+B_rot_IMU = np.linalg.pinv(IMU_rot_B)
+# print(B_rot_IMU - IMU_rot_B.T)
+print(B_rot_IMU)
