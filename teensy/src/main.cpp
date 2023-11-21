@@ -522,7 +522,10 @@ void BikeMeasurements::measure_hand_torque(){
 
 //======================= [calculate steer derivatives] ============================//
 void BikeMeasurements::calculate_fork_rate(){
-  m_fork_angle = steer_moving_avg(m_fork_angle);
+  /*
+  No moving average needed. Steer encoder sensor data is very clean (noiseless) so
+  so direct numerical derivation gives good results.
+  */
   m_fork_rate = calc_bckwrd_derivative(m_fork_angle, m_fork_angle_prev, m_dt_steer_meas);
   return;
 }
