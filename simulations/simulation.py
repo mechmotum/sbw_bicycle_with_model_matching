@@ -347,6 +347,16 @@ def calc_omega(par, bike_states):
     omega_z = math.cos(bike_states["phi"])*d_psi
     return (omega_x, omega_y, omega_z)
 
+def calc_enc_count(delta):
+    #NOTE: the assumptions is made that the steer will not loop around. So it is limited to [-pi,pi)
+    if(delta < 0): 
+        encoder_h = (delta + 2*np.pi) * RAD2ECN_TICKS
+        encoder_f = -delta * RAD2ECN_TICKS
+    else:
+        encoder_h = delta * RAD2ECN_TICKS
+        encoder_f = -(delta - 2*np.pi) * RAD2ECN_TICKS
+    return (encoder_h, encoder_f)
+
 def encoder_artifacts(u):
     return u
 
@@ -508,6 +518,8 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
     F = par["F"]
     G = par["G"]
 
+    ticks_travelled = (math.floor((dt*vel)/(2*math.pi*WHEEL_RADIUS)) * TICKS_PER_REV)
+
     #--[Prealocate return values for speed
     T_vec = np.empty((step_num*sim_steps,))
     y_vec = np.empty((step_num*sim_steps, p))
@@ -557,11 +569,10 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         y_meas = y.reshape((time_vec.shape[0],p))[-1,:]
 
         #--[Calculate sensor values
-        speed_ticks = speed_ticks + (math.floor((dt*vel)/(2*math.pi*WHEEL_RADIUS)) * TICKS_PER_REV)
+        speed_ticks = speed_ticks + ticks_travelled
         torque_h = u_ref[1]
         omega_x, omega_y, omega_z = calc_omega(par,bike_states)
-        encoder_h = y_meas[0] * RAD2ECN_TICKS
-        encoder_f = y_meas[0] * -RAD2ECN_TICKS
+        encoder_h, encoder_f = calc_enc_count(y_meas[0])
 
         #TODO: actually send the reset from the teensy instead of kinda following waht the teensy does.
         speed_itterations = speed_itterations + 1
