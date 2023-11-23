@@ -492,8 +492,8 @@ void loop(){
       // actuate_steer_motors(command_fork, command_hand); //Not necessary for simulation purpose
       float cmd_h = (float)command_hand;
       float cmd_f = (float)command_fork;
-      byte_tx_float32(&cmd_h);
-      byte_tx_float32(&cmd_f);
+      byte_tx<float>(&cmd_h);
+      byte_tx<float>(&cmd_f);
       Serial.println();
 
 
@@ -717,13 +717,13 @@ void SimulationMeasurements::get_sim_meas(){
   equal!
   */
   // TODO: see how the casting effects the values
-  speed_ticks = (int32_t)byte_rx_float32();
-  torque_h = (int8_t)byte_rx_float32();
-  omega_x = byte_rx_float32();
-  omega_y = byte_rx_float32();
-  omega_z = byte_rx_float32();
-  encoder_h = (uint16_t)byte_rx_float32();
-  encoder_f = (uint16_t)byte_rx_float32();
+  speed_ticks = byte_rx<int32_t>();
+  torque_h = byte_rx<int8_t>();
+  omega_x = byte_rx<float>();
+  omega_y = byte_rx<float>();
+  omega_z = byte_rx<float>();
+  encoder_h = byte_rx<uint16_t>();
+  encoder_f = byte_rx<uint16_t>();
 }
 
 
