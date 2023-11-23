@@ -12,10 +12,18 @@ GRAVITY = 9.81 #[m/s^2]
 
 # Hardware in the loop constants
 BAUDRATE = 9600
-DATA_TYPE = np.float32
 SPEED_ARRAY_LENGTH = 500
 TICKS_PER_REV = 192
 RAD2ECN_TICKS = (math.exp2(13)-1)/(2*math.pi)
+SPEED_TICKS_DTYPE = np.int32
+TORQUE_H_DTYPE = np.int8
+OMEGA_X_DTYPE = np.float32
+OMEGA_Y_DTYPE = np.float32
+OMEGA_Z_DTYPE = np.float32
+ENCODER_H_DTYPE = np.uint16
+ENCODER_F_DTYPE = np.uint16
+HAND_TRQ_DTYPE = np.float32
+FORK_TRQ_DTYPE = np.float32
 
 # parameter taken from bicycle model #TODO: this should be automated. aka, I should not have to look this up in anouther file
 WHEELBASE_PLANT = 1.064 #[m]
@@ -487,7 +495,7 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
     par = sim_setup(par,system,ctrlrs)
 
     #--[Connect to hardware device
-    hw_com = tss.TeensySimSerial(BAUDRATE,DATA_TYPE)
+    hw_com = tss.TeensySimSerial(BAUDRATE)
     hw_com.reconnect()
 
     #--[Set initial values for 'sensor' readings
@@ -581,8 +589,13 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
             speed_itterations = 0
         
         #--[Send message to controller
-        msg2hw = np.array([speed_ticks, torque_h, omega_x, omega_y, omega_z, encoder_h, encoder_f], dtype=DATA_TYPE)
-        hw_com.sim_tx(msg2hw)
+        hw_com.sim_tx(speed_ticks,SPEED_TICKS_DTYPE)
+        hw_com.sim_tx(torque_h,TORQUE_H_DTYPE)
+        hw_com.sim_tx(omega_x,OMEGA_X_DTYPE)
+        hw_com.sim_tx(omega_y,OMEGA_Y_DTYPE)
+        hw_com.sim_tx(omega_z,OMEGA_Z_DTYPE)
+        hw_com.sim_tx(encoder_h,ENCODER_H_DTYPE)
+        hw_com.sim_tx(encoder_f, ENCODER_F_DTYPE)
 
         # # --[Calculate states from sensor readings
         # # Measurements will also be taken in descreete steps
@@ -619,8 +632,11 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
             # Controller input
         while(hw_com.in_waiting()<6):
             pass
-        u = hw_com.sim_rx()
-        print(u)
+        hand_trq = hw_com.sim_rx(HAND_TRQ_DTYPE)
+        fork_trq = hw_com.sim_rx(FORK_TRQ_DTYPE)
+        u = np.array([0, fork_trq])
+        print(hand_trq-fork_trq)
+        
             # Controller artifacts
         u = control_artifacts(u)
         

@@ -2,11 +2,10 @@ import serial.tools.list_ports
 import numpy as np
 
 class TeensySimSerial:
-    def __init__(self, baud_rate, data_type):
+    def __init__(self, baud_rate):
         #------[Initialize variables
         teensy_port = self.select_port()
         self.baud_rate = baud_rate
-        self.data_type = data_type
        
         #------[Create communication object
         ''' 
@@ -44,26 +43,24 @@ class TeensySimSerial:
                 pass
         return teensy_port
 
-    def sim_tx(self,meas):
+    def sim_tx(self,meas,data_type):
         '''
         Send the measurement data calculated by the simulation 
         to the teensy.
-        Ensure the data sent is indeed a float32.
-        Make sure the data expected by the teensy is also a float.
-        Convert to bytes and send.
+        Make sure the data expected by the teensy is also 'dtype'.
         '''
-        meas = np.array(meas, dtype=self.data_type)
-        return self.com.write(meas.tobytes())
+        meas = np.array(meas, dtype=data_type) # Ensure the data is a 'data_type' array.
+        return self.com.write(meas.tobytes()) # Convert to bytes and send
 
-    def sim_rx(self):
+    def sim_rx(self, data_type):
         '''
         read the commands calculated by the controller.
         Check what kind of endline command the hardware sends.
         For teensy (and most likely arduino) it is b'\\r\\n'.
-        Make sure the data sent by the teensy is indeed a float32.
-        ''' #escapes are used for document program purposes. Should be b'\r\n'
+        Make sure the data sent by the teensy is indeed 'data_type'.
+        ''' #Should be b'\r\n' (escapes are used for vscode documentation features purposes.)
         input_b = self.com.read_until(b'\r\n').rstrip(b'\r\n')
-        input = np.frombuffer(input_b, dtype=self.data_type)
+        input = np.frombuffer(input_b, dtype=data_type)
         return input
 
     def reconnect(self):
