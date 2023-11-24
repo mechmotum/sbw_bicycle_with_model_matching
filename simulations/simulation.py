@@ -14,7 +14,7 @@ GRAVITY = 9.81 #[m/s^2]
 BAUDRATE = 9600
 SPEED_ARRAY_LENGTH = 500
 TICKS_PER_REV = 192
-RAD2ECN_TICKS = (math.exp2(13)-1)/(2*math.pi)
+RAD2ECN_TICKS = math.exp2(13)/(2*math.pi) # 0 = 0; 8192 = 0; 8192 steps from 0 to 8191, 8192 intervals from 0 to 8192
 SPEED_TICKS_DTYPE = np.int32
 TORQUE_H_DTYPE = np.int8
 OMEGA_X_DTYPE = np.float32
@@ -52,7 +52,7 @@ SIM_PAR_PLANT = {
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
     "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
-    "step_num" : 1000*2 # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
+    "step_num" : 2#1000*2 # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
 }
 
 SIM_PAR_REF = {
@@ -363,6 +363,8 @@ def calc_enc_count(delta):
     else:
         encoder_h = delta * RAD2ECN_TICKS
         encoder_f = -(delta - 2*np.pi) * RAD2ECN_TICKS
+    encoder_h = round(encoder_h) % 8192
+    encoder_f = round(encoder_f) % 8192
     return (encoder_h, encoder_f)
 
 def encoder_artifacts(u):
@@ -578,7 +580,7 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
 
         #--[Calculate sensor values
         speed_ticks = speed_ticks + ticks_travelled
-        torque_h = u_ref[1]
+        torque_h = 15#u_ref[1]
         omega_x, omega_y, omega_z = calc_omega(par,bike_states)
         encoder_h, encoder_f = calc_enc_count(y_meas[0])
 
@@ -588,6 +590,7 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
             speed_ticks = 0
             speed_itterations = 0
         
+        print("encoder_vals", encoder_h, encoder_f)
         #--[Send message to controller
         hw_com.sim_tx(speed_ticks,SPEED_TICKS_DTYPE)
         hw_com.sim_tx(torque_h,TORQUE_H_DTYPE)
@@ -630,12 +633,24 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         '''
         # Discreet time input 'u'
             # Controller input
-        while(hw_com.in_waiting()<6):
+        while(hw_com.in_waiting()<21):
             pass
+
+        #DEBUGGING
+        hand_T = hw_com.sim_rx(np.int8) 
+        print("hand_T: ",hand_T)
+        steer_counts = hw_com.sim_rx(np.uint16)
+        print("steer_counts: ",steer_counts)
+        steer_anlgs = hw_com.sim_rx(np.float32)
+        print("steer_anlgs: ",steer_anlgs)
+        #DEBUGGING END
+
+
         hand_trq = hw_com.sim_rx(HAND_TRQ_DTYPE)
         fork_trq = hw_com.sim_rx(FORK_TRQ_DTYPE)
-        u = np.array([0, fork_trq])
-        print(hand_trq-fork_trq)
+        u = np.array([0, fork_trq[0]])
+        print("hand_trq: ",hand_trq)
+        print("fork_trq: ",fork_trq)
         
             # Controller artifacts
         u = control_artifacts(u)

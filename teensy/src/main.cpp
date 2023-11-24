@@ -419,9 +419,7 @@ void setup(){
 
 
   //------[Setup IMU
-  // #if USE_IMU
-  //   imu_setup();
-  // #endif
+  // No physical IMU sensor to make connection with, so no setup
 
   //------[Setup SD card
   #if USE_SD
@@ -479,6 +477,13 @@ void loop(){
       sbw_bike.calculate_bike_speed();
       sbw_bike.calculate_roll_states();
       sbw_bike.measure_steer_angles();
+
+      float h_angle = sbw_bike.get_hand_angle();
+      float f_angle = sbw_bike.get_fork_angle();
+      byte_tx<float>(&h_angle);
+      byte_tx<float>(&f_angle);
+      Serial.println();
+
       sbw_bike.calculate_fork_rate(); //also calculates moving average of fork angle and sets it
       sbw_bike.measure_hand_torque();
 
@@ -490,9 +495,10 @@ void loop(){
       
       //------[Actuate motors
       // actuate_steer_motors(command_fork, command_hand); //Not necessary for simulation purpose
-      float cmd_h = (float)command_hand;
-      float cmd_f = (float)command_fork;
+      float cmd_h = 0.15F;//(float)command_hand;
+      float cmd_f = 0.25F;//(float)command_fork;
       byte_tx<float>(&cmd_h);
+      Serial.println();
       byte_tx<float>(&cmd_f);
       Serial.println();
 
@@ -577,7 +583,7 @@ void BikeMeasurements::measure_hand_torque(){
 
 //======================= [calculate steer derivatives] ============================//
 void BikeMeasurements::calculate_fork_rate(){
-  m_fork_angle = steer_moving_avg(m_fork_angle);
+  // m_fork_angle = steer_moving_avg(m_fork_angle);
   m_fork_rate = calc_bckwrd_derivative(m_fork_angle, m_fork_angle_prev, m_dt_steer_meas);
   return;
 }
@@ -620,7 +626,7 @@ void BikeMeasurements::calc_lean_angle_meas(float omega_x, float omega_y, float 
   /*See Sanjurjo e.a. 2019 "Roll angle estimator based on angular 
     rate measurements for bicycles" for explanation on why these 
     formulas are used.*/
-  float phi_d, phi_w, tmp, W;
+  float phi_d, phi_w, W;
 
   // Lean angle estimate based on constant cornering (good for small lean angles)
   phi_d = std::atan((omega_z*m_bike_speed)/GRAVITY); // [rad]
@@ -724,6 +730,11 @@ void SimulationMeasurements::get_sim_meas(){
   omega_z = byte_rx<float>();
   encoder_h = byte_rx<uint16_t>();
   encoder_f = byte_rx<uint16_t>();
+  byte_tx<int8_t>(&torque_h);
+  Serial.println();
+  byte_tx<uint16_t>(&encoder_h);
+  byte_tx<uint16_t>(&encoder_f);
+  Serial.println();
 }
 
 
@@ -777,7 +788,7 @@ void sd_setup(){
 #endif
 
 //============================ [Calculate PD error] ============================//
-void calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt){
+void  calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt){
   //------[Calculate error derivative in seconds^-1
   // S: Set the very first handlebar and fork encoder values to 0
   // D: setting handlebar and fork encoder first values to 0, we do that because first values seem to be floating values

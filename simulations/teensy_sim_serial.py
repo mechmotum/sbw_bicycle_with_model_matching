@@ -50,6 +50,7 @@ class TeensySimSerial:
         Make sure the data expected by the teensy is also 'dtype'.
         '''
         meas = np.array(meas, dtype=data_type) # Ensure the data is a 'data_type' array.
+        print(meas, meas.tobytes(), np.frombuffer(meas.tobytes(), dtype=data_type))
         return self.com.write(meas.tobytes()) # Convert to bytes and send
 
     def sim_rx(self, data_type):
@@ -60,7 +61,7 @@ class TeensySimSerial:
         Make sure the data sent by the teensy is indeed 'data_type'.
         ''' #Should be b'\r\n' (escapes are used for vscode documentation features purposes.)
         input_b = self.com.read_until(b'\r\n').rstrip(b'\r\n')
-        input = np.frombuffer(input_b, dtype=data_type)
+        input = np.frombuffer(input_b, dtype=data_type,)
         return input
 
     def reconnect(self):
