@@ -565,10 +565,10 @@ u_ext_fun_ref = create_external_input
 
 #Linear controller to apply
 controller = {
-    "mm": mm_ctrl
+    # "mm": mm_ctrl
     # "sil" : sil_ctrl
     # "mm+sil" : mm_sil_ctrl
-    # "zero" : zero_ctrl
+    "zero" : zero_ctrl
 }
 
 controller_ref = {
@@ -578,39 +578,127 @@ controller_ref = {
     "zero" : zero_ctrl
 }
 
-phi_kalman = KalmanSanjurjo(
+phi_kalman = KalmanSanjurjo( #TODO: initialize initial states inside the function not globally
     KALMAN_PAR,
     SIM_PAR_PLANT["vel"],
     SIM_PAR_PLANT["dt"])
 
-#Simulate
-time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
-time_ref, output_ref, states_ref, calc_states_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman)
+
+# # Test Kalman
+# phi_kalman1 = KalmanSanjurjo(
+#     KALMAN_PAR,
+#     SIM_PAR_PLANT["vel"],
+#     SIM_PAR_PLANT["dt"])
+
+# phi_kalman2 = KalmanSanjurjo(
+#     KALMAN_PAR,
+#     SIM_PAR_PLANT["vel"],
+#     SIM_PAR_PLANT["dt"])
+
+# KALMAN_PAR["imu_noise_variance"] =  0.05
+# phi_kalman3 = KalmanSanjurjo(
+#     KALMAN_PAR,
+#     SIM_PAR_PLANT["vel"],
+#     SIM_PAR_PLANT["dt"])
+
+# controller1 = {
+#     "mm": mm_ctrl
+#     # "sil" : sil_ctrl
+#     # "mm+sil" : mm_sil_ctrl
+#     # "zero" : zero_ctrl
+# }
 
 # time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
-time1, output1, states1, calc_states1, ext_input1 = simulate(SIM_PAR_REF,bike_plant,controller,u_ext_fun,phi_kalman)
+# time1, output1, states1, calc_states1, ext_input1 = simulate1(SIM_PAR_PLANT,bike_plant,controller1,u_ext_fun,phi_kalman1)
+# time2, output2, states2, calc_states2, ext_input2 = simulate(SIM_PAR_PLANT,bike_plant,controller1,u_ext_fun,phi_kalman2)
+# time3, output3, states3, calc_states3, ext_input3 = simulate(SIM_PAR_PLANT,bike_plant,controller1,u_ext_fun,phi_kalman3)
+# time_ref, output_ref, states_ref, calc_states_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman)
+
+# fig = plt.figure()    
+# plt.title("Influence of noisy torque measurement on states")
+# plt.plot(time, states[:,0])# ,time_ref, states1[:,1])
+# plt.plot(time1, states1[:,0])
+# plt.plot(time2, states2[:,0])
+# plt.plot(time3, states3[:,0])
+# plt.plot(time_ref, states_ref[:,0])
+# plt.xlabel("Time [s]")
+# plt.ylabel("[rad]")
+# plt.axis((0,10,-0.2,0.2))
+# plt.legend(("phi no control", "phi mm perfect state knowledge", "phi mm kalman noise var: 0.001", "phi mm kalman noise var: 0.05", "phi ref"))
+# plt.show()
+
+# # Test Torque input
+# phi_kalman1 = KalmanSanjurjo(
+#     KALMAN_PAR,
+#     SIM_PAR_PLANT["vel"],
+#     SIM_PAR_PLANT["dt"])
+
+# phi_kalman2 = KalmanSanjurjo(
+#     KALMAN_PAR,
+#     SIM_PAR_PLANT["vel"],
+#     SIM_PAR_PLANT["dt"])
+
+# controller1 = {
+#     "mm": mm_ctrl
+#     # "sil" : sil_ctrl
+#     # "mm+sil" : mm_sil_ctrl
+#     # "zero" : zero_ctrl
+# }
+# time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
+# time1, output1, states1, calc_states1, ext_input1 = simulate(SIM_PAR_REF,bike_plant,controller1,u_ext_fun,phi_kalman1)
+# time2, output2, states2, calc_states2, ext_input2 = simulate(SIM_PAR_PLANT,bike_plant,controller1,u_ext_fun,phi_kalman2)
+# time_ref, output_ref, states_ref, calc_states_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman)
+
+# fig = plt.figure()    
+# plt.title("Influence of noisy torque measurement on states")
+# plt.plot(time, states[:,0])# ,time_ref, states1[:,1])
+# plt.plot(time1, states1[:,0])
+# plt.plot(time2, states2[:,0])
+# plt.plot(time_ref, states_ref[:,0])
+# plt.xlabel("Time [s]")
+# plt.ylabel("[rad]")
+# plt.axis((0,20,-0.3,0.3))
+# plt.legend(("phi no control", "phi mm", "phi mm noisy torque", "phi ref"))
+
+# fig = plt.figure()    
+# plt.title("Influence of noisy torque measurement on states")
+# # plt.plot(time, ext_input[:,1])# ,time_ref, ext_input1[:,1])
+# plt.plot(time2, ext_input2[:,1])
+# plt.plot(time1, ext_input1[:,1])
+# # plt.plot(time_ref, ext_input_ref[:,1])
+# plt.xlabel("Time [s]")
+# plt.ylabel("[rad]")
+# plt.legend(("noisy steer torque input","steer torque input"))
+# plt.show()
+
+
+#Simulate
+# time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
+# time_ref, output_ref, states_ref, calc_states_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman)
+
+# time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
+# time1, output1, states1, calc_states1, ext_input1 = simulate(SIM_PAR_REF,bike_plant,controller,u_ext_fun,phi_kalman)
 
 
 #Test plot
-fig = plt.figure()    
-plt.title("simulation")
-plt.plot(time, states[:,0], time1,states1[:,0] ,time_ref, states_ref[:,0])
-# plt.plot(time, states, time_ref, states_ref)
-# plt.plot(time, states)
-plt.xlabel("Time [s]")
-plt.ylabel("states")
-plt.legend(("phi", "phi_noiseless","phi_ref"))
-# plt.legend(("phi", "delta", "d_phi", "d_delta"))#,"phi_ref", "delta_ref", "d_phi_ref", "d_delta_ref"))
+# fig = plt.figure()    
+# plt.title("simulation")
+# plt.plot(time, states[:,0], time1,states1[:,0] ,time_ref, states_ref[:,0])
+# # plt.plot(time, states, time_ref, states_ref)
+# # plt.plot(time, states)
+# plt.xlabel("Time [s]")
+# plt.ylabel("states")
+# plt.legend(("phi", "phi_noiseless","phi_ref"))
+# # plt.legend(("phi", "delta", "d_phi", "d_delta"))#,"phi_ref", "delta_ref", "d_phi_ref", "d_delta_ref"))
+# # plt.show()
+
+# fig = plt.figure()    
+# plt.title("simulation")
+# plt.plot(time, ext_input[:,1])# ,time_ref, ext_input1[:,1])
+# plt.xlabel("Time [s]")
+# plt.ylabel("states")
+# plt.legend(("phi", "delta", "d_phi", "d_delta"))
 # plt.show()
-
-fig = plt.figure()    
-plt.title("simulation")
-plt.plot(time, ext_input[:,1])# ,time_ref, ext_input1[:,1])
-plt.xlabel("Time [s]")
-plt.ylabel("states")
-plt.legend(("phi", "delta", "d_phi", "d_delta"))
-plt.show()
-
 
 # for i in range(4):
 #     fig = plt.figure()       
