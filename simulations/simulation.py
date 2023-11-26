@@ -24,6 +24,7 @@ ENCODER_H_DTYPE = np.uint16
 ENCODER_F_DTYPE = np.uint16
 HAND_TRQ_DTYPE = np.float32
 FORK_TRQ_DTYPE = np.float32
+MAX_ENCODER_COUNT = 8192
 
 # parameter taken from bicycle model #TODO: this should be automated. aka, I should not have to look this up in anouther file
 WHEELBASE_PLANT = 1.064 #[m]
@@ -52,7 +53,7 @@ SIM_PAR_PLANT = {
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
     "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
-    "step_num" : 2#1000*2 # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
+    "step_num" : 1000*2 # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
 }
 
 SIM_PAR_REF = {
@@ -363,8 +364,8 @@ def calc_enc_count(delta):
     else:
         encoder_h = delta * RAD2ECN_TICKS
         encoder_f = -(delta - 2*np.pi) * RAD2ECN_TICKS
-    encoder_h = round(encoder_h) % 8192
-    encoder_f = round(encoder_f) % 8192
+    encoder_h = round(encoder_h) % MAX_ENCODER_COUNT
+    encoder_f = round(encoder_f) % MAX_ENCODER_COUNT
     return (encoder_h, encoder_f)
 
 def encoder_artifacts(u):
@@ -590,7 +591,6 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
             speed_ticks = 0
             speed_itterations = 0
         
-        print("encoder_vals", encoder_h, encoder_f)
         #--[Send message to controller
         hw_com.sim_tx(math.floor(speed_ticks),SPEED_TICKS_DTYPE)
         hw_com.sim_tx(torque_h,TORQUE_H_DTYPE)
@@ -639,11 +639,10 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
             # Controller input
         #DEBUGGING
         angles = hw_com.sim_rx(np.float32)
-        print("hand;fork angles: ",angles)
+        print("hand;fork angles: ", angles[0]-angles[1], angles[0]-y_meas[0])
+        #END DEBUGGING
         hand_trq = hw_com.sim_rx(HAND_TRQ_DTYPE)
         fork_trq = hw_com.sim_rx(FORK_TRQ_DTYPE)
-        print("hand_trq: ",hand_trq)
-        print("fork_trq: ",fork_trq)
         u = np.array([0, fork_trq[0]])
 
         #DEBUGGING
@@ -726,10 +725,10 @@ u_ref = np.array([0,0])
 
 #Linear controller to apply
 controller = {
-    "mm": mm_ctrl
+    # "mm": mm_ctrl
     # "sil" : sil_ctrl
     # "mm+sil" : mm_sil_ctrl
-    # "zero" : zero_ctrl
+    "zero" : zero_ctrl
 }
 
 controller_ref = {
