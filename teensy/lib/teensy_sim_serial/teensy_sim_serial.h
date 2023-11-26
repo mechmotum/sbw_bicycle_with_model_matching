@@ -24,20 +24,18 @@ static_assert(sizeof(float) == NUMPY_FLOAT32_BYTES, "systems float and numpy flo
 //---[Template Functions
 template<typename T>
 T byte_rx(){
-  if(Serial.available()){
-    uint8_t bytes_rx[sizeof(T)];
-    T input;
+  while(!Serial.available()){} //TODO: throw in a time out timer
+  
+  uint8_t bytes_rx[sizeof(T)];
+  T input;
 
-    for(uint8_t i=0; i<sizeof(T); i++){
-      bytes_rx[i] = (uint8_t)Serial.read();
-    }
-
-    static_assert(sizeof(input) == sizeof(bytes_rx), "var to be copied has different byte size than destination");
-    memcpy(&input, bytes_rx, sizeof(T));
-    return input;
+  for(uint8_t i=0; i<sizeof(T); i++){
+    bytes_rx[i] = (uint8_t)Serial.read();
   }
-  T no_serial = -98;
-  return no_serial; //TODO: handle the fact that you may call this function while there is nothing in the buffer
+
+  static_assert(sizeof(input) == sizeof(bytes_rx), "var to be copied has different byte size than destination");
+  memcpy(&input, bytes_rx, sizeof(T));
+  return input;
 }
 
 template<typename T>
@@ -56,3 +54,37 @@ void byte_tx(T* output){
 // void byte_tx_float32(float* output);
 
 #endif //TEENSY_SIM_SERIAL_
+
+/* FOR DEBUGGING
+#include <Arduino.h>
+#include "teensy_sim_serial.h"
+
+void setup(){
+  Serial.begin(9600); // Communication with PC through micro-USB
+  while(!Serial){} //Wait with startup untill serial communication has started
+}
+
+void loop(){
+  int32_t speed_ticks = byte_rx<int32_t>();
+  int8_t torque_h = byte_rx<int8_t>();
+  float omega_x = byte_rx<float>();
+  float omega_y = byte_rx<float>();
+  float omega_z = byte_rx<float>();
+  uint16_t encoder_h = byte_rx<uint16_t>();
+  uint16_t encoder_f = byte_rx<uint16_t>();
+  byte_tx<int32_t>(&speed_ticks);
+  Serial.println();
+  byte_tx<int8_t>(&torque_h);
+  Serial.println();
+  byte_tx<float>(&omega_x);
+  Serial.println();
+  byte_tx<float>(&omega_y);
+  Serial.println();
+  byte_tx<float>(&omega_z);
+  Serial.println();
+  byte_tx<uint16_t>(&encoder_h);
+  Serial.println();
+  byte_tx<uint16_t>(&encoder_f);
+  Serial.println();
+}
+*/

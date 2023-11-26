@@ -730,11 +730,6 @@ void SimulationMeasurements::get_sim_meas(){
   omega_z = byte_rx<float>();
   encoder_h = byte_rx<uint16_t>();
   encoder_f = byte_rx<uint16_t>();
-  byte_tx<int8_t>(&torque_h);
-  Serial.println();
-  byte_tx<uint16_t>(&encoder_h);
-  byte_tx<uint16_t>(&encoder_f);
-  Serial.println();
 }
 
 

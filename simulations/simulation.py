@@ -525,10 +525,10 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
     m_ext = par["m_ext"]
     p = par["p"]
 
-    F = par["F"]
-    G = par["G"]
+    # F = par["F"]
+    # G = par["G"]
 
-    ticks_travelled = (math.floor((dt*vel)/(2*math.pi*WHEEL_RADIUS)) * TICKS_PER_REV)
+    ticks_travelled = (dt*vel)/(2*math.pi*WHEEL_RADIUS) * TICKS_PER_REV
 
     #--[Prealocate return values for speed
     T_vec = np.empty((step_num*sim_steps,))
@@ -580,7 +580,7 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
 
         #--[Calculate sensor values
         speed_ticks = speed_ticks + ticks_travelled
-        torque_h = 15#u_ref[1]
+        torque_h = u_ref[1]
         omega_x, omega_y, omega_z = calc_omega(par,bike_states)
         encoder_h, encoder_f = calc_enc_count(y_meas[0])
 
@@ -592,7 +592,7 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         
         print("encoder_vals", encoder_h, encoder_f)
         #--[Send message to controller
-        hw_com.sim_tx(speed_ticks,SPEED_TICKS_DTYPE)
+        hw_com.sim_tx(math.floor(speed_ticks),SPEED_TICKS_DTYPE)
         hw_com.sim_tx(torque_h,TORQUE_H_DTYPE)
         hw_com.sim_tx(omega_x,OMEGA_X_DTYPE)
         hw_com.sim_tx(omega_y,OMEGA_Y_DTYPE)
@@ -620,6 +620,10 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         # y0 = np.array([phi,delta,d_phi,d_delta])
         # y0_vec[k*sim_steps:(k+1)*sim_steps, :] = y0 * np.ones_like(x)
 
+        #--[Wait for the teensy to do its calculations
+        while(hw_com.in_waiting()<20): #TODO: remove magic number. It is the total amount of bytes - 1 sent from the teensy
+            pass
+
         #--[Calculate input
         '''
         As lsim only takes a single B matrix,
@@ -633,25 +637,25 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         '''
         # Discreet time input 'u'
             # Controller input
-        while(hw_com.in_waiting()<21):
-            pass
-
         #DEBUGGING
-        hand_T = hw_com.sim_rx(np.int8) 
-        print("hand_T: ",hand_T)
-        steer_counts = hw_com.sim_rx(np.uint16)
-        print("steer_counts: ",steer_counts)
-        steer_anlgs = hw_com.sim_rx(np.float32)
-        print("steer_anlgs: ",steer_anlgs)
-        #DEBUGGING END
-
-
+        angles = hw_com.sim_rx(np.float32)
+        print("hand;fork angles: ",angles)
         hand_trq = hw_com.sim_rx(HAND_TRQ_DTYPE)
         fork_trq = hw_com.sim_rx(FORK_TRQ_DTYPE)
-        u = np.array([0, fork_trq[0]])
         print("hand_trq: ",hand_trq)
         print("fork_trq: ",fork_trq)
-        
+        u = np.array([0, fork_trq[0]])
+
+        #DEBUGGING
+        # print("SPEED_TICKS: ", hw_com.sim_rx(SPEED_TICKS_DTYPE))
+        # print("TORQUE_H: ", hw_com.sim_rx(TORQUE_H_DTYPE))
+        # print("OMEGA_X: ", hw_com.sim_rx(OMEGA_X_DTYPE))
+        # print("OMEGA_Y: ", hw_com.sim_rx(OMEGA_Y_DTYPE))
+        # print("OMEGA_Z: ", hw_com.sim_rx(OMEGA_Z_DTYPE))
+        # print("ENCODER_H: ", hw_com.sim_rx(ENCODER_H_DTYPE))
+        # print("ENCODER_F: ", hw_com.sim_rx( ENCODER_F_DTYPE))
+        #DEBUGGING END
+
             # Controller artifacts
         u = control_artifacts(u)
         
