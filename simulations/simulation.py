@@ -588,7 +588,7 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         #TODO: actually send the reset from the teensy instead of kinda following waht the teensy does.
         speed_itterations = speed_itterations + 1
         if (speed_itterations >= SPEED_ARRAY_LENGTH):
-            speed_ticks = 0
+            speed_ticks = 1
             speed_itterations = 0
         
         #--[Send message to controller
@@ -621,7 +621,7 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         # y0_vec[k*sim_steps:(k+1)*sim_steps, :] = y0 * np.ones_like(x)
 
         #--[Wait for the teensy to do its calculations
-        while(hw_com.in_waiting()<20): #TODO: remove magic number. It is the total amount of bytes - 1 sent from the teensy
+        while(hw_com.in_waiting()<7+4): #TODO: remove magic number. It is the total amount of bytes - 1 sent from the teensy
             pass
 
         #--[Calculate input
@@ -637,10 +637,6 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         '''
         # Discreet time input 'u'
             # Controller input
-        #DEBUGGING
-        angles = hw_com.sim_rx(np.float32)
-        print("hand;fork angles: ", angles[0]-angles[1], angles[0]-y_meas[0])
-        #END DEBUGGING
         hand_trq = hw_com.sim_rx(HAND_TRQ_DTYPE)
         fork_trq = hw_com.sim_rx(FORK_TRQ_DTYPE)
         u = np.array([0, fork_trq[0]])

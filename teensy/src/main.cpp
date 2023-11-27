@@ -365,8 +365,8 @@ elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
 Eigen::Matrix<float,2,2> F {{1,0},{0,1}};; 
 Eigen::Matrix<float,2,1> B {{0},{0}}; 
 Eigen::Matrix<float,1,2> H {{1,0}};
-Eigen::Matrix<float,2,2> Q {{0,0},{0,0}};
-Eigen::Matrix<float,1,1> R {0};
+Eigen::Matrix<float,2,2> Q {{5e-7,0},{0,1e-8}};
+Eigen::Matrix<float,1,1> R {0.1};
 Eigen::Matrix<float,2,2> P_post {{0,0},{0,0}};
 
 SimpleKalman gyro_kalman(F, B, H, Q, R, P_post);
@@ -477,20 +477,13 @@ void loop(){
       sbw_bike.calculate_bike_speed();
       sbw_bike.calculate_roll_states();
       sbw_bike.measure_steer_angles();
-
-      float h_angle = sbw_bike.get_hand_angle();
-      float f_angle = sbw_bike.get_fork_angle();
-      byte_tx<float>(&h_angle);
-      byte_tx<float>(&f_angle);
-      Serial.println();
-
       sbw_bike.calculate_fork_rate(); //also calculates moving average of fork angle and sets it
       sbw_bike.measure_hand_torque();
 
       //------[Perform steering control
-      calc_pd_errors(sbw_bike, error, derror_dt);
-      calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
-      // calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
+      // calc_pd_errors(sbw_bike, error, derror_dt);
+      // calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
+      calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
       // calc_sil_control(sbw_bike, command_fork, command_hand);
       
       //------[Actuate motors
@@ -632,6 +625,10 @@ void BikeMeasurements::calc_lean_angle_meas(float omega_x, float omega_y, float 
   phi_d = std::atan((omega_z*m_bike_speed)/GRAVITY); // [rad]
 
   // Lean angle astimate based on zero tilt rate (good for large lean angles)
+  if (omega_y > -1e-5 && omega_y < 1e-5
+      && omega_z > -1e-5 && omega_z < 1e-5){
+        omega_z += 0.001;
+      }
   phi_w = sgn(omega_z)*std::asin(omega_y/std::sqrt(omega_y*omega_y + omega_z*omega_z)); // [rad]
   
   // Use the best method based on lean angle size
@@ -681,7 +678,7 @@ void BikeMeasurements::calculate_bike_speed(){
   float rps_wheel = ((float)((current_wheel_count + end_of_array_storage) - previous_wheel_count )) 
   / ((float)WHEEL_COUNTS_PER_REV * ((float)bike_speed_dt_sum_mu * MICRO_TO_UNIT));
   m_bike_speed = -rps_wheel * 2*PI * WHEEL_RADIUS; //TODO: see if the minus sign is indeed necessary
-
+  m_bike_speed = -m_bike_speed; //temp fix, need to fix for simulation (see TODO one line above)
   return;
 } 
 
