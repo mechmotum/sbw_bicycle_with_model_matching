@@ -174,8 +174,8 @@ const uint16_t CTRL_STARTUP_ITTERATIONS = 13000; //#itterations in which the ste
 const uint32_t ENCODER_CLK_FREQ = 225000; //clock frequency for the encoders SPI protocol
 const float HAND_ENC_BIAS = 153.65 * DEG_TO_RAD;
 const float FORK_ENC_BIAS = 100.65 * DEG_TO_RAD;
-const float HAND_ENC_MAX_VAL = 8191.0;
-const float FORK_ENC_MAX_VAL = 8191.0;
+const float HAND_ENC_MAX_VAL = 8192.0;
+const float FORK_ENC_MAX_VAL = 8192.0;
 
 // Pedal and wheel encoders
 /*NOTE: A WHEEL_COUNTS_LENGTH of 500 gives an approximate 45 counts per calculation 
