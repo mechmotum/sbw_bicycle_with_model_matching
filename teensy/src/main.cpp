@@ -164,6 +164,8 @@ const uint16_t INITIAL_STEER_PWM = 16384;
 // Torque
 const float TEENSY_ANALOG_VOLTAGE = 1; //3.3;
 const uint16_t HAND_TORQUE_RESOLUTION = 1; //1023;
+const uint8_t TORQUE_SLOPE = 1;
+const uint8_t TORQUE_BIAS  = 0;
 
 // Timing
 const uint16_t MIN_LOOP_LENGTH_MU = 1000; // target minimum loop length in microseconds.
@@ -515,8 +517,8 @@ void BikeMeasurements::measure_steer_angles(){
 
 //=========================== [Get handlebar torque] ===============================//
 void BikeMeasurements::measure_hand_torque(){
-  uint8_t voltage = TEENSY_ANALOG_VOLTAGE * analogRead(a_torque)/HAND_TORQUE_RESOLUTION;
-  m_hand_torque = voltage ; //TEMP REMOVE AFTER MEASUREMENT TEST!
+  float voltage = TEENSY_ANALOG_VOLTAGE * analogRead(a_torque)/HAND_TORQUE_RESOLUTION;
+  m_hand_torque = TORQUE_SLOPE*voltage + TORQUE_BIAS;
 }
 
 
