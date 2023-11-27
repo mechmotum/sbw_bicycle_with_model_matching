@@ -19,10 +19,10 @@ a_hand = 41; // Analog output pin of the handlebar motor drive
 
 //============================== Compile modes ===============================//
 #define USE_IMU 1
-#define USE_BT 1
+#define USE_BT 0
 #define USE_SD 0
 #define USE_PEDAL_CADANCE 0
-#define SERIAL_DEBUG 0
+#define SERIAL_DEBUG 1
 
 //================================= Classes ==================================//
 class BikeMeasurements{
@@ -311,10 +311,9 @@ elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
   bfs::Mpu9250 IMU; // MPU9250 object
 #endif
 // Calibration matrix. Translate coordinates expressed IMU frame to the Body fixed frame
-Eigen::Matrix<float,3,3> B_ROT_IMU {{1,0,0},
-                                    {0,1,0},
-                                    {0,0,1}};
-
+Eigen::Matrix<float,3,3> B_ROT_IMU {{-0.10964618,  0.07170863, -0.9928662 },
+                                    {-0.00522393, -1.00139095, -0.02117246},
+                                    { 0.99607305, -0.03168316, -0.08985829}};
 //--------------------------- SD Card Logging --------------------------------//
 #if USE_SD
   SdExFat sd;
@@ -465,7 +464,7 @@ void loop(){
     print_to_bt(sbw_bike,command_fork,command_hand);
     #endif
     #if SERIAL_DEBUG
-    print_to_serial(sbw_bike,command_fork,command_hand);
+    // print_to_serial(sbw_bike,command_fork,command_hand);
     #endif
     #if USE_SD
     print_to_SD(sbw_bike,command_fork,command_hand);
@@ -547,7 +546,11 @@ void BikeMeasurements::calculate_roll_states(){
   omega_vec(2,0) = IMU.gyro_z_radps();
 
   omega_vec = B_ROT_IMU*omega_vec;
-
+  Serial.print(omega_vec(0));
+  Serial.print(",");
+  Serial.print(omega_vec(1));
+  Serial.print(",");
+  Serial.println(omega_vec(2));
   //having dt, change the propegation model and input model according to Sanjurjo
   F << 1, -m_dt_IMU_meas*MICRO_TO_UNIT,
        0, 1;
