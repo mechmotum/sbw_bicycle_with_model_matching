@@ -374,6 +374,7 @@ SimpleKalman gyro_kalman(F, B, H, Q, R, P_post);
 //------------------------------ Simulation ----------------------------------//
 // uint16_t no_com_cntr = 0; //counts the times the control loop was entered but no serial data was available
 SimulationMeasurements sim_meas{};
+uint8_t isPastWheelBuff = 0;
 
 //============================== [Main Setup] ==================================//
 void setup(){
@@ -486,6 +487,11 @@ void loop(){
       calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
       // calc_sil_control(sbw_bike, command_fork, command_hand);
       
+      //------[Send reset wheel encoder msg
+      byte_tx<uint8_t>(&isPastWheelBuff);
+      Serial.println();
+      if(isPastWheelBuff){isPastWheelBuff=0;}
+
       //------[Actuate motors
       // actuate_steer_motors(command_fork, command_hand); //Not necessary for simulation purpose
       float cmd_h = (float)command_hand;
@@ -657,6 +663,15 @@ void BikeMeasurements::calculate_bike_speed(){
   bike_speed_dt_sum_mu += m_dt_bike_speed_meas;
   bike_speed_dt_array[wheel_counts_index] = m_dt_bike_speed_meas;
 
+  /*NOTE #rounds = count_diff/WHEEL_COUNTS_PER_REV. The count_diff is measured 
+  WHEEL_COUNTS_LENGTH loops away from each other. The length of such a loop is
+  stored in bike_speed_dt_sum_mu
+  */ 
+  float rps_wheel = ((float)((current_wheel_count + end_of_array_storage) - previous_wheel_count )) 
+  / ((float)WHEEL_COUNTS_PER_REV * ((float)bike_speed_dt_sum_mu * MICRO_TO_UNIT));
+  m_bike_speed = -rps_wheel * 2*PI * WHEEL_RADIUS; //TODO: see if the minus sign is indeed necessary
+  m_bike_speed = -m_bike_speed; //temp fix, need to fix for simulation (see TODO one line above)
+
   // update index
   wheel_counts_index += 1;
 
@@ -668,17 +683,10 @@ void BikeMeasurements::calculate_bike_speed(){
   if (wheel_counts_index >= WHEEL_COUNTS_LENGTH){
     wheel_counts_index = 0;
     end_of_array_storage = sim_meas.get_sim_speed_ticks(); //wheel_counter.read();
+    isPastWheelBuff = 1;
     // wheel_counter.write(0); //not necessary in simulation as this has to be done on the sim side
   }
 
-  /*NOTE #rounds = count_diff/WHEEL_COUNTS_PER_REV. The count_diff is measured 
-  WHEEL_COUNTS_LENGTH loops away from each other. The length of such a loop is
-  stored in bike_speed_dt_sum_mu
-  */ 
-  float rps_wheel = ((float)((current_wheel_count + end_of_array_storage) - previous_wheel_count )) 
-  / ((float)WHEEL_COUNTS_PER_REV * ((float)bike_speed_dt_sum_mu * MICRO_TO_UNIT));
-  m_bike_speed = -rps_wheel * 2*PI * WHEEL_RADIUS; //TODO: see if the minus sign is indeed necessary
-  m_bike_speed = -m_bike_speed; //temp fix, need to fix for simulation (see TODO one line above)
   return;
 } 
 

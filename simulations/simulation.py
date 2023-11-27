@@ -12,7 +12,6 @@ GRAVITY = 9.81 #[m/s^2]
 
 # Hardware in the loop constants
 BAUDRATE = 9600
-SPEED_ARRAY_LENGTH = 500
 TICKS_PER_REV = 192
 RAD2ECN_TICKS = math.exp2(13)/(2*math.pi) # 0 = 0; 8192 = 0; 8192 steps from 0 to 8191, 8192 intervals from 0 to 8192
 SPEED_TICKS_DTYPE = np.int32
@@ -510,9 +509,6 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
     encoder_h = 0
     encoder_f = 0
 
-    #--[...
-    speed_itterations = 0
-
     #--[Assign for shorter notation
     vel = par["vel"]
     dt = par["dt"]
@@ -585,12 +581,6 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         omega_x, omega_y, omega_z = calc_omega(par,bike_states)
         encoder_h, encoder_f = calc_enc_count(y_meas[0])
 
-        #TODO: actually send the reset from the teensy instead of kinda following waht the teensy does.
-        speed_itterations = speed_itterations + 1
-        if (speed_itterations >= SPEED_ARRAY_LENGTH):
-            speed_ticks = 1
-            speed_itterations = 0
-        
         #--[Send message to controller
         hw_com.sim_tx(math.floor(speed_ticks),SPEED_TICKS_DTYPE)
         hw_com.sim_tx(torque_h,TORQUE_H_DTYPE)
@@ -621,8 +611,13 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         # y0_vec[k*sim_steps:(k+1)*sim_steps, :] = y0 * np.ones_like(x)
 
         #--[Wait for the teensy to do its calculations
-        while(hw_com.in_waiting()<7+4): #TODO: remove magic number. It is the total amount of bytes - 1 sent from the teensy
+        while(hw_com.in_waiting()<8): #TODO: remove magic number. It is the total amount of bytes - 1 sent from the teensy
             pass
+
+        #--[Reset speed ticks
+        isSpeedTicksReset = hw_com.sim_rx(np.uint8)
+        if(isSpeedTicksReset):
+            speed_ticks = 0
 
         #--[Calculate input
         '''
