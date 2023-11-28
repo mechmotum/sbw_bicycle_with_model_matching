@@ -199,11 +199,11 @@ const uint16_t INITIAL_FORK_PWM = 16384; //K: I think that the middle is a zero 
 const uint16_t INITIAL_STEER_PWM = 16384;
 
 // Torque
-const float TEENSY_ANALOG_VOLTAGE = 1; //3.3;
-const uint16_t HAND_TORQUE_RESOLUTION = 1; //1023;
+const float TEENSY_ANALOG_VOLTAGE = 3.3;
+const uint16_t HAND_TORQUE_RESOLUTION = 1023;
 
-// Timing 10000;//dt = 0.01
-const uint16_t MIN_LOOP_LENGTH_MU = 1000; // target minimum loop length in microseconds.
+// Timing
+const uint16_t MIN_LOOP_LENGTH_MU = 10000;// (simulation dt = 0.01) target minimum loop length in microseconds.
 const float MIN_LOOP_LENGTH_S = MIN_LOOP_LENGTH_MU*MICRO_TO_UNIT; //
 const uint16_t CTRL_STARTUP_ITTERATIONS = 13000; //#itterations in which the steer torques are slowly scaled to unity.
 
@@ -259,7 +259,7 @@ const float KD_H = 0.012f * RAD_TO_DEG; // Handlebar
 // Steer into lean gains (see 'Some recent developments in bicycle dynamics and control', A. L. Schwab et al., 2008)
 const uint8_t K_SIL1 = 8; // [Ns^2/rad] gain for the steer into lean controller when below stable speed range
 const float K_SIL2 = 0.7; // [Ns/rad] gain for the steer into lean controller when above stable speed range
-const float V_AVERAGE = 7; // [m/s] value somewhere in the stable speed range. (take the average of min and max stable speed)
+const float V_AVERAGE = 6; // [m/s] value somewhere in the stable speed range. (take the average of min and max stable speed)
 
 // Model matching gains: The "_Vx" indicates that the coefficient
 //  is multiplied with speed to the power of x.
@@ -375,8 +375,7 @@ SimpleKalman gyro_kalman(F, B, H, Q, R, P_post);
 // uint16_t no_com_cntr = 0; //counts the times the control loop was entered but no serial data was available
 SimulationMeasurements sim_meas{};
 uint8_t isPastWheelBuff = 0;
-elapsedMicros looptime;
-uint64_t tmp = 0;
+// uint64_t tmp = 0;
 
 //============================== [Main Setup] ==================================//
 void setup(){
@@ -452,8 +451,10 @@ void loop(){
   #endif
   
   
-  if (since_last_loop >= MIN_LOOP_LENGTH_MU){ //K: Sort of have a max freq? (cause that is not garanteed in this way)    
-    looptime = 0;
+  if (since_last_loop >= MIN_LOOP_LENGTH_MU){ //K: Sort of have a max freq? (cause that is not garanteed in this way)   
+    // tmp = since_last_loop;
+    // byte_tx<uint64_t>(&tmp);
+    // Serial.println(); 
     since_last_loop = since_last_loop - MIN_LOOP_LENGTH_MU; //reset counter
 
     if (control_iteration_counter >= CTRL_STARTUP_ITTERATIONS) // Turn on LED when bike is ready
@@ -486,22 +487,22 @@ void loop(){
       //------[Perform steering control
       // calc_pd_errors(sbw_bike, error, derror_dt);
       // calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
-      calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
-      // calc_sil_control(sbw_bike, command_fork, command_hand);
+      // calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
+      calc_sil_control(sbw_bike, command_fork, command_hand);
       
       //------[Send reset wheel encoder msg
-      // byte_tx<uint8_t>(&isPastWheelBuff);
-      // Serial.println();
+      byte_tx<uint8_t>(&isPastWheelBuff);
+      Serial.println();
       if(isPastWheelBuff){isPastWheelBuff=0;}
 
       //------[Actuate motors
       // actuate_steer_motors(command_fork, command_hand); //Not necessary for simulation purpose
       float cmd_h = (float)command_hand;
       float cmd_f = (float)command_fork;
-      // byte_tx<float>(&cmd_h);
-      // Serial.println();
-      // byte_tx<float>(&cmd_f);
-      // Serial.println();
+      byte_tx<float>(&cmd_h);
+      Serial.println();
+      byte_tx<float>(&cmd_f);
+      Serial.println();
 
 
       //------[Increase counters
@@ -519,9 +520,6 @@ void loop(){
       #endif
 
     }
-    tmp = (uint64_t)looptime;
-    byte_tx<uint64_t>(&tmp);
-    Serial.println();
   }
 }
 
@@ -595,11 +593,13 @@ void BikeMeasurements::calculate_roll_states(){
   float omega_z = sim_meas.get_sim_omega_z(); //IMU.gyro_z_radps();
 
   //having dt, change the propegation model and input model according to Sanjurjo
-  F << 1, -m_dt_IMU_meas*MICRO_TO_UNIT,
+  F << 1, -((float)m_dt_IMU_meas)*MICRO_TO_UNIT,
        0, 1;
-  B << m_dt_IMU_meas*MICRO_TO_UNIT,
+  B << ((float)m_dt_IMU_meas)*MICRO_TO_UNIT,
        0;
 
+  gyro_kalman.set_F(F);
+  gyro_kalman.set_B(B);
   // calculate the lean angle measurement according to Sanjuro
   calc_lean_angle_meas(omega_x, omega_y, omega_z);
   
@@ -635,7 +635,18 @@ void BikeMeasurements::calc_lean_angle_meas(float omega_x, float omega_y, float 
   // Use the best method based on lean angle size
   W = std::exp(-m_lean_angle*m_lean_angle/PHI_METHOD_WEIGHT); // weight
 
-  m_lean_angle_meas = W*phi_d + (1-W)*phi_w; // [rad]
+  // m_lean_angle_meas = W*phi_d + (1-W)*phi_w; // [rad] // THIS CAN NOT BE!! LOOK INTO THIS FURTHER
+  m_lean_angle_meas = (1-W)*phi_d + W*phi_w; // [rad]
+  
+  // byte_tx<float>(&omega_y);
+  // byte_tx<float>(&omega_z);
+  // byte_tx<float>(&m_bike_speed);
+  // byte_tx<float>(&phi_d);
+  // byte_tx<float>(&phi_w);
+  // byte_tx<float>(&m_lean_angle);
+  // byte_tx<float>(&W);
+  // byte_tx<float>(&m_lean_angle_meas);
+  // Serial.println();
 }
 
 
@@ -826,6 +837,24 @@ void calc_mm_control(BikeMeasurements& bike, double& command_fork){
                   + k_ddelta*bike.get_fork_rate() 
                   // + k_tphi*bike.get_lean_torque() //we cannot measure lean torque, so we assume it is zero. 
                   + k_tdelta*bike.get_hand_torque();
+
+  // byte_tx<float>(&k_phi);
+  // byte_tx<float>(&k_delta);
+  // byte_tx<float>(&k_dphi);
+  // byte_tx<float>(&k_ddelta);
+  // byte_tx<float>(&k_tphi);
+  // byte_tx<float>(&k_tdelta);
+  // float tmp_lean_angle = bike.get_lean_angle();
+  // float tmp_fork_angle = bike.get_fork_angle();
+  // float tmp_lean_rate = bike.get_lean_rate();
+  // float tmp_fork_rate = bike.get_fork_rate();
+  // float tmp_hand_torque = bike.get_hand_torque();
+  // byte_tx<float>(&tmp_lean_angle);
+  // byte_tx<float>(&tmp_fork_angle);
+  // byte_tx<float>(&tmp_lean_rate);
+  // byte_tx<float>(&tmp_fork_rate);
+  // byte_tx<float>(&tmp_hand_torque);
+  // Serial.println();
 }
 
 void calc_mm_gains(float& k_phi, float& k_delta, float& k_dphi, float& k_ddelta, float& k_tphi, float& k_tdelta, float speed){
@@ -847,6 +876,11 @@ void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& comm
 
   command_fork += sil_command;
   command_hand += sil_command;
+  // float tmp_lean_angle = bike.get_lean_angle();
+  // float tmp_lean_rate = bike.get_lean_rate();
+  // byte_tx<float>(&tmp_lean_angle);
+  // byte_tx<float>(&tmp_lean_rate);
+  // Serial.println();
   return;
 }
 

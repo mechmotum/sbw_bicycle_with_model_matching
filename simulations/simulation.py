@@ -52,7 +52,7 @@ SIM_PAR_PLANT = {
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
     "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
-    "step_num" : 1000*2 # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
+    "step_num" : 10#00*2 # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
 }
 
 SIM_PAR_REF = {
@@ -344,6 +344,26 @@ def sim_setup(par,system,ctrl):
     par["G"] = G
     return par
 
+def hw_in_the_loop_sim_setup(par,system):
+    system.calc_mtrx(par["vel"])
+
+    par["n"] = system.mat["A"].shape[0]
+    par["m"] = system.mat["B"].shape[1]
+    par["p"] = system.mat["C"].shape[0]
+    
+    B_extended = np.hstack((system.mat["B"], np.eye(par["n"]), np.zeros((par["n"],par["p"]))))
+    D_extended = np.hstack((system.mat["D"], np.zeros((par["p"],par["n"])), np.eye(par["p"])))
+
+    par["m_ext"] = B_extended.shape[1]
+
+    par["ss_model"] = sign.StateSpace(
+        system.mat["A"],
+        B_extended,
+        system.mat["C"],
+        D_extended
+        )
+    return par
+
 def IMU_artifacts(par,u_vec):
     # noise: np.random.normal(0,1,100)
     return u_vec
@@ -492,9 +512,9 @@ def simulate(par,system,ctrlrs,u_ref,phi_kalman):
     
     return (T_vec, y_vec, x_vec, y0_vec)
 
-def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
+def hw_in_the_loop_sim(par,system,u_ref):
     #--[Get all parameters
-    par = sim_setup(par,system,ctrlrs)
+    par = hw_in_the_loop_sim_setup(par,system)
 
     #--[Connect to hardware device
     hw_com = tss.TeensySimSerial(BAUDRATE)
@@ -575,6 +595,9 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         time = time + dt
         y_meas = y.reshape((time_vec.shape[0],p))[-1,:]
 
+        for i, key in enumerate(["phi","delta","d_phi","d_delta"]):
+                bike_states[key] = x0[i]
+
         #--[Calculate sensor values
         speed_ticks = speed_ticks + ticks_travelled
         torque_h = u_ref[1]
@@ -611,13 +634,26 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         # y0_vec[k*sim_steps:(k+1)*sim_steps, :] = y0 * np.ones_like(x)
 
         #--[Wait for the teensy to do its calculations
-        while(hw_com.in_waiting()<7): #TODO: remove magic number. It is the total amount of bytes - 1 sent from the teensy
+        while(hw_com.in_waiting()<9+40): #TODO: remove magic number. It is the total amount of bytes - 1 sent from the teensy
             pass
 
+        kalman = hw_com.sim_rx(np.float32)
+        print("\nx-,0: ",kalman[0],
+            "\nx-,1: ",kalman[1],
+            "\nu: ",kalman[2],
+            "\nx-,0: ",kalman[3],
+            "\nx-,1: ",kalman[4],
+            "\nK,0: ",kalman[5],
+            "\nK,1: ",kalman[6],
+            "\nz: ",kalman[7],
+            "\nx+,0: ",kalman[8],
+            "\nx+,1: ",kalman[9],
+            "\nomega_x: ", omega_x,
+            "\nphi: ", x0[0],"\n")
         #--[Reset speed ticks
-        # isSpeedTicksReset = hw_com.sim_rx(np.uint8)
-        # if(isSpeedTicksReset):
-        #     speed_ticks = 0
+        isSpeedTicksReset = hw_com.sim_rx(np.uint8)
+        if(isSpeedTicksReset):
+            speed_ticks = 0
 
         #--[Calculate input
         '''
@@ -632,14 +668,14 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         '''
         # Discreet time input 'u'
             # Controller input
-        # hand_trq = hw_com.sim_rx(HAND_TRQ_DTYPE)
-        # fork_trq = hw_com.sim_rx(FORK_TRQ_DTYPE)
-        # u = np.array([0, fork_trq[0]])
-        u = np.array([0, 0])
+        hand_trq = hw_com.sim_rx(HAND_TRQ_DTYPE)
+        fork_trq = hw_com.sim_rx(FORK_TRQ_DTYPE)
+        # print(hand_trq, fork_trq)
+        u = np.array([0, fork_trq[0]])
 
-        looptime = hw_com.sim_rx(np.uint64)
-        print(looptime)
         #DEBUGGING
+        # looptime = hw_com.sim_rx(np.uint64)
+        # print(looptime)
         # print("SPEED_TICKS: ", hw_com.sim_rx(SPEED_TICKS_DTYPE))
         # print("TORQUE_H: ", hw_com.sim_rx(TORQUE_H_DTYPE))
         # print("OMEGA_X: ", hw_com.sim_rx(OMEGA_X_DTYPE))
@@ -720,9 +756,9 @@ u_ref = np.array([0,0])
 #Linear controller to apply
 controller = {
     # "mm": mm_ctrl
-    # "sil" : sil_ctrl
+    "sil" : sil_ctrl
     # "mm+sil" : mm_sil_ctrl
-    "zero" : zero_ctrl
+    # "zero" : zero_ctrl
 }
 
 controller_ref = {
@@ -738,11 +774,20 @@ phi_kalman = KalmanSanjurjo(
     SIM_PAR_PLANT["dt"])
 
 #Simulate
-time, output, states, calc_states = hw_in_the_loop_sim(SIM_PAR_PLANT,bike_plant,controller,u_ref)
+time_hw, output_hw, states_hw, calc_states_hw = hw_in_the_loop_sim(SIM_PAR_PLANT,bike_plant,u_ref)
 # time, output, states, calc_states = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ref,phi_kalman)
 # time_ref, output_ref, states_ref, calc_states_ref = simulate(SIM_PAR_REF,bike_plant,controller_ref,u_ref,phi_kalman)
 
 #Test plot
+fig = plt.figure()    
+plt.title("simulation")
+plt.plot(time_hw, states_hw)#, time_ref, states_ref)
+plt.xlabel("Time [s]")
+plt.ylabel("states")
+plt.legend(("phi", "theta","d_phi","d_theta"))
+plt.axis((0,10,-5,5))
+# plt.show()
+
 fig = plt.figure()    
 plt.title("simulation")
 plt.plot(time, states)#, time_ref, states_ref)

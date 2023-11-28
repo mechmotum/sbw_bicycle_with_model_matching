@@ -43,20 +43,24 @@ class SimpleKalman{
     float bias(); //return the estimated gyroscope bias
     double time();
 
+    //--[Setters
+    void set_F(Matrix<float,2,2>& F){m_F=F;}
+    void set_B(Matrix<float,2,1>& B){m_B=B;}
+
     private:
     //--[Time
     double t; //time
 
     //--[Matrices
     // sysem matrices
-    Matrix<float,2,2>& F; // State transition model
-    Matrix<float,2,1>& B; // Control input model 
-    Matrix<float,1,2>& H; // Observation model
-    Matrix<float,2,2>& Q; // Process noise covariance
-    Matrix<float,1,1>& R; // Measurement noise covariance
+    Matrix<float,2,2> m_F; // State transition model
+    Matrix<float,2,1> m_B; // Control input model 
+    Matrix<float,1,2> H; // Observation model
+    Matrix<float,2,2> Q; // Process noise covariance
+    Matrix<float,1,1> R; // Measurement noise covariance
 
     //Helping matrices
-    Matrix<float,2,2>& P_post; // P_k|k updated csovariance matrix
+    Matrix<float,2,2> P_post; // P_k|k updated csovariance matrix
     Matrix<float,2,2> P_prio; // P_k+1|k predicted covariance matrix
     Matrix<float,2,1> K; // Kalman gain
     Matrix<float,2,2> I; // Identity
