@@ -52,7 +52,7 @@ SIM_PAR_PLANT = {
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
     "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
-    "step_num" : 10#00*2 # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
+    "step_num" : 1000#*2 # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
 }
 
 SIM_PAR_REF = {
@@ -522,12 +522,6 @@ def hw_in_the_loop_sim(par,system,u_ref):
 
     #--[Set initial values for 'sensor' readings
     speed_ticks = 0
-    torque_h = 0
-    omega_x = 0
-    omega_y = 0
-    omega_z = 0
-    encoder_h = 0
-    encoder_f = 0
 
     #--[Assign for shorter notation
     vel = par["vel"]
@@ -590,11 +584,12 @@ def hw_in_the_loop_sim(par,system,u_ref):
         y_vec[k*sim_steps:(k+1)*sim_steps, :] = y.reshape((time_vec.shape[0],p))
         x_vec[k*sim_steps:(k+1)*sim_steps, :] = x
 
-        #--[Update current state, and time
+        #--[Update current state, time, and measurement
         x0 = x[-1,:]
         time = time + dt
         y_meas = y.reshape((time_vec.shape[0],p))[-1,:]
 
+        #--[Update bike_states for calculation of omega_. #TODO: make this more streamlined. it feels redundent
         for i, key in enumerate(["phi","delta","d_phi","d_delta"]):
                 bike_states[key] = x0[i]
 
@@ -604,7 +599,7 @@ def hw_in_the_loop_sim(par,system,u_ref):
         omega_x, omega_y, omega_z = calc_omega(par,bike_states)
         encoder_h, encoder_f = calc_enc_count(y_meas[0])
 
-        #--[Send message to controller
+        #--[Send message to controller (timestep +dt)
         hw_com.sim_tx(math.floor(speed_ticks),SPEED_TICKS_DTYPE)
         hw_com.sim_tx(torque_h,TORQUE_H_DTYPE)
         hw_com.sim_tx(omega_x,OMEGA_X_DTYPE)
@@ -634,22 +629,22 @@ def hw_in_the_loop_sim(par,system,u_ref):
         # y0_vec[k*sim_steps:(k+1)*sim_steps, :] = y0 * np.ones_like(x)
 
         #--[Wait for the teensy to do its calculations
-        while(hw_com.in_waiting()<9+40): #TODO: remove magic number. It is the total amount of bytes - 1 sent from the teensy
+        while(hw_com.in_waiting()<9):#+40): #TODO: remove magic number. It is the total amount of bytes - 1 sent from the teensy
             pass
 
-        kalman = hw_com.sim_rx(np.float32)
-        print("\nx-,0: ",kalman[0],
-            "\nx-,1: ",kalman[1],
-            "\nu: ",kalman[2],
-            "\nx-,0: ",kalman[3],
-            "\nx-,1: ",kalman[4],
-            "\nK,0: ",kalman[5],
-            "\nK,1: ",kalman[6],
-            "\nz: ",kalman[7],
-            "\nx+,0: ",kalman[8],
-            "\nx+,1: ",kalman[9],
-            "\nomega_x: ", omega_x,
-            "\nphi: ", x0[0],"\n")
+        # kalman = hw_com.sim_rx(np.float32)
+        # print("\nx-,0: ",kalman[0],
+        #     "\nx-,1: ",kalman[1],
+        #     "\nu: ",kalman[2],
+        #     "\nx-,0: ",kalman[3],
+        #     "\nx-,1: ",kalman[4],
+        #     "\nK,0: ",kalman[5],
+        #     "\nK,1: ",kalman[6],
+        #     "\nz: ",kalman[7],
+        #     "\nx+,0: ",kalman[8],
+        #     "\nx+,1: ",kalman[9],
+        #     "\nomega_x: ", omega_x,
+        #     "\nphi: ", x0[0],"\n")
         #--[Reset speed ticks
         isSpeedTicksReset = hw_com.sim_rx(np.uint8)
         if(isSpeedTicksReset):
@@ -756,8 +751,8 @@ u_ref = np.array([0,0])
 #Linear controller to apply
 controller = {
     # "mm": mm_ctrl
-    "sil" : sil_ctrl
-    # "mm+sil" : mm_sil_ctrl
+    # "sil" : sil_ctrl
+    "mm+sil" : mm_sil_ctrl
     # "zero" : zero_ctrl
 }
 
@@ -775,7 +770,7 @@ phi_kalman = KalmanSanjurjo(
 
 #Simulate
 time_hw, output_hw, states_hw, calc_states_hw = hw_in_the_loop_sim(SIM_PAR_PLANT,bike_plant,u_ref)
-# time, output, states, calc_states = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ref,phi_kalman)
+time, output, states, calc_states = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ref,phi_kalman)
 # time_ref, output_ref, states_ref, calc_states_ref = simulate(SIM_PAR_REF,bike_plant,controller_ref,u_ref,phi_kalman)
 
 #Test plot

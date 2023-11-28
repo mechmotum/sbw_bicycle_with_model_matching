@@ -263,15 +263,15 @@ const float V_AVERAGE = 6; // [m/s] value somewhere in the stable speed range. (
 
 // Model matching gains: The "_Vx" indicates that the coefficient
 //  is multiplied with speed to the power of x.
-const float K_MM_PHI_V0 = 0; // lean angle
-const float K_MM_DELT_V2 = 0; // steer/fork angle
-const float K_MM_DELT_V0 = 0; // steer/fork angle
-const float K_MM_DPHI_V1 = 0; // lean rate
-const float K_MM_DPHI_VMIN1 = 0; // lean rate
-const float K_MM_DDELT_V1 = 0; // steer/fork rate
-const float K_MM_DDELT_VMIN1 = 0; // steer/fork rate
-const float K_MM_TPHI_V0 = 0; // lean torque
-const float K_MM_TDELT_V0 = 0; // steer/hand torque
+const float K_MM_PHI_V0 = 0.840841241252; // lean angle
+const float K_MM_DELT_V0 = 0.120254094656; // steer/fork angle
+const float K_MM_DELT_V2 = -0.183092924965; // steer/fork angle
+const float K_MM_DPHI_V1 = 0.373289545485; // lean rate
+const float K_MM_DPHI_VMIN1 = -2.53819533238e-13; // lean rate
+const float K_MM_DDELT_V1 = -0.041905112053; // steer/fork rate
+const float K_MM_DDELT_VMIN1 = -6.82478414984e-14; // steer/fork rate
+const float K_MM_TPHI_V0 = 0.00203761694971; // lean torque
+const float K_MM_TDELT_V0 = 0.940050621145; // steer/hand torque
 
 //----------------------- Steering rate calculation --------------------------//
 const uint8_t STEER_MVING_AVG_SMPL_LEN = 10;
@@ -487,7 +487,7 @@ void loop(){
       //------[Perform steering control
       // calc_pd_errors(sbw_bike, error, derror_dt);
       // calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
-      // calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
+      calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
       calc_sil_control(sbw_bike, command_fork, command_hand);
       
       //------[Send reset wheel encoder msg
@@ -635,8 +635,8 @@ void BikeMeasurements::calc_lean_angle_meas(float omega_x, float omega_y, float 
   // Use the best method based on lean angle size
   W = std::exp(-m_lean_angle*m_lean_angle/PHI_METHOD_WEIGHT); // weight
 
-  // m_lean_angle_meas = W*phi_d + (1-W)*phi_w; // [rad] // THIS CAN NOT BE!! LOOK INTO THIS FURTHER
-  m_lean_angle_meas = (1-W)*phi_d + W*phi_w; // [rad]
+  m_lean_angle_meas = W*phi_d + (1-W)*phi_w; // [rad] // THIS CAN NOT BE!! LOOK INTO THIS FURTHER
+  // m_lean_angle_meas = (1-W)*phi_d + W*phi_w; // [rad]
   
   // byte_tx<float>(&omega_y);
   // byte_tx<float>(&omega_z);
