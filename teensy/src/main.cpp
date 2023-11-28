@@ -202,7 +202,7 @@ const uint16_t INITIAL_STEER_PWM = 16384;
 const float TEENSY_ANALOG_VOLTAGE = 1; //3.3;
 const uint16_t HAND_TORQUE_RESOLUTION = 1; //1023;
 
-// Timing
+// Timing 10000;//dt = 0.01
 const uint16_t MIN_LOOP_LENGTH_MU = 1000; // target minimum loop length in microseconds.
 const float MIN_LOOP_LENGTH_S = MIN_LOOP_LENGTH_MU*MICRO_TO_UNIT; //
 const uint16_t CTRL_STARTUP_ITTERATIONS = 13000; //#itterations in which the steer torques are slowly scaled to unity.
@@ -375,6 +375,8 @@ SimpleKalman gyro_kalman(F, B, H, Q, R, P_post);
 // uint16_t no_com_cntr = 0; //counts the times the control loop was entered but no serial data was available
 SimulationMeasurements sim_meas{};
 uint8_t isPastWheelBuff = 0;
+elapsedMicros looptime;
+uint64_t tmp = 0;
 
 //============================== [Main Setup] ==================================//
 void setup(){
@@ -451,7 +453,7 @@ void loop(){
   
   
   if (since_last_loop >= MIN_LOOP_LENGTH_MU){ //K: Sort of have a max freq? (cause that is not garanteed in this way)    
-    
+    looptime = 0;
     since_last_loop = since_last_loop - MIN_LOOP_LENGTH_MU; //reset counter
 
     if (control_iteration_counter >= CTRL_STARTUP_ITTERATIONS) // Turn on LED when bike is ready
@@ -488,18 +490,18 @@ void loop(){
       // calc_sil_control(sbw_bike, command_fork, command_hand);
       
       //------[Send reset wheel encoder msg
-      byte_tx<uint8_t>(&isPastWheelBuff);
-      Serial.println();
+      // byte_tx<uint8_t>(&isPastWheelBuff);
+      // Serial.println();
       if(isPastWheelBuff){isPastWheelBuff=0;}
 
       //------[Actuate motors
       // actuate_steer_motors(command_fork, command_hand); //Not necessary for simulation purpose
       float cmd_h = (float)command_hand;
       float cmd_f = (float)command_fork;
-      byte_tx<float>(&cmd_h);
-      Serial.println();
-      byte_tx<float>(&cmd_f);
-      Serial.println();
+      // byte_tx<float>(&cmd_h);
+      // Serial.println();
+      // byte_tx<float>(&cmd_f);
+      // Serial.println();
 
 
       //------[Increase counters
@@ -516,17 +518,10 @@ void loop(){
       print_to_SD(sbw_bike,command_fork,command_hand);
       #endif
 
-      // no_com_cntr = 0; //reset counter as you have communication again.
     }
-    // else{
-    //   // no_com_cntr++;
-    //   // if(no_com_cntr > 1000){ // 1000 is one second
-    //     float error = -99.0;
-    //     byte_tx_float32(&error);
-    //     byte_tx_float32(&error);
-    //     Serial.println();
-    //   // }
-    // }
+    tmp = (uint64_t)looptime;
+    byte_tx<uint64_t>(&tmp);
+    Serial.println();
   }
 }
 

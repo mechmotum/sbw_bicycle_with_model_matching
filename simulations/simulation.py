@@ -611,13 +611,13 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         # y0_vec[k*sim_steps:(k+1)*sim_steps, :] = y0 * np.ones_like(x)
 
         #--[Wait for the teensy to do its calculations
-        while(hw_com.in_waiting()<8): #TODO: remove magic number. It is the total amount of bytes - 1 sent from the teensy
+        while(hw_com.in_waiting()<7): #TODO: remove magic number. It is the total amount of bytes - 1 sent from the teensy
             pass
 
         #--[Reset speed ticks
-        isSpeedTicksReset = hw_com.sim_rx(np.uint8)
-        if(isSpeedTicksReset):
-            speed_ticks = 0
+        # isSpeedTicksReset = hw_com.sim_rx(np.uint8)
+        # if(isSpeedTicksReset):
+        #     speed_ticks = 0
 
         #--[Calculate input
         '''
@@ -632,10 +632,13 @@ def hw_in_the_loop_sim(par,system,ctrlrs,u_ref):
         '''
         # Discreet time input 'u'
             # Controller input
-        hand_trq = hw_com.sim_rx(HAND_TRQ_DTYPE)
-        fork_trq = hw_com.sim_rx(FORK_TRQ_DTYPE)
-        u = np.array([0, fork_trq[0]])
+        # hand_trq = hw_com.sim_rx(HAND_TRQ_DTYPE)
+        # fork_trq = hw_com.sim_rx(FORK_TRQ_DTYPE)
+        # u = np.array([0, fork_trq[0]])
+        u = np.array([0, 0])
 
+        looptime = hw_com.sim_rx(np.uint64)
+        print(looptime)
         #DEBUGGING
         # print("SPEED_TICKS: ", hw_com.sim_rx(SPEED_TICKS_DTYPE))
         # print("TORQUE_H: ", hw_com.sim_rx(TORQUE_H_DTYPE))
