@@ -545,7 +545,7 @@ void BikeMeasurements::calculate_roll_states(){
   omega_vec(1,0) = IMU.gyro_y_radps();
   omega_vec(2,0) = IMU.gyro_z_radps();
 
-  omega_vec = B_ROT_IMU*omega_vec;
+  omega_vec = -B_ROT_IMU*omega_vec; //Minus to get the correct angular positive rotation
   Serial.print(omega_vec(0));
   Serial.print(",");
   Serial.print(omega_vec(1));
