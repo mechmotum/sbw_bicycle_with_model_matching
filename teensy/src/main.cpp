@@ -343,6 +343,9 @@ Eigen::Matrix<float,2,2> P_post {{0,0},{0,0}};
 
 SimpleKalman gyro_kalman(F, B, H, Q, R, P_post);
 
+//------------------------------ Loop timing ----------------------------------//
+// elapsedMicros looptime = 0;
+
 //============================== [Main Setup] ==================================//
 void setup(){
   //------[Initialize communications
@@ -426,7 +429,15 @@ void loop(){
   #endif
   
   
-  if (since_last_loop >= MIN_LOOP_LENGTH_MU){ //K: Sort of have a max freq? (cause that is not garanteed in this way)    
+  if (since_last_loop >= MIN_LOOP_LENGTH_MU){ //K: Sort of have a max freq? (cause that is not garanteed in this way)
+    // #if SERIAL_DEBUG
+    // Serial.print(since_last_loop);
+    // Serial.print("\n");
+    // #elif USE_BT
+    // Serial1.print(since_last_loop);
+    // Serial1.print("\n");
+    // #endif
+    // looptime = 0;
     since_last_loop = since_last_loop - MIN_LOOP_LENGTH_MU; //reset counter
 
     if (control_iteration_counter >= CTRL_STARTUP_ITTERATIONS) // Turn on LED when bike is ready
@@ -474,6 +485,13 @@ void loop(){
     #if USE_SD
     print_to_SD(sbw_bike,command_fork,command_hand);
     #endif
+    // #if SERIAL_DEBUG
+    // Serial.print(looptime);
+    // Serial.print("\n");
+    // #elif USE_BT
+    // Serial1.print(looptime);
+    // Serial1.print("\n");
+    // #endif
   }
 }
 
