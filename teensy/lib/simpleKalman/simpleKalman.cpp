@@ -7,7 +7,7 @@ SimpleKalman::SimpleKalman(
         Matrix<float,2,2>& Q,
         Matrix<float,1,1>& R,
         Matrix<float,2,2>& P_post)
-: F(F), B(B), H(H), Q(Q), R(R), P_post(P_post)
+: m_F{F}, m_B{B}, H{H}, Q{Q}, R{R}, P_post{P_post}
 {
 I.setIdentity();
 P_prio.setZero();
@@ -30,8 +30,8 @@ void SimpleKalman::next_step(Matrix<float,1,1>& u, Matrix<float,1,1>& z, double 
 }
 
 void SimpleKalman::predict_step(Matrix<float,1,1>& u, double dt){
-    x_prio = F*x_post + B*u;
-    P_prio = F*P_post*F.transpose() + Q;
+    x_prio = m_F*x_post + m_B*u;
+    P_prio = m_F*P_post*m_F.transpose() + Q;
     t += dt;
 }
 
@@ -42,11 +42,11 @@ void SimpleKalman::update_step(Matrix<float,1,1>& z){
 }
 
 float SimpleKalman::phi(){
-    return this->x_post(1,1);
+    return this->x_post(0);
 }
 
 float SimpleKalman::bias(){
-    return this->x_post(2,1);
+    return this->x_post(1);
 }
 
 double SimpleKalman::time(){
