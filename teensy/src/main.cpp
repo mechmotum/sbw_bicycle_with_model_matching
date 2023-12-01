@@ -178,7 +178,7 @@ const uint16_t CTRL_STARTUP_ITTERATIONS = 13000*LOOP_TIME_SCALING; // itteration
 const uint32_t ENCODER_CLK_FREQ = 225000; //clock frequency for the encoders SPI protocol
 const float HAND_ENC_BIAS = 153.65 * DEG_TO_RAD;
 const float FORK_ENC_BIAS = 100.65 * DEG_TO_RAD;
-const float HAND_ENC_MAX_VAL = 8192.0;
+const float HAND_ENC_MAX_VAL = 8192.0; //ticks go from 0 to 8191. At the 8192th tick encoder_tick/HAND_ENC_MAX_VAL = 1 --> 2*pi == 0
 const float FORK_ENC_MAX_VAL = 8192.0;
 
 // Pedal and wheel encoders
@@ -836,27 +836,27 @@ void bt_setup(){
   }
 
   //print header for log file.
-  Serial.print("Phi,");
-  Serial.print("Delta,");
-  Serial.print("d_Phi,");
-  Serial.print("d_Delta,");
-  Serial.print("Torque_hand");
-  Serial.print("\n");
+  Serial1.print("Phi,");
+  Serial1.print("Delta,");
+  Serial1.print("d_Phi,");
+  Serial1.print("d_Delta,");
+  Serial1.print("Torque_hand");
+  Serial1.print("\n");
 }
 
 //========================== [Print to Bluetooth] =========================//
 void print_to_bt(BikeMeasurements& bike, double command_fork, double command_hand){
   if (control_iteration_counter % 10 == 0){ // Limit the printing rate
-    Serial.print(bike.get_lean_angle());
-    Serial.print(",");
-    Serial.print(bike.get_fork_angle());
-    Serial.print(",");
-    Serial.print(bike.get_lean_rate());
-    Serial.print(",");
-    Serial.print(bike.get_fork_rate());
-    Serial.print(",");
-    Serial.print(bike.get_hand_torque());
-    Serial.print("\n");
+    Serial1.print(bike.get_lean_angle());
+    Serial1.print(",");
+    Serial1.print(bike.get_fork_angle());
+    Serial1.print(",");
+    Serial1.print(bike.get_lean_rate());
+    Serial1.print(",");
+    Serial1.print(bike.get_fork_rate());
+    Serial1.print(",");
+    Serial1.print(bike.get_hand_torque());
+    Serial1.print("\n");
   }
 }
 #endif
