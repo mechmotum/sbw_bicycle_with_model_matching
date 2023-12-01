@@ -168,9 +168,10 @@ const uint8_t TORQUE_SLOPE = 1;
 const uint8_t TORQUE_BIAS  = 0;
 
 // Timing
-const uint16_t MIN_LOOP_LENGTH_MU = 1000; // target minimum loop length in microseconds.
+const uint16_t MIN_LOOP_LENGTH_MU = 10000; // target minimum loop length in microseconds. (Currently set at dt = 0.01sec as this corrosponsds with the current Kalman gains)
 const float MIN_LOOP_LENGTH_S = MIN_LOOP_LENGTH_MU*MICRO_TO_UNIT; //
-const uint16_t CTRL_STARTUP_ITTERATIONS = 13000; //#itterations in which the steer torques are slowly scaled to unity.
+const float LOOP_TIME_SCALING = 1000.0F/(float)MIN_LOOP_LENGTH_MU; // The old code was written for startup time of 13 seconds having a loop time of 1 milisec. Since I chanced the loop time, the number of itterations needed for 13 sec also has to scale appropriately
+const uint16_t CTRL_STARTUP_ITTERATIONS = 13000*LOOP_TIME_SCALING; // itterations in which the steer torques are slowly scaled to unity.
 
 // Motor encoders
 const uint32_t ENCODER_CLK_FREQ = 225000; //clock frequency for the encoders SPI protocol
@@ -189,6 +190,7 @@ const uint16_t WHEEL_COUNTS_LENGTH = 500;
 const uint8_t WHEEL_COUNTS_PER_REV = 192;
 const float WHEEL_RADIUS = 0.33f; //[m]
 #if USE_PEDAL_CADANCE
+/*NOTE: there is currently no sensor to measure the encoder ticks*/
 const uint16_t PEDAL_COUNTS_LENGTH = 500;
 const uint8_t PEDAL_COUNTS_PER_REV = 192;
 #endif
@@ -314,6 +316,7 @@ elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
 Eigen::Matrix<float,3,3> B_ROT_IMU {{-0.10964618,  0.07170863, -0.9928662 },
                                     {-0.00522393, -1.00139095, -0.02117246},
                                     { 0.99607305, -0.03168316, -0.08985829}};
+
 //--------------------------- SD Card Logging --------------------------------//
 #if USE_SD
   SdExFat sd;
@@ -753,12 +756,14 @@ void calc_mm_control(BikeMeasurements& bike, double& command_fork){
   float k_phi, k_delta, k_dphi, k_ddelta, k_tphi, k_tdelta;
   calc_mm_gains(k_phi, k_delta, k_dphi, k_ddelta, k_tphi, k_tdelta, bike.get_bike_speed());
 
-  command_fork +=   k_phi*bike.get_lean_angle()
-                  + k_delta*bike.get_fork_angle() 
-                  + k_dphi*bike.get_lean_rate() 
-                  + k_ddelta*bike.get_fork_rate() 
-                  // + k_tphi*bike.get_lean_torque() //we cannot measure lean torque, so we assume it is zero. 
-                  + k_tdelta*bike.get_hand_torque();
+  command_fork +=  (
+    k_phi*bike.get_lean_angle()
+    + k_delta*bike.get_fork_angle() 
+    + k_dphi*bike.get_lean_rate() 
+    + k_ddelta*bike.get_fork_rate() 
+    // + k_tphi*bike.get_lean_torque() //we cannot measure lean torque, so we assume it is zero. 
+    + k_tdelta*bike.get_hand_torque()
+    ) / return_scaling(control_iteration_counter); //Scaling is done to prevent a jerk of the motors at startup
 }
 
 void calc_mm_gains(float& k_phi, float& k_delta, float& k_dphi, float& k_ddelta, float& k_tphi, float& k_tdelta, float speed){
@@ -778,8 +783,8 @@ void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& comm
   else
     sil_command = K_SIL2 * (bike.get_bike_speed() - V_AVERAGE)*bike.get_lean_angle();
 
-  command_fork += sil_command;
-  command_hand += sil_command;
+  command_fork += (sil_command / return_scaling(control_iteration_counter));
+  command_hand += (sil_command / return_scaling(control_iteration_counter));
   return;
 }
 
@@ -1134,21 +1139,23 @@ float return_scaling(uint64_t iteration){
   // Slowly ramps up the torque over 13 seconds. Used to avoid commanding high 
   // torques when turning on the bicycle, if the handlebars and the wheel are
   // not aligned.
-  if (iteration <= (uint64_t) 6000) 
+  if (iteration > (uint64_t) 13000*LOOP_TIME_SCALING)
+    return 1.0f;
+  else if(iteration <= (uint64_t) 6000*LOOP_TIME_SCALING) 
     return 35.0f;
-  else if (iteration <= (uint64_t) 7000)
+  else if (iteration <= (uint64_t) 7000*LOOP_TIME_SCALING)
     return 30.0f;
-  else if (iteration <= (uint64_t) 8000)
+  else if (iteration <= (uint64_t) 8000*LOOP_TIME_SCALING)
     return 25.0f;
-  else if (iteration <= (uint64_t) 9000)
+  else if (iteration <= (uint64_t) 9000*LOOP_TIME_SCALING)
     return 20.0f;
-  else if (iteration <= (uint64_t) 10000)
+  else if (iteration <= (uint64_t) 10000*LOOP_TIME_SCALING)
     return 15.0f;
-  else if (iteration <= (uint64_t) 11000)
+  else if (iteration <= (uint64_t) 11000*LOOP_TIME_SCALING)
     return 10.0f;
-  else if (iteration <= (uint64_t) 12000)
+  else if (iteration <= (uint64_t) 12000*LOOP_TIME_SCALING)
     return 5.0f;
-  else if (iteration <= (uint64_t) 13000)
+  else if (iteration <= (uint64_t) 13000*LOOP_TIME_SCALING)
     return 2.5f;
   
   return 1.0f;
