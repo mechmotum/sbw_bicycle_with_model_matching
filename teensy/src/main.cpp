@@ -521,8 +521,8 @@ void BikeMeasurements::measure_steer_angles(){
 
 //=========================== [Get handlebar torque] ===============================//
 void BikeMeasurements::measure_hand_torque(){
-  float voltage = TEENSY_ANALOG_VOLTAGE * analogRead(a_torque)/HAND_TORQUE_RESOLUTION;
-  m_hand_torque = TORQUE_SLOPE*voltage + TORQUE_BIAS;
+  // float voltage = TEENSY_ANALOG_VOLTAGE * analogRead(a_torque)/HAND_TORQUE_RESOLUTION;
+  // m_hand_torque = TORQUE_SLOPE*voltage + TORQUE_BIAS;
 }
 
 
