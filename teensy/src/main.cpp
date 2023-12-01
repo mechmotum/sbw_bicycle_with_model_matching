@@ -297,7 +297,7 @@ elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
   Encoder wheel_counter(encdr_pin1_wheel, encdr_pin2_wheel); // Initialize Rear wheel speed encoder
   int32_t wheel_counts[WHEEL_COUNTS_LENGTH] = {0};
   uint32_t wheel_counts_index = 0;
-  uint32_t end_of_array_storage = 0; //to store the value of the encoder at the end of the wheel_counts array before resetting.
+  int32_t end_of_array_storage = 0; //to store the value of the encoder at the end of the wheel_counts array before resetting.
   uint32_t bike_speed_dt_sum_mu = 0;
   uint32_t bike_speed_dt_array[WHEEL_COUNTS_LENGTH] = {0};
 #if USE_PEDAL_CADANCE
@@ -544,13 +544,8 @@ void BikeMeasurements::calculate_roll_states(){
   omega_vec(0,0) = IMU.gyro_x_radps();
   omega_vec(1,0) = IMU.gyro_y_radps();
   omega_vec(2,0) = IMU.gyro_z_radps();
-
   omega_vec = -B_ROT_IMU*omega_vec; //Minus to get the correct angular positive rotation
-  Serial.print(omega_vec(0));
-  Serial.print(",");
-  Serial.print(omega_vec(1));
-  Serial.print(",");
-  Serial.println(omega_vec(2));
+
   //having dt, change the propegation model and input model according to Sanjurjo
   F << 1, -m_dt_IMU_meas*MICRO_TO_UNIT,
        0, 1;
@@ -611,6 +606,14 @@ void BikeMeasurements::calculate_bike_speed(){
   bike_speed_dt_sum_mu += m_dt_bike_speed_meas;
   bike_speed_dt_array[wheel_counts_index] = m_dt_bike_speed_meas;
 
+  /*NOTE #rounds = count_diff/WHEEL_COUNTS_PER_REV. The count_diff is measured 
+  WHEEL_COUNTS_LENGTH loops away from each other. The length of such a loop is
+  stored in bike_speed_dt_sum_mu
+  */ 
+  float rps_wheel = ((float)((current_wheel_count + end_of_array_storage) - previous_wheel_count )) 
+  / ((float)WHEEL_COUNTS_PER_REV * ((float)bike_speed_dt_sum_mu * MICRO_TO_UNIT));
+  m_bike_speed = rps_wheel * 2*PI * WHEEL_RADIUS;
+  
   // update index
   wheel_counts_index += 1;
 
@@ -624,14 +627,6 @@ void BikeMeasurements::calculate_bike_speed(){
     end_of_array_storage = wheel_counter.read();
     wheel_counter.write(0);
   }
-
-  /*NOTE #rounds = count_diff/WHEEL_COUNTS_PER_REV. The count_diff is measured 
-  WHEEL_COUNTS_LENGTH loops away from each other. The length of such a loop is
-  stored in bike_speed_dt_sum_mu
-  */ 
-  float rps_wheel = ((float)((current_wheel_count + end_of_array_storage) - previous_wheel_count )) 
-  / ((float)WHEEL_COUNTS_PER_REV * ((float)bike_speed_dt_sum_mu * MICRO_TO_UNIT));
-  m_bike_speed = -rps_wheel * 2*PI * WHEEL_RADIUS; //TODO: see if the minus sign is indeed necessary
 
   return;
 } 
@@ -881,27 +876,31 @@ void print_to_bt(BikeMeasurements& bike, double command_fork, double command_han
 //=========================== [Print to serial] ===========================//
 #if SERIAL_DEBUG
 void print_to_serial(BikeMeasurements& bike, double command_fork, double command_hand){
-  if (control_iteration_counter % 100 == 0){ // Limit the printing rate
-      Serial.print("hand_ang: ");
-      Serial.print(bike.get_hand_angle());
-      Serial.print(", fork_ang: ");
-      Serial.print(bike.get_fork_angle());
-      Serial.print(", lean_ang: ");
-      Serial.print(bike.get_lean_angle());
-      Serial.print(", fork_rate: ");
-      Serial.print(bike.get_fork_rate());
-      Serial.print(", lean_rate: ");
-      Serial.print(bike.get_lean_rate());
-      Serial.print(", hand_torq: ");
-      Serial.print(bike.get_hand_torque());
-      Serial.print(", bike_speed: ");
-      Serial.print(bike.get_bike_speed());
-      Serial.print(", cmnd_fork: ");
-      Serial.print(command_fork);
-      Serial.print(", cmnd_hand: ");
-      Serial.print(command_hand);
-      Serial.println();
-  }
+  // if (control_iteration_counter % 100 == 0){ // Limit the printing rate
+      // Serial.print(wheel_counter.read());
+      // Serial.print(" - ");
+      // Serial.print(bike.get_bike_speed());
+      // Serial.print("\n");
+      // Serial.print("hand_ang: ");
+      // Serial.print(bike.get_hand_angle());
+      // Serial.print(", fork_ang: ");
+      // Serial.print(bike.get_fork_angle());
+      // Serial.print(", lean_ang: ");
+      // Serial.print(bike.get_lean_angle());
+      // Serial.print(", fork_rate: ");
+      // Serial.print(bike.get_fork_rate());
+      // Serial.print(", lean_rate: ");
+      // Serial.print(bike.get_lean_rate());
+      // Serial.print(", hand_torq: ");
+      // Serial.print(bike.get_hand_torque());
+      // Serial.print(", bike_speed: ");
+      // Serial.print(bike.get_bike_speed());
+      // Serial.print(", cmnd_fork: ");
+      // Serial.print(command_fork);
+      // Serial.print(", cmnd_hand: ");
+      // Serial.print(command_hand);
+      // Serial.println();
+  // }
 }
 #endif //SERIAL_DEBUG
 
