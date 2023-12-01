@@ -162,8 +162,8 @@ const uint16_t INITIAL_FORK_PWM = 16384; //K: I think that the middle is a zero 
 const uint16_t INITIAL_STEER_PWM = 16384;
 
 // Torque
-const float TEENSY_ANALOG_VOLTAGE = 1; //3.3;
-const uint16_t HAND_TORQUE_RESOLUTION = 1; //1023;
+const float TEENSY_ANALOG_VOLTAGE = 3.3;
+const uint16_t HAND_TORQUE_RESOLUTION = 1023;
 const uint8_t TORQUE_SLOPE = 1;
 const uint8_t TORQUE_BIAS  = 0;
 
@@ -224,19 +224,19 @@ const float KD_H = 0.012f * RAD_TO_DEG; // Handlebar
 // Steer into lean gains (see 'Some recent developments in bicycle dynamics and control', A. L. Schwab et al., 2008)
 const uint8_t K_SIL1 = 8; // [Ns^2/rad] gain for the steer into lean controller when below stable speed range
 const float K_SIL2 = 0.7; // [Ns/rad] gain for the steer into lean controller when above stable speed range
-const float V_AVERAGE = 7; // [m/s] value somewhere in the stable speed range. (take the average of min and max stable speed)
+const float V_AVERAGE = 6; // [m/s] value somewhere in the stable speed range. (take the average of min and max stable speed)
 
 // Model matching gains: The "_Vx" indicates that the coefficient
 //  is multiplied with speed to the power of x.
-const float K_MM_PHI_V0 = 0; // lean angle
-const float K_MM_DELT_V2 = 0; // steer/fork angle
-const float K_MM_DELT_V0 = 0; // steer/fork angle
-const float K_MM_DPHI_V1 = 0; // lean rate
-const float K_MM_DPHI_VMIN1 = 0; // lean rate
-const float K_MM_DDELT_V1 = 0; // steer/fork rate
-const float K_MM_DDELT_VMIN1 = 0; // steer/fork rate
-const float K_MM_TPHI_V0 = 0; // lean torque
-const float K_MM_TDELT_V0 = 0; // steer/hand torque
+const float K_MM_PHI_V0 = 0.840841241252; // lean angle
+const float K_MM_DELT_V0 = 0.120254094656; // steer/fork angle
+const float K_MM_DELT_V2 = -0.183092924965; // steer/fork angle
+const float K_MM_DPHI_V1 = 0.373289545485; // lean rate
+const float K_MM_DPHI_VMIN1 = -2.53819533238e-13; // lean rate
+const float K_MM_DDELT_V1 = -0.041905112053; // steer/fork rate
+const float K_MM_DDELT_VMIN1 = -6.82478414984e-14; // steer/fork rate
+const float K_MM_TPHI_V0 = 0.00203761694971; // lean torque
+const float K_MM_TDELT_V0 = 0.940050621145; // steer/hand torque
 
 //----------------------- Steering rate calculation --------------------------//
 const uint8_t STEER_MVING_AVG_SMPL_LEN = 10;
@@ -464,7 +464,7 @@ void loop(){
     print_to_bt(sbw_bike,command_fork,command_hand);
     #endif
     #if SERIAL_DEBUG
-    // print_to_serial(sbw_bike,command_fork,command_hand);
+    print_to_serial(sbw_bike,command_fork,command_hand);
     #endif
     #if USE_SD
     print_to_SD(sbw_bike,command_fork,command_hand);
@@ -547,11 +547,13 @@ void BikeMeasurements::calculate_roll_states(){
   omega_vec = -B_ROT_IMU*omega_vec; //Minus to get the correct angular positive rotation
 
   //having dt, change the propegation model and input model according to Sanjurjo
-  F << 1, -m_dt_IMU_meas*MICRO_TO_UNIT,
+  F << 1, -((float)m_dt_IMU_meas)*MICRO_TO_UNIT,
        0, 1;
-  B << m_dt_IMU_meas*MICRO_TO_UNIT,
+  B << ((float)m_dt_IMU_meas)*MICRO_TO_UNIT,
        0;
 
+  gyro_kalman.set_F(F);
+  gyro_kalman.set_B(B);
   // calculate the lean angle measurement according to Sanjuro
   calc_lean_angle_meas(omega_vec(0,0), omega_vec(1,0), omega_vec(2,0));
   
@@ -578,6 +580,10 @@ void BikeMeasurements::calc_lean_angle_meas(float omega_x, float omega_y, float 
   phi_d = std::atan((omega_z*m_bike_speed)/GRAVITY); // [rad]
 
   // Lean angle astimate based on zero tilt rate (good for large lean angles)
+    if (omega_y > -1e-5 && omega_y < 1e-5
+      && omega_z > -1e-5 && omega_z < 1e-5){
+        omega_z += 0.001;
+      }
   phi_w = sgn(omega_z)*std::asin(omega_y/std::sqrt(omega_y*omega_y + omega_z*omega_z)); // [rad]
   
   // Use the best method based on lean angle size
