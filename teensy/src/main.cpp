@@ -179,8 +179,8 @@ const uint16_t CTRL_STARTUP_ITTERATIONS = 13000*LOOP_TIME_SCALING; // itteration
 
 // Motor encoders
 const uint32_t ENCODER_CLK_FREQ = 225000; //clock frequency for the encoders SPI protocol
-const float HAND_ENC_BIAS = 153.65 * DEG_TO_RAD;
-const float FORK_ENC_BIAS = 100.65 * DEG_TO_RAD;
+const float HAND_ENC_BIAS = 153.65 * DEG_TO_RAD + 0.035;
+const float FORK_ENC_BIAS = 100.65 * DEG_TO_RAD - 0.085 + 0.11;
 const float HAND_ENC_MAX_VAL = 8192.0; //ticks go from 0 to 8191. At the 8192th tick encoder_tick/HAND_ENC_MAX_VAL = 1 --> 2*pi == 0
 const float FORK_ENC_MAX_VAL = 8192.0;
 
@@ -885,13 +885,26 @@ void actuate_steer_motors(double command_fork, double command_hand){
   float command_fork_rate = calc_bckwrd_derivative((float)command_fork, command_fork_prev, dt_torque_command);
   float command_hand_rate = calc_bckwrd_derivative((float)command_hand, command_hand_prev, dt_torque_command);
 
-  int32_t dt = (int32_t)dt_torque_command; // may be unnecessary but should be tested, and there is currently no time for that
+  Serial.print(command_fork);
+  Serial.print(',');
+  Serial.print(command_hand);
+  Serial.print(',');
+  Serial.print(command_fork_rate);
+  Serial.print(',');
+  Serial.print(command_hand_rate);
+  Serial.print(',');
+
+  float dt = dt_torque_command; // may be unnecessary but should be tested, and there is currently no time for that
   if(command_fork_rate < -MAX_FORK_TORQUE_RATE || command_fork_rate > MAX_FORK_TORQUE_RATE ){
-    command_fork = command_fork_prev + sgn(command_fork_rate)*MAX_FORK_TORQUE_RATE*dt;
+    command_fork = command_fork_prev + sgn(command_fork_rate)*(float)MAX_FORK_TORQUE_RATE*(dt*MICRO_TO_UNIT);
   }
   if(command_hand_rate < -MAX_HAND_TORQUE_RATE || command_hand_rate > MAX_HAND_TORQUE_RATE ){
-    command_hand = command_hand_prev + sgn(command_hand_rate)*MAX_HAND_TORQUE_RATE*dt;
+    command_hand = command_hand_prev + sgn(command_hand_rate)*MAX_HAND_TORQUE_RATE*(dt*MICRO_TO_UNIT);
   }
+  Serial.print(command_fork);
+  Serial.print(',');
+  Serial.print(command_hand);
+  Serial.print(',');
 
   //------[Find the PWM command
   uint64_t pwm_command_fork = (command_fork * -842.795 + 16384); //K: Sends signal in 0-3.3V range out, which then corresonds to some (unkonwn by me) range of current/torque
@@ -909,9 +922,15 @@ void actuate_steer_motors(double command_fork, double command_hand){
   7956 < commanded torque < 24812
   */
   //Constrain max torque
+  Serial.print(pwm_command_fork);
+  Serial.print(',');
+  Serial.print(pwm_command_hand);
+  Serial.print(',');
   pwm_command_fork = constrain(pwm_command_fork, FORK_PWM_MIN, FORK_PWM_MAX);
   pwm_command_hand = constrain(pwm_command_hand, HAND_PWM_MIN, HAND_PWM_MAX);
-
+  Serial.print(pwm_command_fork);
+  Serial.print(',');
+  Serial.print(pwm_command_hand);
   //------[Send motor command
   analogWrite(pwm_pin_hand, pwm_command_hand);
   analogWrite(pwm_pin_fork, pwm_command_fork);
