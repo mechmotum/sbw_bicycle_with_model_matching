@@ -465,13 +465,16 @@ void loop(){
     sbw_bike.measure_hand_torque();
 
     //------[Perform steering control
-    calc_pd_errors(sbw_bike, error, derror_dt);
-    calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
-    // calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
-    // calc_sil_control(sbw_bike, command_fork, command_hand);
-    
-    actuate_steer_motors(command_fork, command_hand);
+    if(!Serial){
+      calc_pd_errors(sbw_bike, error, derror_dt);
+      calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
+    } else {
+      // calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
+      calc_sil_control(sbw_bike, command_fork, command_hand);
+    }
 
+    actuate_steer_motors(command_fork, command_hand);
+    Serial.print('\n');
     //------[Increase counters
     control_iteration_counter++;
 
@@ -480,7 +483,7 @@ void loop(){
     print_to_bt(sbw_bike,command_fork,command_hand);
     #endif
     #if SERIAL_DEBUG
-    print_to_serial(sbw_bike,command_fork,command_hand);
+    // print_to_serial(sbw_bike,command_fork,command_hand);
     #endif
     #if USE_SD
     print_to_SD(sbw_bike,command_fork,command_hand);
@@ -534,6 +537,16 @@ void BikeMeasurements::measure_steer_angles(){
   this limits, the motor folds back.
   */
   m_hand_angle = constrain(m_hand_angle, -SOFTWARE_LIMIT, SOFTWARE_LIMIT); //K: This may cause the oscillations
+
+  Serial.print("steer: ");
+  Serial.print(enc_counts_hand);
+  Serial.print(", ");
+  Serial.print(enc_counts_fork);
+  Serial.print(", ");
+  Serial.print(m_hand_angle);
+  Serial.print(", ");
+  Serial.print(m_fork_angle);
+  Serial.print('\n');
 }
 
 
@@ -551,6 +564,9 @@ void BikeMeasurements::calculate_fork_rate(){
   so direct numerical derivation gives good results.
   */
   m_fork_rate = calc_bckwrd_derivative(m_fork_angle, m_fork_angle_prev, m_dt_steer_meas);
+  Serial.print("steer_rate: ");
+  Serial.print(m_fork_rate);
+  Serial.print('\n');
   return;
 }
 
@@ -591,6 +607,22 @@ void BikeMeasurements::calculate_roll_states(){
 
   // store current roll rate for next itteration
   m_omega_x_old = omega_vec(0,0); // [rad/s] You need u_k-1 to calculate x_k. There is one step difference
+
+  Serial.print("lean: ");
+  Serial.print(omega_vec(0,0));
+  Serial.print(", ");
+  Serial.print(omega_vec(1,0));
+  Serial.print(", ");
+  Serial.print(omega_vec(2,0));
+  Serial.print(", ");
+  Serial.print(m_omega_x_old);
+  Serial.print(", ");
+  Serial.print(m_lean_angle_meas);
+  Serial.print(", ");
+  Serial.print(m_lean_angle);
+  Serial.print(", ");
+  Serial.print(gyro_kalman.bias());
+  Serial.print('\n');
 }
 
 void BikeMeasurements::calc_lean_angle_meas(float omega_x, float omega_y, float omega_z){
@@ -657,6 +689,13 @@ void BikeMeasurements::calculate_bike_speed(){
     wheel_counter.write(0);
   }
 
+  Serial.print('\n');
+  Serial.print("speed: ");
+  Serial.print(current_wheel_count);
+  Serial.print(", ");
+  Serial.print(m_bike_speed);
+  Serial.print(", ");
+  Serial.print('\n');
   return;
 } 
 
@@ -750,6 +789,13 @@ void calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt){
   }
   error = (bike.get_hand_angle() - bike.get_fork_angle());
   derror_dt = calc_bckwrd_derivative(error, error_prev, bike.get_dt_steer_meas());
+  Serial.print("pd_errors: ");
+  Serial.print(error);
+  Serial.print(", ");
+  Serial.print(derror_dt);
+  Serial.print(", ");
+  Serial.print(bike.get_dt_steer_meas());
+  Serial.print('\n');
   return;
 }
 
@@ -759,6 +805,11 @@ void calc_pd_control(float error, float derror_dt, double& command_fork, double&
   //------[Calculate PID torques
   command_fork += (KP_F*error + KD_F*derror_dt) / return_scaling(control_iteration_counter); //Scaling is done to prevent a jerk of the motors at startup
   command_hand += (KP_H*error + KD_H*derror_dt) / return_scaling(control_iteration_counter); // , as the fork and handlebar can be misaligned
+  Serial.print("pd_control: ");
+  Serial.print(command_hand);
+  Serial.print(", ");
+  Serial.print(command_fork);
+  Serial.print('\n');
   return;
 }
 
@@ -776,14 +827,27 @@ void calc_mm_control(BikeMeasurements& bike, double& command_fork){
   float k_phi, k_delta, k_dphi, k_ddelta, k_tphi, k_tdelta;
   calc_mm_gains(k_phi, k_delta, k_dphi, k_ddelta, k_tphi, k_tdelta, bike.get_bike_speed());
 
-  command_fork +=  (
-    k_phi*bike.get_lean_angle()
-    + k_delta*bike.get_fork_angle() 
-    + k_dphi*bike.get_lean_rate() 
-    + k_ddelta*bike.get_fork_rate() 
-    // + k_tphi*bike.get_lean_torque() //we cannot measure lean torque, so we assume it is zero. 
-    + k_tdelta*bike.get_hand_torque()
-    ) / return_scaling(control_iteration_counter); //Scaling is done to prevent a jerk of the motors at startup
+  command_fork += k_phi*bike.get_lean_angle()
+                + k_delta*bike.get_fork_angle() 
+                + k_dphi*bike.get_lean_rate() 
+                + k_ddelta*bike.get_fork_rate() 
+                // + k_tphi*bike.get_lean_torque() //we cannot measure lean torque, so we assume it is zero. 
+                + k_tdelta*bike.get_hand_torque();
+  Serial.print("mm_control: ");
+  Serial.print(k_phi);
+  Serial.print(", ");
+  Serial.print(k_delta);
+  Serial.print(", ");
+  Serial.print(k_dphi);
+  Serial.print(", ");
+  Serial.print(k_ddelta);
+  Serial.print(", ");
+  Serial.print(k_tphi);
+  Serial.print(", ");
+  Serial.print(k_tdelta);
+  Serial.print(", ");
+  Serial.print(command_fork);
+  Serial.print('\n');
 }
 
 void calc_mm_gains(float& k_phi, float& k_delta, float& k_dphi, float& k_ddelta, float& k_tphi, float& k_tdelta, float speed){
@@ -803,16 +867,20 @@ void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& comm
   else
     sil_command = K_SIL2 * (bike.get_bike_speed() - V_AVERAGE)*bike.get_lean_angle();
 
-  command_fork += (sil_command / return_scaling(control_iteration_counter));
-  command_hand += (sil_command / return_scaling(control_iteration_counter));
+  command_fork += sil_command;
+  command_hand += sil_command;
+
+  Serial.print("sil: ");
+  Serial.print(sil_command);
+  Serial.print('\n');
   return;
 }
 
 //=========================== [Actuate steer motors] ===========================//
 void actuate_steer_motors(double command_fork, double command_hand){
   //------[Find the PWM command
-  uint64_t pwm_command_fork = (command_fork * -842.795 + 16384); //K: magic numbers, what do they mean!!!
-  uint64_t pwm_command_hand = (command_hand * -842.795 + 16384); 
+  uint64_t pwm_command_fork = (command_fork * -842.795 + 16384); //K: Sends signal in 0-3.3V range out, which then corresonds to some (unkonwn by me) range of current/torque
+  uint64_t pwm_command_hand = (command_hand * -842.795 + 16384); //  This video (https://www.youtube.com/watch?v=-TC_ccQnk-Y&list=PLmklAQtFT_ZJzWOa9O6507qA0NiSU8hzN) shows that one can set the ratio between input voltage to output current on the motor driver.
   pwm_command_fork = constrain(pwm_command_fork, FORK_PWM_MIN, FORK_PWM_MAX);
   pwm_command_hand = constrain(pwm_command_hand, HAND_PWM_MIN, HAND_PWM_MAX);
 
@@ -883,27 +951,35 @@ void print_to_bt(BikeMeasurements& bike, double command_fork, double command_han
 //========================== [initialize Serial] ==========================//
 void serial_setup(){
   //Print header for log file
-  Serial.print("Phi,");
-  Serial.print("Delta,");
-  Serial.print("d_Phi,");
-  Serial.print("d_Delta,");
-  Serial.print("Torque_hand");
-  Serial.print("\n");
+  // Serial.print("Phi,");
+  // Serial.print("Delta,");
+  // Serial.print("d_Phi,");
+  // Serial.print("d_Delta,");
+  // Serial.print("Torque_hand");
+  // Serial.print("fork_command");
+  // Serial.print("speed");
+  // Serial.print("\n");
 }
 //=========================== [Print to serial] ===========================//
 void print_to_serial(BikeMeasurements& bike, double command_fork, double command_hand){
-  if (control_iteration_counter % 10 == 0){ // Limit the printing rate
-    Serial.print(bike.get_lean_angle());
-    Serial.print(",");
-    Serial.print(bike.get_fork_angle());
-    Serial.print(",");
-    Serial.print(bike.get_lean_rate());
-    Serial.print(",");
-    Serial.print(bike.get_fork_rate());
-    Serial.print(",");
-    Serial.print(bike.get_hand_torque());
-    Serial.print("\n");
-  }
+  // if (control_iteration_counter % 10 == 0){ // Limit the printing rate
+    // Serial.print(bike.get_lean_angle());
+    // Serial.print(",");
+    // Serial.print(bike.get_fork_angle());
+    // Serial.print(",");
+    // Serial.print(bike.get_lean_rate());
+    // Serial.print(",");
+    // Serial.print(bike.get_fork_rate());
+    // Serial.print(",");
+    // Serial.print(bike.get_hand_torque());
+    // Serial.print(",");
+    // Serial.print(command_fork);
+    // Serial.print(",");
+    // Serial.print(command_hand);
+    // Serial.print(",");
+    // Serial.print(bike.get_bike_speed());
+    // Serial.print("\n");
+  // }
 }
 #endif //SERIAL_DEBUG
 
