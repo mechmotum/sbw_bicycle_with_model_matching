@@ -151,14 +151,17 @@ const float GRAVITY = 9.81;
 // Conversion
 const float MICRO_TO_UNIT = 1e-6;
 
-// PWM
+// PWM Setup
 const uint8_t PWM_RESOLUTION_BITS = 15;
 const float PWM_FREQUENCY = 4577.64;
-const uint32_t PWM_MAX_VAL = (1 << PWM_RESOLUTION_BITS) - 1;
-const uint32_t HAND_PWM_MAX = PWM_MAX_VAL;
-const uint32_t HAND_PWM_MIN = 0;
-const uint32_t FORK_PWM_MAX = PWM_MAX_VAL;
-const uint32_t FORK_PWM_MIN = 0;
+
+// Commanded torque
+const int8_t MAX_FORK_TORQUE_RATE = 1;
+const int8_t MAX_HAND_TORQUE_RATE = 1;
+const uint32_t HAND_PWM_MAX = 24812;
+const uint32_t HAND_PWM_MIN = 7956;
+const uint32_t FORK_PWM_MAX = 24812;
+const uint32_t FORK_PWM_MIN = 7956;
 const uint16_t INITIAL_FORK_PWM = 16384; //K: I think that the middle is a zero command. That 0 and 32,768 are both maximum torque but in opposite directions.
 const uint16_t INITIAL_STEER_PWM = 16384;
 
@@ -278,6 +281,12 @@ const uint8_t encdr_pin1_pedal = 23; //1 of 2 pins to read out the pedal encoder
 const uint8_t encdr_pin2_pedal = 22; //1 of 2 pins to read out the pedal encoder
 #endif
 
+//---------------------------- Torque command --------------------------------//
+uint32_t dt_torque_command = 0;
+float command_fork_prev = 0;
+float command_hand_prev = 0;
+
+
 //------------------------------ PD Control ----------------------------------//
 float error_prev = 0.0f; // [rad] Variable to store the previos mismatch between handlebar and fork
 uint64_t control_iteration_counter = 0; // TODO: Ensure it never overflows!
@@ -291,7 +300,8 @@ uint64_t control_iteration_counter = 0; // TODO: Ensure it never overflows!
 //--------------------------------- Time -------------------------------------//
 elapsedMicros since_last_loop; // How long has passed since last loop execution
 elapsedMicros since_last_steer_meas; // How long since last handlebar and fork measurement
-elapsedMicros sinse_last_bike_speed; // How long since last bike speed measurement
+elapsedMicros since_last_bike_speed; // How long since last bike speed measurement
+elapsedMicros since_last_torque_command; // How long since last torque command
 #if USE_IMU
 elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
 #endif
@@ -346,6 +356,7 @@ SimpleKalman gyro_kalman(F, B, H, Q, R, P_post);
 //------------------------------ Loop timing ----------------------------------//
 // elapsedMicros looptime = 0;
 
+//------------------------- switching controllers -----------------------------//
 bool isSwitchControl = false;
 
 //============================== [Main Setup] ==================================//
@@ -415,7 +426,7 @@ void setup(){
   delay(1); //give time for sensors to initialize
   since_last_loop = 0;
   since_last_steer_meas = 0;
-  sinse_last_bike_speed = 0;
+  since_last_bike_speed = 0;
   #if USE_IMU
   since_last_IMU_meas = 0;
   #endif
@@ -665,7 +676,7 @@ void BikeMeasurements::calculate_bike_speed(){
   wheel_counts[wheel_counts_index] = current_wheel_count;
 
   //Update time measurement
-  update_dtime(m_dt_bike_speed_meas, sinse_last_bike_speed);
+  update_dtime(m_dt_bike_speed_meas, since_last_bike_speed);
   bike_speed_dt_sum_mu -= bike_speed_dt_array[wheel_counts_index];
   bike_speed_dt_sum_mu += m_dt_bike_speed_meas;
   bike_speed_dt_array[wheel_counts_index] = m_dt_bike_speed_meas;
@@ -869,15 +880,44 @@ void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& comm
 
 //=========================== [Actuate steer motors] ===========================//
 void actuate_steer_motors(double command_fork, double command_hand){
+  // constrain max torque rate
+  update_dtime(dt_torque_command, since_last_torque_command);
+  float command_fork_rate = calc_bckwrd_derivative((float)command_fork, command_fork_prev, dt_torque_command);
+  float command_hand_rate = calc_bckwrd_derivative((float)command_hand, command_hand_prev, dt_torque_command);
+
+  int32_t dt = (int32_t)dt_torque_command; // may be unnecessary but should be tested, and there is currently no time for that
+  if(command_fork_rate < -MAX_FORK_TORQUE_RATE || command_fork_rate > MAX_FORK_TORQUE_RATE ){
+    command_fork = command_fork_prev + sgn(command_fork_rate)*MAX_FORK_TORQUE_RATE*dt;
+  }
+  if(command_hand_rate < -MAX_HAND_TORQUE_RATE || command_hand_rate > MAX_HAND_TORQUE_RATE ){
+    command_hand = command_hand_prev + sgn(command_hand_rate)*MAX_HAND_TORQUE_RATE*dt;
+  }
+
   //------[Find the PWM command
   uint64_t pwm_command_fork = (command_fork * -842.795 + 16384); //K: Sends signal in 0-3.3V range out, which then corresonds to some (unkonwn by me) range of current/torque
   uint64_t pwm_command_hand = (command_hand * -842.795 + 16384); //  This video (https://www.youtube.com/watch?v=-TC_ccQnk-Y&list=PLmklAQtFT_ZJzWOa9O6507qA0NiSU8hzN) shows that one can set the ratio between input voltage to output current on the motor driver.
+  /*NOTE
+  So, pwm_resolution on the command torques is PWM_RESOLUTION BITS = 15 
+  --> 0 till 32767. From the formula above: 
+  > 16384 equals zero torque. Above and below 16384 is a different sign. 
+  So you have a range of 0 to 16384. for torque. 
+  > commanded torque is multiplied by -842.795, so commanded torque ranges 
+  from 0 till 19.44. 
+  From experiments we know that at a instant commanded torque of around 10
+  the belt begins to slip. To prevent this: 
+  -10*842.795 + 16384 < commanded torque < 10*842.795 + 16384
+  7956 < commanded torque < 24812
+  */
+  //Constrain max torque
   pwm_command_fork = constrain(pwm_command_fork, FORK_PWM_MIN, FORK_PWM_MAX);
   pwm_command_hand = constrain(pwm_command_hand, HAND_PWM_MIN, HAND_PWM_MAX);
 
   //------[Send motor command
   analogWrite(pwm_pin_hand, pwm_command_hand);
   analogWrite(pwm_pin_fork, pwm_command_fork);
+  
+  command_fork_prev = (float)command_fork;
+  command_hand_prev = (float)command_hand;
   return;
 }
 
