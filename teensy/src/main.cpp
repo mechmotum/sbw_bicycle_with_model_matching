@@ -860,7 +860,7 @@ void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& comm
   else
     sil_command = K_SIL2 * (bike.get_bike_speed() - V_AVERAGE)*bike.get_lean_angle();
 
-  command_fork += sil_command;
+  command_fork -= sil_command;
   command_hand += sil_command;
 
   Serial.print(sil_command);
