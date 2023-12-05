@@ -882,9 +882,10 @@ void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& comm
 void actuate_steer_motors(double command_fork, double command_hand){
   // constrain max torque rate
   update_dtime(dt_torque_command, since_last_torque_command);
-  float command_fork_rate = calc_bckwrd_derivative((float)command_fork, command_fork_prev, dt_torque_command);
-  float command_hand_rate = calc_bckwrd_derivative((float)command_hand, command_hand_prev, dt_torque_command);
+  float command_fork_rate = (command_fork - command_fork_prev)/(dt_torque_command * MICRO_TO_UNIT);
+  float command_hand_rate = (command_hand - command_hand_prev)/(dt_torque_command * MICRO_TO_UNIT);
 
+  Serial.print(",");
   Serial.print(command_fork);
   Serial.print(',');
   Serial.print(command_hand);
@@ -896,6 +897,10 @@ void actuate_steer_motors(double command_fork, double command_hand){
 
   float dt = dt_torque_command; // may be unnecessary but should be tested, and there is currently no time for that
   if(command_fork_rate < -MAX_FORK_TORQUE_RATE || command_fork_rate > MAX_FORK_TORQUE_RATE ){
+    Serial.print("here: ");
+    Serial.print(command_fork);
+    Serial.print(command_fork_prev);
+    Serial.print(" ");
     command_fork = command_fork_prev + sgn(command_fork_rate)*(float)MAX_FORK_TORQUE_RATE*(dt*MICRO_TO_UNIT);
   }
   if(command_hand_rate < -MAX_HAND_TORQUE_RATE || command_hand_rate > MAX_HAND_TORQUE_RATE ){
@@ -934,7 +939,7 @@ void actuate_steer_motors(double command_fork, double command_hand){
   //------[Send motor command
   analogWrite(pwm_pin_hand, pwm_command_hand);
   analogWrite(pwm_pin_fork, pwm_command_fork);
-  
+
   command_fork_prev = (float)command_fork;
   command_hand_prev = (float)command_hand;
   return;
@@ -1022,7 +1027,18 @@ void serial_setup(){
   // Serial.print("k_tphi,");
   // Serial.print("k_tdelta,");
   // Serial.print("command_fork,");
-  Serial.print("sil_command");
+  Serial.print("sil_command,");
+  Serial.print("fork_com,");
+  Serial.print("hand_com,");
+  Serial.print("fork_com_rate,");
+  Serial.print("hand_com_rate,");
+  Serial.print("post_fork_com,");
+  Serial.print("post_hand_com,");
+  Serial.print("fork_pwm,");
+  Serial.print("hand_pwm,");
+  Serial.print("post_fork_pwm,");
+  Serial.print("post_hand_pwm,");
+
   Serial.print("\n");
 }
 //=========================== [Print to serial] ===========================//
