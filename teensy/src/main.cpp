@@ -156,8 +156,8 @@ const uint8_t PWM_RESOLUTION_BITS = 15;
 const float PWM_FREQUENCY = 4577.64;
 
 // Commanded torque
-const int8_t MAX_FORK_TORQUE_RATE = 1;
-const int8_t MAX_HAND_TORQUE_RATE = 1;
+// const int8_t MAX_FORK_TORQUE_RATE = 20;
+// const int8_t MAX_HAND_TORQUE_RATE = 5;
 const uint32_t HAND_PWM_MAX = 24812;
 const uint32_t HAND_PWM_MIN = 7956;
 const uint32_t FORK_PWM_MAX = 24812;
@@ -222,9 +222,9 @@ the same value
 former: Kp_old*error_deg
 New Kp_new*error_rad = Kp_old*rad2deg * error_deg*deg2rad 
                      = Kp_old*error_deg */
-const float KP_F = 2.0f * RAD_TO_DEG; // Fork
+const float KP_F = 0.5*2.0f * RAD_TO_DEG; // Fork
 const float KD_F = 0.029f * RAD_TO_DEG; // Fork
-const float KP_H = 0.9f * RAD_TO_DEG; // Handlebar
+const float KP_H = 0.5*0.9f * RAD_TO_DEG; // Handlebar
 const float KD_H = 0.012f * RAD_TO_DEG; // Handlebar
 
 // Steer into lean gains (see 'Some recent developments in bicycle dynamics and control', A. L. Schwab et al., 2008)
@@ -880,8 +880,8 @@ void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& comm
 
 //=========================== [Actuate steer motors] ===========================//
 void actuate_steer_motors(double command_fork, double command_hand){
-  // constrain max torque rate
-  update_dtime(dt_torque_command, since_last_torque_command);
+  //------[Constrain max torque rate
+  /*update_dtime(dt_torque_command, since_last_torque_command);
   float command_fork_rate = (command_fork - command_fork_prev)/(dt_torque_command * MICRO_TO_UNIT);
   float command_hand_rate = (command_hand - command_hand_prev)/(dt_torque_command * MICRO_TO_UNIT);
 
@@ -910,6 +910,7 @@ void actuate_steer_motors(double command_fork, double command_hand){
   Serial.print(',');
   Serial.print(command_hand);
   Serial.print(',');
+  */
 
   //------[Find the PWM command
   uint64_t pwm_command_fork = (command_fork * -842.795 + 16384); //K: Sends signal in 0-3.3V range out, which then corresonds to some (unkonwn by me) range of current/torque
@@ -940,8 +941,8 @@ void actuate_steer_motors(double command_fork, double command_hand){
   analogWrite(pwm_pin_hand, pwm_command_hand);
   analogWrite(pwm_pin_fork, pwm_command_fork);
 
-  command_fork_prev = (float)command_fork;
-  command_hand_prev = (float)command_hand;
+  // command_fork_prev = (float)command_fork;
+  // command_hand_prev = (float)command_hand;
   return;
 }
 
