@@ -20,6 +20,7 @@ Q: 2x2, R: 1x1, P: 2x2
 #define SIMPLE_KALMAN_
 
 #include "eigen.h"
+#include <Arduino.h>
 using namespace Eigen;
 
 class SimpleKalman{

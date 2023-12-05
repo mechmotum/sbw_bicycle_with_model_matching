@@ -228,9 +228,10 @@ const float KP_H = 0.5*0.9f * RAD_TO_DEG; // Handlebar
 const float KD_H = 0.012f * RAD_TO_DEG; // Handlebar
 
 // Steer into lean gains (see 'Some recent developments in bicycle dynamics and control', A. L. Schwab et al., 2008)
-const uint8_t K_SIL1 = 8; // [Ns^2/rad] gain for the steer into lean controller when below stable speed range
+const uint8_t K_SIL1 = 3; // [Ns^2/rad] gain for the steer into lean controller when below stable speed range
 const float K_SIL2 = 0.7; // [Ns/rad] gain for the steer into lean controller when above stable speed range
 const float V_AVERAGE = 6; // [m/s] value somewhere in the stable speed range. (take the average of min and max stable speed)
+const float FORK_FRICTION_COMP_RATIO = 0.3;
 
 // Model matching gains: The "_Vx" indicates that the coefficient
 //  is multiplied with speed to the power of x.
@@ -344,7 +345,7 @@ Eigen::Matrix<float,3,3> B_ROT_IMU {{-0.10964618,  0.07170863, -0.9928662 },
 
 //--------------------------- Kalman filtering -------------------------------//
 // System matrices
-Eigen::Matrix<float,2,2> F {{1,0},{0,1}};; 
+Eigen::Matrix<float,2,2> F {{1,0},{0,1}};
 Eigen::Matrix<float,2,1> B {{0},{0}}; 
 Eigen::Matrix<float,1,2> H {{1,0}};
 Eigen::Matrix<float,2,2> Q {{5e-7,0},{0,1e-8}};
@@ -629,8 +630,6 @@ void BikeMeasurements::calculate_roll_states(){
   Serial.print(",");
   Serial.print(omega_vec(2,0));
   Serial.print(",");
-  Serial.print(m_omega_x_old);
-  Serial.print(",");
   Serial.print(m_lean_angle_meas);
   Serial.print(",");
   Serial.print(m_lean_angle);
@@ -649,11 +648,11 @@ void BikeMeasurements::calc_lean_angle_meas(float omega_x, float omega_y, float 
   phi_d = std::atan((omega_z*m_bike_speed)/GRAVITY); // [rad]
 
   // Lean angle astimate based on zero tilt rate (good for large lean angles)
-    if (omega_y > -1e-5 && omega_y < 1e-5
-      && omega_z > -1e-5 && omega_z < 1e-5){
+    if (/*omega_y > -1e-5 && omega_y < 1e-5
+      &&*/ omega_z > -1e-5 && omega_z < 1e-5){
         omega_z += 0.001;
       }
-  phi_w = sgn(omega_z)*std::asin(omega_y/std::sqrt(omega_y*omega_y + omega_z*omega_z)); // [rad]
+  phi_w = std::atan(omega_y/omega_z);//sgn(omega_z)*std::asin(omega_y/std::sqrt(omega_y*omega_y + omega_z*omega_z)); // [rad]
   
   // Use the best method based on lean angle size
   W = std::exp(-m_lean_angle*m_lean_angle/PHI_METHOD_WEIGHT); // weight
@@ -871,10 +870,11 @@ void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& comm
   else
     sil_command = K_SIL2 * (bike.get_bike_speed() - V_AVERAGE)*bike.get_lean_angle();
 
-  command_fork -= sil_command;
-  command_hand += sil_command;
+  command_fork += sil_command;
+  command_hand -= sil_command * FORK_FRICTION_COMP_RATIO;
 
   Serial.print(sil_command);
+  Serial.print(",");
   return;
 }
 
@@ -897,7 +897,7 @@ void actuate_steer_motors(double command_fork, double command_hand){
 
   float dt = dt_torque_command; // may be unnecessary but should be tested, and there is currently no time for that
   if(command_fork_rate < -MAX_FORK_TORQUE_RATE || command_fork_rate > MAX_FORK_TORQUE_RATE ){
-    Serial.print("here: ");
+    Serial.print("here: ");d
     Serial.print(command_fork);
     Serial.print(command_fork_prev);
     Serial.print(" ");
@@ -928,10 +928,10 @@ void actuate_steer_motors(double command_fork, double command_hand){
   7956 < commanded torque < 24812
   */
   //Constrain max torque
-  Serial.print(pwm_command_fork);
-  Serial.print(',');
-  Serial.print(pwm_command_hand);
-  Serial.print(',');
+  // Serial.print(pwm_command_fork);
+  // Serial.print(',');
+  // Serial.print(pwm_command_hand);
+  // Serial.print(',');
   pwm_command_fork = constrain(pwm_command_fork, FORK_PWM_MIN, FORK_PWM_MAX);
   pwm_command_hand = constrain(pwm_command_hand, HAND_PWM_MIN, HAND_PWM_MAX);
   Serial.print(pwm_command_fork);
@@ -1009,10 +1009,11 @@ void serial_setup(){
   //Print header for log file
   Serial.print("speed_ticks,");
   Serial.print("speed,");
+  Serial.print("Kalman_gain,");
+  Serial.print("posterior_x_phi,");
   Serial.print("omega_x,");
   Serial.print("omega_y,");
   Serial.print("omega_z,");
-  Serial.print("m_omega_x_old,");
   Serial.print("m_lean_angle_meas,");
   Serial.print("m_lean_angle,");
   Serial.print("bias,");
@@ -1021,24 +1022,24 @@ void serial_setup(){
   Serial.print("m_hand_angle,");
   Serial.print("m_fork_angle,");
   Serial.print("steer_rate,");
-  // Serial.print("k_phi,");
-  // Serial.print("k_delta,");
-  // Serial.print("k_dphi,");
-  // Serial.print("k_ddelta,");
-  // Serial.print("k_tphi,");
-  // Serial.print("k_tdelta,");
-  // Serial.print("command_fork,");
-  Serial.print("sil_command,");
-  Serial.print("fork_com,");
-  Serial.print("hand_com,");
-  Serial.print("fork_com_rate,");
-  Serial.print("hand_com_rate,");
-  Serial.print("post_fork_com,");
-  Serial.print("post_hand_com,");
-  Serial.print("fork_pwm,");
-  Serial.print("hand_pwm,");
+  Serial.print("k_phi,");
+  Serial.print("k_delta,");
+  Serial.print("k_dphi,");
+  Serial.print("k_ddelta,");
+  Serial.print("k_tphi,");
+  Serial.print("k_tdelta,");
+  Serial.print("command_fork,");
+  // Serial.print("sil_command,");
+  // Serial.print("fork_com,");
+  // Serial.print("hand_com,");
+  // Serial.print("fork_com_rate,");
+  // Serial.print("hand_com_rate,");
+  // Serial.print("post_fork_com,");
+  // Serial.print("post_hand_com,");
+  // Serial.print("fork_pwm,");
+  // Serial.print("hand_pwm,");
   Serial.print("post_fork_pwm,");
-  Serial.print("post_hand_pwm,");
+  Serial.print("post_hand_pwm");
 
   Serial.print("\n");
 }

@@ -39,6 +39,10 @@ void SimpleKalman::update_step(Matrix<float,1,1>& z){
     K = (P_prio*H.transpose()) * (H*P_prio*H.transpose() + R).cwiseInverse(); //Only works since (H*P_prio*H.transpose() + R) is 1x1 (scalar) otherwise a Ax = b type of solver has to be used;
     x_post = x_prio + K*(z - H*x_prio);
     P_post = (I - K*H)*P_prio;
+    Serial.print(K(0),5);
+    Serial.print(",");
+    Serial.print(x_prio(0),5);
+    Serial.print(",");
 }
 
 float SimpleKalman::phi(){
