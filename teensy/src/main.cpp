@@ -328,6 +328,9 @@ elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
 Eigen::Matrix<float,3,3> B_ROT_IMU {{-0.10964618,  0.07170863, -0.9928662 },
                                     {-0.00522393, -1.00139095, -0.02117246},
                                     { 0.99607305, -0.03168316, -0.08985829}};
+// starting biasses remaining after rotation matrix.
+float OMEGA_Y_BIAS = -0.02;
+float OMEGA_Z_BIAS = -0.01;
 
 //--------------------------- SD Card Logging --------------------------------//
 #if USE_SD
@@ -643,6 +646,10 @@ void BikeMeasurements::calc_lean_angle_meas(float omega_x, float omega_y, float 
     rate measurements for bicycles" for explanation on why these 
     formulas are used.*/
   float phi_d, phi_w, W;
+
+  // Remove bias
+  omega_y -= OMEGA_Y_BIAS;
+  omega_z -= OMEGA_Z_BIAS;
 
   // Lean angle estimate based on constant cornering (good for small lean angles)
   phi_d = std::atan((omega_z*m_bike_speed)/GRAVITY); // [rad]
