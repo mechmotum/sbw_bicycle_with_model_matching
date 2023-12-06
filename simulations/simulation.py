@@ -29,6 +29,7 @@ MAX_ENCODER_COUNT = 8192
 WHEELBASE_PLANT = 1.064 #[m]
 WHEELBASE_REF = 1.064 #[m]
 WHEEL_RADIUS = 0.33#[m] TODO: make sure this is the actual correct one, both in main and here
+STEER_T_POS = 1 #position in the input vector that corresponds to the steer torque 
 
 # Steer into lean conroller
 SIL_AVG_SPEED = 6
@@ -44,6 +45,12 @@ SIM_STEP = 0.01
 SPEEDRANGE = np.linspace(SIM_RANGE["start"] , SIM_RANGE["stop"] , num=int(round((SIM_RANGE["stop"]-SIM_RANGE["start"]) / SIM_STEP)))
 
 # System response simulation
+'''
+NOTE: Be aware that changing the controller step time (dt) 
+that you will also change the propagation model of the 
+Sanjurjo Kalman filter. As a result, you have to retune it.
+Otherwise the estimation of phi is completely off.
+'''
 SIM_PAR_PLANT = {
     "vel" : 3.5, # [m/s] Static velocity of the bicycle
     "wheelbase" : WHEELBASE_PLANT, # [m] wheelbase of the bicycle
@@ -52,7 +59,8 @@ SIM_PAR_PLANT = {
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
     "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
-    "step_num" : 1000#*2 # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
+    "step_num" : 1000*2, # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
+    "torque_noise_gain": 0.1 # size of the torque * gain = noise on the torque (larger torque = higher noise)
 }
 
 SIM_PAR_REF = {
@@ -63,7 +71,8 @@ SIM_PAR_REF = {
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta)
     "d_delta0" : 0, #Initial guess of steer rate for the y0 vector
-    "step_num" : 1000*2 # number of times the continious plant is simulatied for dt time. total sim time = dt*step_num)
+    "step_num" : 1000*2, # number of times the continious plant is simulatied for dt time. total sim time = dt*step_num)
+    "torque_noise_gain": 0.00 # size of the torque * gain = noise on the torque (larger torque = higher noise)
 }
 
 SIM_PAR_PLANT["sim_steps"] = math.ceil(SIM_PAR_PLANT["dt"]/SIM_PAR_PLANT["h"]) # number of steps in the simulation during a timestep 'dt'
@@ -73,12 +82,16 @@ SIM_PAR_REF["sim_steps"] = math.ceil(SIM_PAR_REF["dt"]/SIM_PAR_REF["h"]) # numbe
 C_MATRIX_BIKE = np.array([[0,1,0,0],[0,0,1,0]])
 
 # Kalman related parameters
+'''
+NOTE: Retune if dt is changed
+'''
 KALMAN_PAR = {
     "x0" : np.array([[0],[0]]),
     "P0" : np.array([[0,0],[0,0]]),
     "Q" : np.array([[5e-7,0],[0,1e-8]]),
     "R" : np.array([0.1]),
-    "phi_weight": 0.05
+    "phi_weight": 0.05,
+    "imu_noise_variance": 0.000
 }
 
 ##----Define classes
@@ -145,6 +158,7 @@ class KalmanSanjurjo:
     def __init__(self,par,speed,dt):
         self.speed = speed
         self.PHI_WEIGHT = par["phi_weight"]
+        self.IMU_NOISE_VAR = par["imu_noise_variance"]
         self.Q = par["Q"]
         self.R = par["R"]
         self.F = np.array([[1,-dt],[0,1]])
@@ -180,7 +194,16 @@ class KalmanSanjurjo:
         W = math.exp(-(self.x_post[0][0])**2/self.PHI_WEIGHT) #By using x.post, make sure this function is called before __update() to get the previous state estimate
         phi_measured = (W*phi_d + (1-W)*phi_omega)
         return phi_measured
-
+    
+    def __add_sensor_noise(self):
+        '''
+        Add zero mean gaussian noise to the omega sensor reading
+        ''' 
+        self.omega_x = self.omega_x + np.random.normal(0.0,self.IMU_NOISE_VAR)
+        self.omega_y = self.omega_y + np.random.normal(0.0,self.IMU_NOISE_VAR)
+        self.omega_z = self.omega_z + np.random.normal(0.0,self.IMU_NOISE_VAR)
+        return
+        
     def __predict(self,u): #NOTE uses omega(k-1)
         self.x_prio = self.F@self.x_post + self.B@u #TODO: Make sure to use omega(k-1)
         self.P_prio = self.F@self.P_post@(self.F.T) + self.Q
@@ -198,6 +221,7 @@ class KalmanSanjurjo:
         self.__predict(u)
 
         self.__calc_omega(par,bike_state) #update omega (k-1 -> k)
+        self.__add_sensor_noise() #TODO: this is not something that should be inside the Kalman Class... find an appropriate structure.
 
         z = self.__calc_measurement()
         self.__update(z)
@@ -284,7 +308,7 @@ def sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl):
         # calculate eigenvalues
         eigenvals["plant"][idx] = np.linalg.eigvals(bike_plant.mat["A"]) # plant-> dx = Ax + Bu
         eigenvals["ref"][idx] = np.linalg.eigvals(bike_ref.mat["A"]) # ref -> dx = A_bar x + B_bar u_bar
-        eigenvals["plant+mm"][idx] = np.linalg.eigvals((bike_plant.mat["A"] + bike_plant.mat["B"]@mm_ctrl.gain["F"])) # plant + mm_controll -> dx = (A + BF)x + BGu_ref
+        eigenvals["plant+mm"][idx] = np.linalg.eigvals((bike_plant.mat["A"] + bike_plant.mat["B"]@mm_ctrl.gain["F"])) # plant + mm_controll -> dx = (A + BF)x + BGu_ext
         eigenvals["plant+sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] - bike_plant.mat["B"]@sil_ctrl.gain["F"])) # plant + sil_controll -> dx = (A - BF)x, minus because here u = -Fx
         eigenvals["ref+sil"][idx] = np.linalg.eigvals((bike_ref.mat["A"] - bike_ref.mat["B"]@sil_ctrl.gain["F"])) # ref + sil_controll -> dx = (A - BFsil)x
         eigenvals["plant+mm+sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] + bike_plant.mat["B"]@(mm_ctrl.gain["F"] - mm_ctrl.gain["G"]@sil_ctrl.gain["F"]))) # mm + sil_controll -> dx = ((Aref+Bref*Fmm) - (Bref*Gmm)*Fsil)x = (A-B*Fsil)x
@@ -338,7 +362,7 @@ def sim_setup(par,system,ctrl):
             G = ctrl[name].gain["G"]
     else: 
         F = np.zeros((par["m"],par["n"])) # u = F*x
-        G = np.eye((par["m"])) # u = G*u_ref
+        G = np.eye((par["m"])) # u = G*u_ext
         print("None, or multiple controllers picked. Only chose one\nZero control used instead")
     par["F"] = F
     par["G"] = G
@@ -387,6 +411,12 @@ def calc_enc_count(delta):
     encoder_f = round(encoder_f) % MAX_ENCODER_COUNT
     return (encoder_h, encoder_f)
 
+def torque_sens_artifact(par,torque):
+    for i, val in enumerate(torque):
+        torque[i] = val + (val*par["torque_noise_gain"])*np.random.uniform()
+    return torque
+
+
 def encoder_artifacts(u):
     return u
 
@@ -396,7 +426,37 @@ def control_artifacts(u):
 def process_artifacts(par,u_vec):
     return u_vec
 
-def simulate(par,system,ctrlrs,u_ref,phi_kalman):
+def create_external_input(par):
+    '''
+    Create a input signal that is effecting the bicycle externally.
+    E.g. human steer input, wind gust.
+    The continuous simulation is interupted at every dt time step 
+    to calculate and input the new control input, after wich it 
+    runs another simulation for dt time. For this to work the x0 
+    of the k+1th itteration needs to be the last state value of 
+    the kth simulation. 
+    However, as the sim ends and starts at the same time with the 
+    same state, the total end result will have a repetition of 
+    values every k*dt. In order to give the correct continuous 
+    input (external input), this input vector also must have this 
+    repetition. Hence the convoluted calculation of the time vector
+    below.
+    '''
+    # Pre allocate vectors
+    u_ext = np.zeros((par["sim_steps"] * par["step_num"], par["m"]))
+    time = np.zeros((par["sim_steps"]*par["step_num"],))
+
+    # Create time vector
+    offset = par["time"]
+    for k in range(par["step_num"]):
+        time[k*par["sim_steps"]:(k+1)*par["sim_steps"]] = np.linspace(offset,offset+par["dt"],par["sim_steps"])
+        offset = offset + par["dt"]
+    
+    # Create external input vector
+    u_ext[:,STEER_T_POS] = 0.1*np.sin(time)
+    return u_ext
+
+def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
     #--[Get all parameters
     par = sim_setup(par,system,ctrlrs)
 
@@ -426,39 +486,66 @@ def simulate(par,system,ctrlrs,u_ref,phi_kalman):
     time_vec = np.linspace(0, dt, sim_steps)
     x0 = par["x0"]
 
-    # Initial 'measurements'
+    # Input
+        # Prealocate 'continuous' simulation input
+    u_vec = np.zeros((sim_steps, m_ext))
+     
+        # Calculate external input
+    u_ext = external_input_fun(par)
+    u_ext[:,STEER_T_POS] = torque_sens_artifact(par,u_ext[:,STEER_T_POS])
+
+    #--[Initial 'measurements'
     phi = phi_kalman.x_post[0,0]
     past_delta = x0[1]
     d_phi = x0[2]
     d_delta = par["d_delta0"]
 
     y0 = np.array([phi,past_delta,d_phi,d_delta]) #TODO: How does the modular artifacts, x0/y0, and Kalman interact???
-    
-    # Calculate initial control
-    u = F@y0 + G@u_ref # Calculate control input from measurements
-    u = control_artifacts(u) # Implement control artifacts
-    
-    # go from discreet input to 'continuous' simulation input
-    u_vec = u * np.ones((time_vec.shape[0], m)) 
-    u_vec = np.hstack((u_vec, np.zeros((time_vec.shape[0], m_ext-m))))
-
-    # u_vec = measurement_artifacts(par,u_vec) # Implement 'continuous' measurement artifacts
-    u_vec = process_artifacts(par,u_vec) # Implement 'continuous' process artifacts
 
     # Run simulation
     for k in range(step_num):
+        #--[store calculated y0 vec (done at the start for correct storage in time)
+        y0_vec[k*sim_steps:(k+1)*sim_steps, :] = y0 * np.ones((sim_steps,n))
+
+        #--[Calculate input
+        '''
+        As lsim only takes a single B matrix,
+        the system has been turned into an extended system 
+        to include disturbances.
+        B = [B, B_dist, zero] = [B, eye, zero]
+        D = [D, zero, D_dist] = [B, zero, eye]
+        u = [u    //input (m x 1)
+             v    //process disturbance (n x 1)
+             w]   //measurement disturbance (n x 1)
+        '''
+        # Discreet time input 'u'
+            # Controller input
+        u = F@y0 + G@u_ext[k*sim_steps,:]
+            # Controller artifacts
+        u = control_artifacts(u)
+        
+        # Continuous time input 'u_vec'
+        u_vec[:,:m] = u * np.ones((sim_steps, m)) + u_ext[k*sim_steps:(k+1)*sim_steps,:]
+
+            # Sensor artifacts
+        # u_vec = measurement_artifacts(par,u_vec) #TODO: is this logical for my application? I measure delta and omega stuff.... 
+        #                                          #NOTE: While the motors are continuously on, the measurements are only taken at dt time intervals....
+
+            # Actuator artifacts
+        u_vec = process_artifacts(par,u_vec)
+
         #--[Simulate ODE
         T,y,x = sign.lsim(ss_model,u_vec,time_vec,x0,interp=True)
         
         #--[Store values
         T_vec[k*sim_steps:(k+1)*sim_steps] = T + time
-        y_vec[k*sim_steps:(k+1)*sim_steps, :] = y.reshape((time_vec.shape[0],p))
+        y_vec[k*sim_steps:(k+1)*sim_steps, :] = y.reshape((sim_steps,p))
         x_vec[k*sim_steps:(k+1)*sim_steps, :] = x
 
         #--[Update current state, and time
         x0 = x[-1,:]
         time = time + dt
-        y_meas = y.reshape((time_vec.shape[0],p))[-1,:]
+        y_meas = y.reshape((sim_steps,p))[-1,:]
 
         #--[Calculate states from sensor readings
         # Measurements will also be taken in descreete steps
@@ -478,39 +565,9 @@ def simulate(par,system,ctrlrs,u_ref,phi_kalman):
 
             #Make measured state vector
         y0 = np.array([phi,delta,d_phi,d_delta])
-        y0_vec[k*sim_steps:(k+1)*sim_steps, :] = y0 * np.ones_like(x)
-
-        #--[Calculate input
-        '''
-        As lsim only takes a single B matrix,
-        the system has been turned into an extended system 
-        to include disturbances.
-        B = [B, B_dist, zero] = [B, eye, zero]
-        D = [D, zero, D_dist] = [B, zero, eye]
-        u = [u    //input (m x 1)
-             v    //process disturbance (n x 1)
-             w]   //measurement disturbance (n x 1)
-        '''
-        # Discreet time input 'u'
-            # Controller input
-        u = F@y0 + G@u_ref
-        
-            # Controller artifacts
-        u = control_artifacts(u)
-        
-        # Continuous time input 'u_vec'
-        u_vec[:,:m] = u * np.ones((time_vec.shape[0], m))
-
-            # Sensor artifacts
-        # u_vec = measurement_artifacts(par,u_vec) #TODO: is this logical for my application? I measure delta and omega stuff.... 
-        #                                          #NOTE: While the motors are continuously on, the measurements are only taken at dt time intervals....
-
-            # Actuator artifacts
-        u_vec = process_artifacts(par,u_vec)
-
     #end of loop
     
-    return (T_vec, y_vec, x_vec, y0_vec)
+    return (T_vec, y_vec, x_vec, y0_vec, u_ext)
 
 def hw_in_the_loop_sim(par,system,u_ref):
     #--[Get all parameters
@@ -745,49 +802,113 @@ zero_ctrl = VariableController(zero_funs)
 # sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl)
 
 ##--Simulate dynamic behaviour 
-#Input
-u_ref = np.array([0,0])
+u_ext_fun = create_external_input
+u_ext_fun_ref = create_external_input
 
 #Linear controller to apply
 controller = {
     # "mm": mm_ctrl
     # "sil" : sil_ctrl
-    "mm+sil" : mm_sil_ctrl
-    # "zero" : zero_ctrl
+    # "mm+sil" : mm_sil_ctrl
+    "zero" : zero_ctrl
 }
 
 controller_ref = {
-    "mm": mm_ctrl
+    # "mm": mm_ctrl
     # "sil" : sil_ctrl
     # "mm+sil" : mm_sil_ctrl
-    # "zero" : zero_ctrl
+    "zero" : zero_ctrl
 }
 
-phi_kalman = KalmanSanjurjo(
+phi_kalman = KalmanSanjurjo( #TODO: initialize initial states inside the function not globally
     KALMAN_PAR,
     SIM_PAR_PLANT["vel"],
     SIM_PAR_PLANT["dt"])
 
-#Simulate
-time_hw, output_hw, states_hw, calc_states_hw = hw_in_the_loop_sim(SIM_PAR_PLANT,bike_plant,u_ref)
-time, output, states, calc_states = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ref,phi_kalman)
-# time_ref, output_ref, states_ref, calc_states_ref = simulate(SIM_PAR_REF,bike_plant,controller_ref,u_ref,phi_kalman)
 
-#Test plot
-fig = plt.figure()    
-plt.title("simulation")
-plt.plot(time_hw, states_hw)#, time_ref, states_ref)
-plt.xlabel("Time [s]")
-plt.ylabel("states")
-plt.legend(("phi", "theta","d_phi","d_theta"))
-plt.axis((0,10,-5,5))
+# # Test Kalman
+# phi_kalman1 = KalmanSanjurjo(
+#     KALMAN_PAR,
+#     SIM_PAR_PLANT["vel"],
+#     SIM_PAR_PLANT["dt"])
+
+# phi_kalman2 = KalmanSanjurjo(
+#     KALMAN_PAR,
+#     SIM_PAR_PLANT["vel"],
+#     SIM_PAR_PLANT["dt"])
+
+# KALMAN_PAR["imu_noise_variance"] =  0.05
+# phi_kalman3 = KalmanSanjurjo(
+#     KALMAN_PAR,
+#     SIM_PAR_PLANT["vel"],
+#     SIM_PAR_PLANT["dt"])
+
+# controller1 = {
+#     "mm": mm_ctrl
+#     # "sil" : sil_ctrl
+#     # "mm+sil" : mm_sil_ctrl
+#     # "zero" : zero_ctrl
+# }
+
+# time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
+# time1, output1, states1, calc_states1, ext_input1 = simulate1(SIM_PAR_PLANT,bike_plant,controller1,u_ext_fun,phi_kalman1)
+# time2, output2, states2, calc_states2, ext_input2 = simulate(SIM_PAR_PLANT,bike_plant,controller1,u_ext_fun,phi_kalman2)
+# time3, output3, states3, calc_states3, ext_input3 = simulate(SIM_PAR_PLANT,bike_plant,controller1,u_ext_fun,phi_kalman3)
+# time_ref, output_ref, states_ref, calc_states_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman)
+
+# fig = plt.figure()    
+# plt.title("Influence of noisy torque measurement on states")
+# plt.plot(time, states[:,0])# ,time_ref, states1[:,1])
+# plt.plot(time1, states1[:,0])
+# plt.plot(time2, states2[:,0])
+# plt.plot(time3, states3[:,0])
+# plt.plot(time_ref, states_ref[:,0])
+# plt.xlabel("Time [s]")
+# plt.ylabel("[rad]")
+# plt.axis((0,10,-0.2,0.2))
+# plt.legend(("phi no control", "phi mm perfect state knowledge", "phi mm kalman noise var: 0.001", "phi mm kalman noise var: 0.05", "phi ref"))
 # plt.show()
 
-fig = plt.figure()    
-plt.title("simulation")
-plt.plot(time, states)#, time_ref, states_ref)
-plt.xlabel("Time [s]")
-plt.ylabel("states")
-plt.legend(("phi", "theta","d_phi","d_theta"))
-plt.axis((0,10,-5,5))
-plt.show()
+# # Test Torque input
+# phi_kalman1 = KalmanSanjurjo(
+#     KALMAN_PAR,
+#     SIM_PAR_PLANT["vel"],
+#     SIM_PAR_PLANT["dt"])
+
+# phi_kalman2 = KalmanSanjurjo(
+#     KALMAN_PAR,
+#     SIM_PAR_PLANT["vel"],
+#     SIM_PAR_PLANT["dt"])
+
+# controller1 = {
+#     "mm": mm_ctrl
+#     # "sil" : sil_ctrl
+#     # "mm+sil" : mm_sil_ctrl
+#     # "zero" : zero_ctrl
+# }
+# time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
+# time1, output1, states1, calc_states1, ext_input1 = simulate(SIM_PAR_REF,bike_plant,controller1,u_ext_fun,phi_kalman1)
+# time2, output2, states2, calc_states2, ext_input2 = simulate(SIM_PAR_PLANT,bike_plant,controller1,u_ext_fun,phi_kalman2)
+# time_ref, output_ref, states_ref, calc_states_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman)
+
+# fig = plt.figure()    
+# plt.title("Influence of noisy torque measurement on states")
+# plt.plot(time, states[:,0])# ,time_ref, states1[:,1])
+# plt.plot(time1, states1[:,0])
+# plt.plot(time2, states2[:,0])
+# plt.plot(time_ref, states_ref[:,0])
+# plt.xlabel("Time [s]")
+# plt.ylabel("[rad]")
+# plt.axis((0,20,-0.3,0.3))
+# plt.legend(("phi no control", "phi mm", "phi mm noisy torque", "phi ref"))
+
+# fig = plt.figure()    
+# plt.title("Influence of noisy torque measurement on states")
+# # plt.plot(time, ext_input[:,1])# ,time_ref, ext_input1[:,1])
+# plt.plot(time2, ext_input2[:,1])
+# plt.plot(time1, ext_input1[:,1])
+# # plt.plot(time_ref, ext_input_ref[:,1])
+# plt.xlabel("Time [s]")
+# plt.ylabel("[rad]")
+# plt.legend(("noisy steer torque input","steer torque input"))
+# plt.show()
