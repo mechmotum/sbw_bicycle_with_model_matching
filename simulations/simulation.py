@@ -33,7 +33,7 @@ STEER_T_POS = 1 #position in the input vector that corresponds to the steer torq
 
 # Steer into lean conroller
 SIL_AVG_SPEED = 6
-K_SIL_L = -8
+K_SIL_L = -12
 K_SIL_H = -0.7
 
 NEG_CTRLRS = "sil"
@@ -59,7 +59,7 @@ SIM_PAR_PLANT = {
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
     "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
-    "step_num" : 1000*2, # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
+    "step_num" : 1000*1, # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
     "torque_noise_gain": 0.1 # size of the torque * gain = noise on the torque (larger torque = higher noise)
 }
 
@@ -71,7 +71,7 @@ SIM_PAR_REF = {
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta)
     "d_delta0" : 0, #Initial guess of steer rate for the y0 vector
-    "step_num" : 1000*2, # number of times the continious plant is simulatied for dt time. total sim time = dt*step_num)
+    "step_num" : 1000*1, # number of times the continious plant is simulatied for dt time. total sim time = dt*step_num)
     "torque_noise_gain": 0.00 # size of the torque * gain = noise on the torque (larger torque = higher noise)
 }
 
@@ -326,13 +326,13 @@ def sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl):
     # Plot
     for key, value in eigenvals.items():
         fig = plt.figure()    
-        plt.title(key)
+        plt.title(key, fontsize = 24)
         plt.scatter(speed_axis, value["real"],s=1)
         plt.scatter(speed_axis, value["imag"],s=1)
         plt.axis((0,10,-10,10))
-        plt.xlabel("Speed [m/s]")
-        plt.ylabel("Eigenvalue [-]")
-        plt.legend(["real","imag"])
+        plt.xlabel("Speed [m/s]", fontsize = 16)
+        plt.ylabel("Eigenvalue [-]", fontsize = 16)
+        plt.legend(["real","imag"], fontsize = 16)
     plt.show()
     return
 
@@ -764,6 +764,12 @@ sys_mtrx["ref"]["C"] = sensor_matrix_bike
 bike_plant = VariableStateSpaceSystem(sys_mtrx["plant"]) # The real bicycle
 bike_ref = VariableStateSpaceSystem(sys_mtrx["ref"]) #The reference bicycle
 
+# # Model mismatch
+# with open("bike_and_ref_variable_dependend_system_matrices_model_error2","rb") as inf:
+#     sys_mtrx_err = dill.load(inf)
+# sys_mtrx_err["plant"]["C"] = sensor_matrix_bike
+# bike_plant = VariableStateSpaceSystem(sys_mtrx_err["plant"]) # The real bicycle
+
 ##----Set up controllers 
 #Model matching (created by [...].py)
 with open("model_matching_gains", "rb") as inf:
@@ -797,6 +803,8 @@ zero_funs = {
 }
 zero_ctrl = VariableController(zero_funs)
 
+
+
 ###--------[SIMULATE
 ##--Simulate eigenvalues over speed
 # sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl)
@@ -807,10 +815,10 @@ u_ext_fun_ref = create_external_input
 
 #Linear controller to apply
 controller = {
-    # "mm": mm_ctrl
+    "mm": mm_ctrl
     # "sil" : sil_ctrl
     # "mm+sil" : mm_sil_ctrl
-    "zero" : zero_ctrl
+    # "zero" : zero_ctrl
 }
 
 controller_ref = {
@@ -827,10 +835,10 @@ phi_kalman = KalmanSanjurjo( #TODO: initialize initial states inside the functio
 
 
 # # Test Kalman
-# phi_kalman1 = KalmanSanjurjo(
-#     KALMAN_PAR,
-#     SIM_PAR_PLANT["vel"],
-#     SIM_PAR_PLANT["dt"])
+phi_kalman1 = KalmanSanjurjo(
+    KALMAN_PAR,
+    SIM_PAR_PLANT["vel"],
+    SIM_PAR_PLANT["dt"])
 
 # phi_kalman2 = KalmanSanjurjo(
 #     KALMAN_PAR,
@@ -850,24 +858,53 @@ phi_kalman = KalmanSanjurjo( #TODO: initialize initial states inside the functio
 #     # "zero" : zero_ctrl
 # }
 
-# time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
+time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
 # time1, output1, states1, calc_states1, ext_input1 = simulate1(SIM_PAR_PLANT,bike_plant,controller1,u_ext_fun,phi_kalman1)
 # time2, output2, states2, calc_states2, ext_input2 = simulate(SIM_PAR_PLANT,bike_plant,controller1,u_ext_fun,phi_kalman2)
 # time3, output3, states3, calc_states3, ext_input3 = simulate(SIM_PAR_PLANT,bike_plant,controller1,u_ext_fun,phi_kalman3)
-# time_ref, output_ref, states_ref, calc_states_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman)
+time_ref, output_ref, states_ref, calc_states_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman1)
 
-# fig = plt.figure()    
-# plt.title("Influence of noisy torque measurement on states")
-# plt.plot(time, states[:,0])# ,time_ref, states1[:,1])
+fig = plt.figure()    
+plt.title("phi", fontsize=24)
+plt.plot(time, states[:,0])# ,time_ref, states1[:,1])
 # plt.plot(time1, states1[:,0])
 # plt.plot(time2, states2[:,0])
 # plt.plot(time3, states3[:,0])
-# plt.plot(time_ref, states_ref[:,0])
-# plt.xlabel("Time [s]")
-# plt.ylabel("[rad]")
+plt.plot(time_ref, states_ref[:,0])
+plt.xlabel("Time [s]",fontsize=16)
+plt.ylabel("[rad]", fontsize=16)
+plt.legend(("plant+mm","ref"), fontsize = 16)
+plt.grid(visible=True)
 # plt.axis((0,10,-0.2,0.2))
 # plt.legend(("phi no control", "phi mm perfect state knowledge", "phi mm kalman noise var: 0.001", "phi mm kalman noise var: 0.05", "phi ref"))
-# plt.show()
+
+fig = plt.figure()
+plt.title("delta", fontsize=24)
+plt.plot(time, states[:,1])
+plt.plot(time_ref, states_ref[:,1])
+plt.xlabel("Time [s]", fontsize=16)
+plt.ylabel("[rad]", fontsize=16)
+plt.legend(("plant+mm","ref"), fontsize = 16)
+plt.grid(visible=True)
+
+fig = plt.figure()
+plt.title("d_phi", fontsize=24)
+plt.plot(time, states[:,2])
+plt.plot(time_ref, states_ref[:,2])
+plt.xlabel("Time [s]", fontsize=16)
+plt.ylabel("[rad]", fontsize=16)
+plt.legend(("plant+mm","ref"), fontsize = 16)
+plt.grid(visible=True)
+
+fig = plt.figure()
+plt.title("d_delta", fontsize=24)
+plt.plot(time, states[:,3])
+plt.plot(time_ref, states_ref[:,3])
+plt.xlabel("Time [s]", fontsize=16)
+plt.ylabel("[rad]", fontsize=16)
+plt.legend(("plant+mm","ref"), fontsize = 16)
+plt.grid(visible=True)
+plt.show()
 
 # # Test Torque input
 # phi_kalman1 = KalmanSanjurjo(
