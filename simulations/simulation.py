@@ -278,6 +278,24 @@ def zero_gain_G_fun():
     '''
     return np.eye(2)
 
+def pp_gain_F_fun(plant, ref):
+    def tmpy(speed):
+        plant.calc_mtrx(speed)
+        ref.calc_mtrx(speed)
+        target_eig = np.linalg.eigvals(ref.mat["A"])
+        bunch = sign.place_poles(plant.mat["A"], plant.mat["B"], target_eig)
+        return bunch.gain_matrix
+    return tmpy
+
+def pp_gain_G_fun():
+    '''
+    Dummy functions to create the pole placement case
+    As pole placement has only state feedback and no 
+    feedforward.
+    TODO: get rid of the magic numbers
+    '''
+    return np.eye(2)
+
 def mm_sil_gain_F_fun(speed):
     mm_ctrl.calc_gain(speed)
     sil_ctrl.calc_gain(speed)
@@ -288,13 +306,15 @@ def mm_sil_gain_G_fun(speed):
     sil_ctrl.calc_gain(speed)
     return mm_ctrl.gain["G"]@sil_ctrl.gain["G"]
 
-def sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl):
+def sim_eigen_vs_speed(bike_plant, bike_ref, pp_ctrl, mm_ctrl, sil_ctrl):
     eigenvals = {
         "plant": [None for k in range(len(SPEEDRANGE))],
         "ref": [None for k in range(len(SPEEDRANGE))],
+        "plant+pp": [None for k in range(len(SPEEDRANGE))],
         "plant+mm": [None for k in range(len(SPEEDRANGE))],
         "plant+sil": [None for k in range(len(SPEEDRANGE))],
         "ref+sil": [None for k in range(len(SPEEDRANGE))],
+        "plant+pp+sil": [None for k in range(len(SPEEDRANGE))],
         "plant+mm+sil": [None for k in range(len(SPEEDRANGE))]
     }
 
@@ -302,14 +322,17 @@ def sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl):
         # calculate speed depenend matrices
         bike_plant.calc_mtrx(speed)
         bike_ref.calc_mtrx(speed)
+        pp_ctrl.calc_gain(speed)
         mm_ctrl.calc_gain(speed)
         sil_ctrl.calc_gain(speed)
 
         # calculate eigenvalues
         eigenvals["plant"][idx] = np.linalg.eigvals(bike_plant.mat["A"]) # plant-> dx = Ax + Bu
         eigenvals["ref"][idx] = np.linalg.eigvals(bike_ref.mat["A"]) # ref -> dx = A_bar x + B_bar u_bar
+        eigenvals["plant+pp"][idx] = np.linalg.eigvals((bike_plant.mat["A"] - bike_plant.mat["B"]@pp_ctrl.gain["F"]))
         eigenvals["plant+mm"][idx] = np.linalg.eigvals((bike_plant.mat["A"] + bike_plant.mat["B"]@mm_ctrl.gain["F"])) # plant + mm_controll -> dx = (A + BF)x + BGu_ext
         eigenvals["plant+sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] - bike_plant.mat["B"]@sil_ctrl.gain["F"])) # plant + sil_controll -> dx = (A - BF)x, minus because here u = -Fx
+        eigenvals["plant+pp+sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] - bike_plant.mat["B"]@(pp_ctrl.gain["F"] + sil_ctrl.gain["F"])))
         eigenvals["ref+sil"][idx] = np.linalg.eigvals((bike_ref.mat["A"] - bike_ref.mat["B"]@sil_ctrl.gain["F"])) # ref + sil_controll -> dx = (A - BFsil)x
         eigenvals["plant+mm+sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] + bike_plant.mat["B"]@(mm_ctrl.gain["F"] - mm_ctrl.gain["G"]@sil_ctrl.gain["F"]))) # mm + sil_controll -> dx = ((Aref+Bref*Fmm) - (Bref*Gmm)*Fsil)x = (A-B*Fsil)x
 
@@ -325,7 +348,7 @@ def sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl):
 
     # Plot
     for key, value in eigenvals.items():
-        fig = plt.figure()    
+        plt.figure()    
         plt.title(key, fontsize = 24)
         plt.scatter(speed_axis, value["real"],s=1)
         plt.scatter(speed_axis, value["imag"],s=1)
@@ -415,7 +438,6 @@ def torque_sens_artifact(par,torque):
     for i, val in enumerate(torque):
         torque[i] = val + (val*par["torque_noise_gain"])*np.random.uniform()
     return torque
-
 
 def encoder_artifacts(u):
     return u
@@ -790,11 +812,18 @@ sil_funs = {
 sil_ctrl = VariableController(sil_funs)
 
 #Model matching a reference plant that uses steer-into-lean control
-mm_sil_fun = {
+mm_sil_funs = {
     "F" : mm_sil_gain_F_fun,
     "G" : mm_sil_gain_G_fun
 }
-mm_sil_ctrl = VariableController(mm_sil_fun)
+mm_sil_ctrl = VariableController(mm_sil_funs)
+
+# Pole placement controller
+pp_funs = {
+    "F": pp_gain_F_fun(bike_plant, bike_ref),
+    "G": pp_gain_G_fun
+}
+pp_ctrl = VariableController(pp_funs)
 
 #Zero controller (no control)
 zero_funs = {
@@ -807,7 +836,7 @@ zero_ctrl = VariableController(zero_funs)
 
 ###--------[SIMULATE
 ##--Simulate eigenvalues over speed
-# sim_eigen_vs_speed(bike_plant, bike_ref, mm_ctrl, sil_ctrl)
+sim_eigen_vs_speed(bike_plant, bike_ref, pp_ctrl, mm_ctrl, sil_ctrl)
 
 ##--Simulate dynamic behaviour 
 u_ext_fun = create_external_input
@@ -816,6 +845,7 @@ u_ext_fun_ref = create_external_input
 #Linear controller to apply
 controller = {
     "mm": mm_ctrl
+    # "place": pp_ctrl
     # "sil" : sil_ctrl
     # "mm+sil" : mm_sil_ctrl
     # "zero" : zero_ctrl
@@ -823,6 +853,7 @@ controller = {
 
 controller_ref = {
     # "mm": mm_ctrl
+    # "place": pp_ctrl
     # "sil" : sil_ctrl
     # "mm+sil" : mm_sil_ctrl
     "zero" : zero_ctrl
