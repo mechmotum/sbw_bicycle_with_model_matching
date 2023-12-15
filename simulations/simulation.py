@@ -47,7 +47,11 @@ SPEEDRANGE = np.linspace(SIM_RANGE["start"] , SIM_RANGE["stop"] , num=int(round(
 
 LOWER_FREQ_RANGE = -1 # given in 10^x [rad/s]
 UPPER_FREQ_RANGE = 2 # given in 10^x [rad/s]
-FREQ_RANGE = np.logspace(LOWER_FREQ_RANGE,UPPER_FREQ_RANGE) #rad/s
+FREQ_STEPS = 1000
+FREQ_RANGE = np.logspace(LOWER_FREQ_RANGE,UPPER_FREQ_RANGE,FREQ_STEPS) #rad/s
+
+# turning near 0 poles and zeros to 0. For numerical accuracy
+EPS = 1e-6
 
 
 # System response simulation
@@ -384,6 +388,21 @@ def plot_sim_bode(par,X,Y,Z):
     plt.show()
     return
 
+def filter_bad_coefs(coefs):
+    '''
+    Filter out the coeficients close to zero, as these might cause numerical errors
+    see https://github.com/scipy/scipy/issues/2382
+    '''
+    bla = False
+    l = []
+    for c in coefs:
+        if (abs(c)>EPS):
+            l.append(c)
+            bla = True
+        elif(bla):
+            l.append(0)
+    return l
+
 def sim_bode(bike_plant, bike_ref, mm_ctrl): # use the zero controller as default. Then hardcode controllers in this function
     #--[Get number of inputs and outputs
     bike_plant.calc_mtrx(1) # initialize for size. Any speed will do
@@ -404,37 +423,47 @@ def sim_bode(bike_plant, bike_ref, mm_ctrl): # use the zero controller as defaul
         mm_ctrl.calc_gain(speed)
         for nbr_out in range(par["p"]):
             for nbr_in in range(par["m"]):
-                tmp, mag, tmp = sign.bode(\
-                    (bike_plant.mat["A"],\
+                num, den = sign.ss2tf(\
+                    bike_plant.mat["A"],\
                     bike_plant.mat["B"][:,[nbr_in]],\
                     bike_plant.mat["C"][[nbr_out],:],\
-                    bike_plant.mat["D"][[nbr_out],[nbr_in]]),\
-                    w=FREQ_RANGE) # w in rad/s, mag in dB
+                    bike_plant.mat["D"][[nbr_out],[nbr_in]]\
+                )
+                num  = filter_bad_coefs(num[0])
+                den = filter_bad_coefs(den)
+                tmp, mag, tmp = sign.bode((num,den), w=FREQ_RANGE) # w in rad/s, mag in dB
                 plant_bodes["plant"][nbr_out,nbr_in,:,i] = mag
 
-                tmp, mag_mm, tmp = sign.bode(\
-                    (bike_plant.mat["A"] + bike_plant.mat["B"]@mm_ctrl.gain["F"],\
+                num_mm, den_mm = sign.ss2tf(\
+                    bike_plant.mat["A"] + bike_plant.mat["B"]@mm_ctrl.gain["F"],\
                     (bike_plant.mat["B"]@mm_ctrl.gain["G"])[:,[nbr_in]],\
                     bike_plant.mat["C"][[nbr_out],:],\
-                    bike_plant.mat["D"][[nbr_out],[nbr_in]]),\
-                    w=FREQ_RANGE) # w in rad/s, mag in dB
+                    bike_plant.mat["D"][[nbr_out],[nbr_in]]\
+                )
+                num_mm  = filter_bad_coefs(num_mm[0])
+                den_mm = filter_bad_coefs(den_mm)
+                tmp, mag_mm, tmp = sign.bode((num_mm,den_mm),w=FREQ_RANGE) # w in rad/s, mag in dB
                 plant_bodes["plant+mm"][nbr_out,nbr_in,:,i] = mag_mm
 
-                tmp, mag_ref, tmp = sign.bode(\
-                    (bike_ref.mat["A"],\
+                num_ref, den_ref = sign.ss2tf(\
+                    bike_ref.mat["A"],\
                     bike_ref.mat["B"][:,[nbr_in]],\
                     bike_ref.mat["C"][[nbr_out],:],\
-                    bike_ref.mat["D"][[nbr_out],[nbr_in]]),\
-                    w=FREQ_RANGE) # w in rad/s, mag in dB
+                    bike_ref.mat["D"][[nbr_out],[nbr_in]]
+                )
+                num_ref  = filter_bad_coefs(num_ref[0])
+                den_ref = filter_bad_coefs(den_ref)
+                tmp, mag_ref, tmp = sign.bode((num_ref,den_ref),w=FREQ_RANGE) # w in rad/s, mag in dB
                 plant_bodes["ref"][nbr_out,nbr_in,:,i] = mag_ref
     
     #--[Plotting
     #Grid based coordinates, made from 1D x and y range. Frequency in Hz, speed in m/s
     X,Y = np.meshgrid(np.log10(FREQ_RANGE/(2*np.pi)), SPEEDRANGE,indexing='ij') 
     #Plot
-    plot_sim_bode(par,X,Y,plant_bodes["plant"])
+    plot_sim_bode(par,X,Y,(plant_bodes["plant+mm"]-plant_bodes["ref"]))
     plot_sim_bode(par,X,Y,plant_bodes["plant+mm"])
     plot_sim_bode(par,X,Y,plant_bodes["ref"])
+    # plt.show()
     
     return
 
