@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import dill
 import inspect
 import scipy.signal as sign
@@ -39,10 +40,15 @@ K_SIL_H = -0.7
 NEG_CTRLRS = "sil"
 
 ## Define simulation parameters
-# Eigenvalue simulation
+# Eigenvalue and bode simulation
 SIM_RANGE = {"start": 0.01, "stop":10} # zero can not be in the range, as due to the mm fixed variables, A_ref is dependent on v via 1/v. So v=0 causes inf/nan.
 SIM_STEP = 0.01
 SPEEDRANGE = np.linspace(SIM_RANGE["start"] , SIM_RANGE["stop"] , num=int(round((SIM_RANGE["stop"]-SIM_RANGE["start"]) / SIM_STEP)))
+
+LOWER_FREQ_RANGE = -1 # given in 10^x [rad/s]
+UPPER_FREQ_RANGE = 2 # given in 10^x [rad/s]
+FREQ_RANGE = np.logspace(LOWER_FREQ_RANGE,UPPER_FREQ_RANGE) #rad/s
+
 
 # System response simulation
 '''
@@ -357,6 +363,79 @@ def sim_eigen_vs_speed(bike_plant, bike_ref, pp_ctrl, mm_ctrl, sil_ctrl):
         plt.ylabel("Eigenvalue [-]", fontsize = 16)
         plt.legend(["real","imag"], fontsize = 16)
     plt.show()
+    return
+
+def log_tick_formatter(val,poss=None):
+    '''
+    Created by T1mor. Taken with small alterations from 
+    https://stackoverflow.com/questions/3909794/plotting-mplot3d-axes3d-xyz-surface-plot-with-log-scale
+    under CC BY-SA 4.0. licence'''
+    return f"$10^{{{int(val)}}}$"
+
+def plot_sim_bode(par,X,Y,Z):
+    #Plot all input output combos
+    for nbr_out in range(par["p"]):
+        for nbr_in in range(par["m"]):
+            fig= plt.figure()
+            ax = plt.axes(projection='3d')
+            ax.xaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
+            ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+            ax.plot_surface(X, Y, Z[nbr_out,nbr_in,:,:])
+    plt.show()
+    return
+
+def sim_bode(bike_plant, bike_ref, mm_ctrl): # use the zero controller as default. Then hardcode controllers in this function
+    #--[Get number of inputs and outputs
+    bike_plant.calc_mtrx(1) # initialize for size. Any speed will do
+    par = dict()
+    par["m"] = bike_plant.mat["B"].shape[1] #Number of inputs
+    par["p"] = bike_plant.mat["C"].shape[0] #Number of outputs
+    
+    #--[Calculating bode magnitudes for all input to output combos
+    plant_bodes = { #prealocate
+        "plant": np.empty((par["p"],par["m"],len(FREQ_RANGE),len(SPEEDRANGE))),
+        "ref": np.empty((par["p"],par["m"],len(FREQ_RANGE),len(SPEEDRANGE))),
+        "plant+mm": np.empty((par["p"],par["m"],len(FREQ_RANGE),len(SPEEDRANGE)))
+    }
+
+    for i,speed in enumerate(SPEEDRANGE):
+        bike_plant.calc_mtrx(speed)
+        bike_ref.calc_mtrx(speed)
+        mm_ctrl.calc_gain(speed)
+        for nbr_out in range(par["p"]):
+            for nbr_in in range(par["m"]):
+                tmp, mag, tmp = sign.bode(\
+                    (bike_plant.mat["A"],\
+                    bike_plant.mat["B"][:,[nbr_in]],\
+                    bike_plant.mat["C"][[nbr_out],:],\
+                    bike_plant.mat["D"][[nbr_out],[nbr_in]]),\
+                    w=FREQ_RANGE) # w in rad/s, mag in dB
+                plant_bodes["plant"][nbr_out,nbr_in,:,i] = mag
+
+                tmp, mag_mm, tmp = sign.bode(\
+                    (bike_plant.mat["A"] + bike_plant.mat["B"]@mm_ctrl.gain["F"],\
+                    (bike_plant.mat["B"]@mm_ctrl.gain["G"])[:,[nbr_in]],\
+                    bike_plant.mat["C"][[nbr_out],:],\
+                    bike_plant.mat["D"][[nbr_out],[nbr_in]]),\
+                    w=FREQ_RANGE) # w in rad/s, mag in dB
+                plant_bodes["plant+mm"][nbr_out,nbr_in,:,i] = mag_mm
+
+                tmp, mag_ref, tmp = sign.bode(\
+                    (bike_ref.mat["A"],\
+                    bike_ref.mat["B"][:,[nbr_in]],\
+                    bike_ref.mat["C"][[nbr_out],:],\
+                    bike_ref.mat["D"][[nbr_out],[nbr_in]]),\
+                    w=FREQ_RANGE) # w in rad/s, mag in dB
+                plant_bodes["ref"][nbr_out,nbr_in,:,i] = mag_ref
+    
+    #--[Plotting
+    #Grid based coordinates, made from 1D x and y range. Frequency in Hz, speed in m/s
+    X,Y = np.meshgrid(np.log10(FREQ_RANGE/(2*np.pi)), SPEEDRANGE,indexing='ij') 
+    #Plot
+    plot_sim_bode(par,X,Y,plant_bodes["plant"])
+    plot_sim_bode(par,X,Y,plant_bodes["plant+mm"])
+    plot_sim_bode(par,X,Y,plant_bodes["ref"])
+    
     return
 
 def sim_setup(par,system,ctrl):
@@ -836,7 +915,10 @@ zero_ctrl = VariableController(zero_funs)
 
 ###--------[SIMULATE
 ##--Simulate eigenvalues over speed
-sim_eigen_vs_speed(bike_plant, bike_ref, pp_ctrl, mm_ctrl, sil_ctrl)
+# sim_eigen_vs_speed(bike_plant, bike_ref, pp_ctrl, mm_ctrl, sil_ctrl)
+
+##--Simulate bode plots
+sim_bode(bike_plant, bike_ref, mm_ctrl)
 
 ##--Simulate dynamic behaviour 
 u_ext_fun = create_external_input
@@ -889,53 +971,53 @@ phi_kalman1 = KalmanSanjurjo(
 #     # "zero" : zero_ctrl
 # }
 
-time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
-# time1, output1, states1, calc_states1, ext_input1 = simulate1(SIM_PAR_PLANT,bike_plant,controller1,u_ext_fun,phi_kalman1)
-# time2, output2, states2, calc_states2, ext_input2 = simulate(SIM_PAR_PLANT,bike_plant,controller1,u_ext_fun,phi_kalman2)
-# time3, output3, states3, calc_states3, ext_input3 = simulate(SIM_PAR_PLANT,bike_plant,controller1,u_ext_fun,phi_kalman3)
-time_ref, output_ref, states_ref, calc_states_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman1)
+# time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
+# # time1, output1, states1, calc_states1, ext_input1 = simulate1(SIM_PAR_PLANT,bike_plant,controller1,u_ext_fun,phi_kalman1)
+# # time2, output2, states2, calc_states2, ext_input2 = simulate(SIM_PAR_PLANT,bike_plant,controller1,u_ext_fun,phi_kalman2)
+# # time3, output3, states3, calc_states3, ext_input3 = simulate(SIM_PAR_PLANT,bike_plant,controller1,u_ext_fun,phi_kalman3)
+# time_ref, output_ref, states_ref, calc_states_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman1)
 
-fig = plt.figure()    
-plt.title("phi", fontsize=24)
-plt.plot(time, states[:,0])# ,time_ref, states1[:,1])
-# plt.plot(time1, states1[:,0])
-# plt.plot(time2, states2[:,0])
-# plt.plot(time3, states3[:,0])
-plt.plot(time_ref, states_ref[:,0])
-plt.xlabel("Time [s]",fontsize=16)
-plt.ylabel("[rad]", fontsize=16)
-plt.legend(("plant+mm","ref"), fontsize = 16)
-plt.grid(visible=True)
-# plt.axis((0,10,-0.2,0.2))
-# plt.legend(("phi no control", "phi mm perfect state knowledge", "phi mm kalman noise var: 0.001", "phi mm kalman noise var: 0.05", "phi ref"))
+# fig = plt.figure()    
+# plt.title("phi", fontsize=24)
+# plt.plot(time, states[:,0])# ,time_ref, states1[:,1])
+# # plt.plot(time1, states1[:,0])
+# # plt.plot(time2, states2[:,0])
+# # plt.plot(time3, states3[:,0])
+# plt.plot(time_ref, states_ref[:,0])
+# plt.xlabel("Time [s]",fontsize=16)
+# plt.ylabel("[rad]", fontsize=16)
+# plt.legend(("plant+mm","ref"), fontsize = 16)
+# plt.grid(visible=True)
+# # plt.axis((0,10,-0.2,0.2))
+# # plt.legend(("phi no control", "phi mm perfect state knowledge", "phi mm kalman noise var: 0.001", "phi mm kalman noise var: 0.05", "phi ref"))
 
-fig = plt.figure()
-plt.title("delta", fontsize=24)
-plt.plot(time, states[:,1])
-plt.plot(time_ref, states_ref[:,1])
-plt.xlabel("Time [s]", fontsize=16)
-plt.ylabel("[rad]", fontsize=16)
-plt.legend(("plant+mm","ref"), fontsize = 16)
-plt.grid(visible=True)
+# fig = plt.figure()
+# plt.title("delta", fontsize=24)
+# plt.plot(time, states[:,1])
+# plt.plot(time_ref, states_ref[:,1])
+# plt.xlabel("Time [s]", fontsize=16)
+# plt.ylabel("[rad]", fontsize=16)
+# plt.legend(("plant+mm","ref"), fontsize = 16)
+# plt.grid(visible=True)
 
-fig = plt.figure()
-plt.title("d_phi", fontsize=24)
-plt.plot(time, states[:,2])
-plt.plot(time_ref, states_ref[:,2])
-plt.xlabel("Time [s]", fontsize=16)
-plt.ylabel("[rad]", fontsize=16)
-plt.legend(("plant+mm","ref"), fontsize = 16)
-plt.grid(visible=True)
+# fig = plt.figure()
+# plt.title("d_phi", fontsize=24)
+# plt.plot(time, states[:,2])
+# plt.plot(time_ref, states_ref[:,2])
+# plt.xlabel("Time [s]", fontsize=16)
+# plt.ylabel("[rad]", fontsize=16)
+# plt.legend(("plant+mm","ref"), fontsize = 16)
+# plt.grid(visible=True)
 
-fig = plt.figure()
-plt.title("d_delta", fontsize=24)
-plt.plot(time, states[:,3])
-plt.plot(time_ref, states_ref[:,3])
-plt.xlabel("Time [s]", fontsize=16)
-plt.ylabel("[rad]", fontsize=16)
-plt.legend(("plant+mm","ref"), fontsize = 16)
-plt.grid(visible=True)
-plt.show()
+# fig = plt.figure()
+# plt.title("d_delta", fontsize=24)
+# plt.plot(time, states[:,3])
+# plt.plot(time_ref, states_ref[:,3])
+# plt.xlabel("Time [s]", fontsize=16)
+# plt.ylabel("[rad]", fontsize=16)
+# plt.legend(("plant+mm","ref"), fontsize = 16)
+# plt.grid(visible=True)
+# plt.show()
 
 # # Test Torque input
 # phi_kalman1 = KalmanSanjurjo(
