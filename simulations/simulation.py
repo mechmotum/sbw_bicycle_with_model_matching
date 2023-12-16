@@ -50,8 +50,9 @@ UPPER_FREQ_RANGE = 2 # given in 10^x [rad/s]
 FREQ_STEPS = 1000
 FREQ_RANGE = np.logspace(LOWER_FREQ_RANGE,UPPER_FREQ_RANGE,FREQ_STEPS) #rad/s
 
-# turning near 0 poles and zeros to 0. For numerical accuracy
-EPS = 1e-6
+EPS = 1e-6# turning near 0 poles and zeros to 0. For numerical accuracy
+
+BODE_LABELS = [["T_phi to delta","T_delta to delta"],["T_phi to d_phi","T_delta to d_phi"]]
 
 
 # System response simulation
@@ -376,7 +377,7 @@ def log_tick_formatter(val,poss=None):
     under CC BY-SA 4.0. licence'''
     return f"$10^{{{int(val)}}}$"
 
-def plot_sim_bode(par,X,Y,Z):
+def plot_sim_bode(par,title,X,Y,Z):
     #Plot all input output combos
     for nbr_out in range(par["p"]):
         for nbr_in in range(par["m"]):
@@ -384,6 +385,10 @@ def plot_sim_bode(par,X,Y,Z):
             ax = plt.axes(projection='3d')
             ax.xaxis.set_major_formatter(mticker.FuncFormatter(log_tick_formatter))
             ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+            ax.set_title(title + ": " + BODE_LABELS[nbr_out][nbr_in],fontsize=24)
+            ax.set_xlabel("Frequency [Hz]", fontsize=12)
+            ax.set_ylabel("Speed [m/s]", fontsize=12)
+            ax.set_zlabel("Magnitude [dB]", fontsize=12)
             ax.plot_surface(X, Y, Z[nbr_out,nbr_in,:,:])
     plt.show()
     return
@@ -404,7 +409,7 @@ def filter_bad_coefs(coefs):
     return l
 
 def calc_bode_mag(par,A,B,C,D):
-    plant_bodes = np.empty(par["p"], par["m"], len(FREQ_RANGE))
+    plant_bodes = np.empty((par["p"], par["m"], len(FREQ_RANGE)))
     for nbr_out in range(par["p"]):
             for nbr_in in range(par["m"]):
                 num, den = sign.ss2tf(A, B[:,[nbr_in]], C[[nbr_out],:], D[[nbr_out],[nbr_in]])
@@ -437,74 +442,60 @@ def sim_bode(bike_plant, bike_ref, mm_ctrl, sil_ctrl, pp_ctrl): # use the zero c
         mm_ctrl.calc_gain(speed)
         sil_ctrl.calc_gain(speed)
         pp_ctrl.calc_gain(speed)
-        for nbr_out in range(par["p"]):
-            for nbr_in in range(par["m"]):
-                num, den = sign.ss2tf(\
-                    bike_plant.mat["A"],\
-                    bike_plant.mat["B"][:,[nbr_in]],\
-                    bike_plant.mat["C"][[nbr_out],:],\
-                    bike_plant.mat["D"][[nbr_out],[nbr_in]]\
-                )
-                num  = filter_bad_coefs(num[0])
-                den = filter_bad_coefs(den)
-                tmp, mag, tmp = sign.bode((num,den), w=FREQ_RANGE) # w in rad/s, mag in dB
-                plant_bodes["plant"][nbr_out,nbr_in,:,i] = mag
 
-                num_mm, den_mm = sign.ss2tf(\
-                    bike_plant.mat["A"] + bike_plant.mat["B"]@mm_ctrl.gain["F"],\
-                    (bike_plant.mat["B"]@mm_ctrl.gain["G"])[:,[nbr_in]],\
-                    (bike_plant.mat["C"] + bike_plant.mat["D"]@mm_ctrl.gain["F"])[[nbr_out],:],\
-                    (bike_plant.mat["D"]@mm_ctrl.gain["G"])[[nbr_out],[nbr_in]]\
-                )
-                num_mm  = filter_bad_coefs(num_mm[0])
-                den_mm = filter_bad_coefs(den_mm)
-                tmp, mag_mm, tmp = sign.bode((num_mm,den_mm),w=FREQ_RANGE) # w in rad/s, mag in dB
-                plant_bodes["plant+mm"][nbr_out,nbr_in,:,i] = mag_mm
+        plant_bodes["plant"][:,:,:,i] = calc_bode_mag(\
+            par,\
+            bike_plant.mat["A"],\
+            bike_plant.mat["B"],\
+            bike_plant.mat["C"],\
+            bike_plant.mat["D"]\
+        )
 
-                num_ref, den_ref = sign.ss2tf(\
-                    bike_ref.mat["A"],\
-                    bike_ref.mat["B"][:,[nbr_in]],\
-                    bike_ref.mat["C"][[nbr_out],:],\
-                    bike_ref.mat["D"][[nbr_out],[nbr_in]]
-                )
-                num_ref  = filter_bad_coefs(num_ref[0])
-                den_ref = filter_bad_coefs(den_ref)
-                tmp, mag_ref, tmp = sign.bode((num_ref,den_ref),w=FREQ_RANGE) # w in rad/s, mag in dB
-                plant_bodes["ref"][nbr_out,nbr_in,:,i] = mag_ref
+        plant_bodes["plant+mm"][:,:,:,i] = calc_bode_mag(
+            par,\
+            bike_plant.mat["A"] + bike_plant.mat["B"]@mm_ctrl.gain["F"],\
+            bike_plant.mat["B"]@mm_ctrl.gain["G"],\
+            bike_plant.mat["C"] + bike_plant.mat["D"]@mm_ctrl.gain["F"],\
+            bike_plant.mat["D"]@mm_ctrl.gain["G"]\
+        )
+        
+        plant_bodes["ref"][:,:,:,i] = calc_bode_mag(\
+            par,\
+            bike_ref.mat["A"],\
+            bike_ref.mat["B"],\
+            bike_ref.mat["C"],\
+            bike_ref.mat["D"],
+        )
 
-                num_sil, den_sil = sign.ss2tf(\
-                    bike_plant.mat["A"] - bike_plant.mat["B"]@sil_ctrl.gain["F"],\
-                    (bike_plant.mat["B"]@sil_ctrl.gain["G"])[:,[nbr_in]],\
-                    (bike_plant.mat["C"] - bike_plant.mat["D"]@sil_ctrl.gain["F"])[[nbr_out],:],\
-                    (bike_plant.mat["D"]@sil_ctrl.gain["G"])[[nbr_out],[nbr_in]]
-                )
-                num_sil  = filter_bad_coefs(num_sil[0])
-                den_sil = filter_bad_coefs(den_sil)
-                tmp, mag_sil, tmp = sign.bode((num_sil,den_sil),w=FREQ_RANGE) # w in rad/s, mag in dB
-                plant_bodes["plant+sil"][nbr_out,nbr_in,:,i] = mag_sil
-                
-                num_pp, den_pp = sign.ss2tf(\
-                    bike_plant.mat["A"] - bike_plant.mat["B"]@pp_ctrl.gain["F"],\
-                    (bike_plant.mat["B"]@pp_ctrl.gain["G"])[:,[nbr_in]],\
-                    (bike_plant.mat["C"] - bike_plant.mat["D"]@pp_ctrl.gain["F"])[[nbr_out],:],\
-                    (bike_plant.mat["D"]@pp_ctrl.gain["G"])[[nbr_out],[nbr_in]]
-                )
-                num_pp  = filter_bad_coefs(num_pp[0])
-                den_pp = filter_bad_coefs(den_pp)
-                tmp, mag_pp, tmp = sign.bode((num_pp,den_pp),w=FREQ_RANGE) # w in rad/s, mag in dB
-                plant_bodes["plant+pp"][nbr_out,nbr_in,:,i] = mag_pp
+        plant_bodes["plant+sil"][:,:,:,i] = calc_bode_mag(\
+            par,\
+            bike_plant.mat["A"] - bike_plant.mat["B"]@sil_ctrl.gain["F"],\
+            bike_plant.mat["B"]@sil_ctrl.gain["G"],\
+            bike_plant.mat["C"] - bike_plant.mat["D"]@sil_ctrl.gain["F"],\
+            bike_plant.mat["D"]@sil_ctrl.gain["G"],
+        )
+
+        plant_bodes["plant+pp"][:,:,:,i] = calc_bode_mag(\
+            par,\
+            bike_plant.mat["A"] - bike_plant.mat["B"]@pp_ctrl.gain["F"],\
+            bike_plant.mat["B"]@pp_ctrl.gain["G"],\
+            bike_plant.mat["C"] - bike_plant.mat["D"]@pp_ctrl.gain["F"],\
+            bike_plant.mat["D"]@pp_ctrl.gain["G"]\
+        )
     
     #--[Plotting
     #Grid based coordinates, made from 1D x and y range. Frequency in Hz, speed in m/s
     X,Y = np.meshgrid(np.log10(FREQ_RANGE/(2*np.pi)), SPEEDRANGE,indexing='ij')
     #Plot
-    plot_sim_bode(par,X,Y,(plant_bodes["plant+mm"]-plant_bodes["ref"]))
+    plot_sim_bode(par,"plant",X,Y,plant_bodes["plant"])
     # plot_sim_bode(par,X,Y,plant_bodes["plant+mm"])
     # plot_sim_bode(par,X,Y,plant_bodes["ref"])
     # plot_sim_bode(par,X,Y,plant_bodes["plant+sil"])
-    plot_sim_bode(par,X,Y,(plant_bodes["plant+pp"]-plant_bodes["ref"]))
+    # plot_sim_bode(par,X,Y,(plant_bodes["plant+pp"]))
+    # plot_sim_bode(par,X,Y,(plant_bodes["plant+mm"]-plant_bodes["ref"]))
+    # plot_sim_bode(par,X,Y,(plant_bodes["plant+pp"]-plant_bodes["ref"]))
     # plt.show()
-    
+
     return
 
 def sim_setup(par,system,ctrl):
