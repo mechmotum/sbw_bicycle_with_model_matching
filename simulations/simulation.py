@@ -403,24 +403,40 @@ def filter_bad_coefs(coefs):
             l.append(0)
     return l
 
-def sim_bode(bike_plant, bike_ref, mm_ctrl): # use the zero controller as default. Then hardcode controllers in this function
+def calc_bode_mag(par,A,B,C,D):
+    plant_bodes = np.empty(par["p"], par["m"], len(FREQ_RANGE))
+    for nbr_out in range(par["p"]):
+            for nbr_in in range(par["m"]):
+                num, den = sign.ss2tf(A, B[:,[nbr_in]], C[[nbr_out],:], D[[nbr_out],[nbr_in]])
+                num  = filter_bad_coefs(num[0])
+                den = filter_bad_coefs(den)
+                tmp, mag, tmp = sign.bode((num,den), w=FREQ_RANGE) # w in rad/s, mag in dB
+                plant_bodes[nbr_out,nbr_in,:] = mag
+    return plant_bodes
+
+def sim_bode(bike_plant, bike_ref, mm_ctrl, sil_ctrl, pp_ctrl): # use the zero controller as default. Then hardcode controllers in this function
     #--[Get number of inputs and outputs
     bike_plant.calc_mtrx(1) # initialize for size. Any speed will do
-    par = dict()
-    par["m"] = bike_plant.mat["B"].shape[1] #Number of inputs
-    par["p"] = bike_plant.mat["C"].shape[0] #Number of outputs
+    par = {
+        "m" : bike_plant.mat["B"].shape[1], #Number of inputs
+        "p" : bike_plant.mat["C"].shape[0] #Number of outputs
+    }
     
     #--[Calculating bode magnitudes for all input to output combos
     plant_bodes = { #prealocate
         "plant": np.empty((par["p"],par["m"],len(FREQ_RANGE),len(SPEEDRANGE))),
         "ref": np.empty((par["p"],par["m"],len(FREQ_RANGE),len(SPEEDRANGE))),
-        "plant+mm": np.empty((par["p"],par["m"],len(FREQ_RANGE),len(SPEEDRANGE)))
+        "plant+mm": np.empty((par["p"],par["m"],len(FREQ_RANGE),len(SPEEDRANGE))),
+        "plant+sil": np.empty((par["p"],par["m"],len(FREQ_RANGE),len(SPEEDRANGE))),
+        "plant+pp": np.empty((par["p"],par["m"],len(FREQ_RANGE),len(SPEEDRANGE))),
     }
 
     for i,speed in enumerate(SPEEDRANGE):
         bike_plant.calc_mtrx(speed)
         bike_ref.calc_mtrx(speed)
         mm_ctrl.calc_gain(speed)
+        sil_ctrl.calc_gain(speed)
+        pp_ctrl.calc_gain(speed)
         for nbr_out in range(par["p"]):
             for nbr_in in range(par["m"]):
                 num, den = sign.ss2tf(\
@@ -437,8 +453,8 @@ def sim_bode(bike_plant, bike_ref, mm_ctrl): # use the zero controller as defaul
                 num_mm, den_mm = sign.ss2tf(\
                     bike_plant.mat["A"] + bike_plant.mat["B"]@mm_ctrl.gain["F"],\
                     (bike_plant.mat["B"]@mm_ctrl.gain["G"])[:,[nbr_in]],\
-                    bike_plant.mat["C"][[nbr_out],:],\
-                    bike_plant.mat["D"][[nbr_out],[nbr_in]]\
+                    (bike_plant.mat["C"] + bike_plant.mat["D"]@mm_ctrl.gain["F"])[[nbr_out],:],\
+                    (bike_plant.mat["D"]@mm_ctrl.gain["G"])[[nbr_out],[nbr_in]]\
                 )
                 num_mm  = filter_bad_coefs(num_mm[0])
                 den_mm = filter_bad_coefs(den_mm)
@@ -455,14 +471,38 @@ def sim_bode(bike_plant, bike_ref, mm_ctrl): # use the zero controller as defaul
                 den_ref = filter_bad_coefs(den_ref)
                 tmp, mag_ref, tmp = sign.bode((num_ref,den_ref),w=FREQ_RANGE) # w in rad/s, mag in dB
                 plant_bodes["ref"][nbr_out,nbr_in,:,i] = mag_ref
+
+                num_sil, den_sil = sign.ss2tf(\
+                    bike_plant.mat["A"] - bike_plant.mat["B"]@sil_ctrl.gain["F"],\
+                    (bike_plant.mat["B"]@sil_ctrl.gain["G"])[:,[nbr_in]],\
+                    (bike_plant.mat["C"] - bike_plant.mat["D"]@sil_ctrl.gain["F"])[[nbr_out],:],\
+                    (bike_plant.mat["D"]@sil_ctrl.gain["G"])[[nbr_out],[nbr_in]]
+                )
+                num_sil  = filter_bad_coefs(num_sil[0])
+                den_sil = filter_bad_coefs(den_sil)
+                tmp, mag_sil, tmp = sign.bode((num_sil,den_sil),w=FREQ_RANGE) # w in rad/s, mag in dB
+                plant_bodes["plant+sil"][nbr_out,nbr_in,:,i] = mag_sil
+                
+                num_pp, den_pp = sign.ss2tf(\
+                    bike_plant.mat["A"] - bike_plant.mat["B"]@pp_ctrl.gain["F"],\
+                    (bike_plant.mat["B"]@pp_ctrl.gain["G"])[:,[nbr_in]],\
+                    (bike_plant.mat["C"] - bike_plant.mat["D"]@pp_ctrl.gain["F"])[[nbr_out],:],\
+                    (bike_plant.mat["D"]@pp_ctrl.gain["G"])[[nbr_out],[nbr_in]]
+                )
+                num_pp  = filter_bad_coefs(num_pp[0])
+                den_pp = filter_bad_coefs(den_pp)
+                tmp, mag_pp, tmp = sign.bode((num_pp,den_pp),w=FREQ_RANGE) # w in rad/s, mag in dB
+                plant_bodes["plant+pp"][nbr_out,nbr_in,:,i] = mag_pp
     
     #--[Plotting
     #Grid based coordinates, made from 1D x and y range. Frequency in Hz, speed in m/s
-    X,Y = np.meshgrid(np.log10(FREQ_RANGE/(2*np.pi)), SPEEDRANGE,indexing='ij') 
+    X,Y = np.meshgrid(np.log10(FREQ_RANGE/(2*np.pi)), SPEEDRANGE,indexing='ij')
     #Plot
     plot_sim_bode(par,X,Y,(plant_bodes["plant+mm"]-plant_bodes["ref"]))
-    plot_sim_bode(par,X,Y,plant_bodes["plant+mm"])
-    plot_sim_bode(par,X,Y,plant_bodes["ref"])
+    # plot_sim_bode(par,X,Y,plant_bodes["plant+mm"])
+    # plot_sim_bode(par,X,Y,plant_bodes["ref"])
+    # plot_sim_bode(par,X,Y,plant_bodes["plant+sil"])
+    plot_sim_bode(par,X,Y,(plant_bodes["plant+pp"]-plant_bodes["ref"]))
     # plt.show()
     
     return
@@ -947,7 +987,7 @@ zero_ctrl = VariableController(zero_funs)
 # sim_eigen_vs_speed(bike_plant, bike_ref, pp_ctrl, mm_ctrl, sil_ctrl)
 
 ##--Simulate bode plots
-sim_bode(bike_plant, bike_ref, mm_ctrl)
+sim_bode(bike_plant, bike_ref, mm_ctrl, sil_ctrl, pp_ctrl)
 
 ##--Simulate dynamic behaviour 
 u_ext_fun = create_external_input
