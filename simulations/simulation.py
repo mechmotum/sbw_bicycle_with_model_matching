@@ -368,6 +368,17 @@ def sim_eigen_vs_speed(bike_plant, bike_ref, pp_ctrl, mm_ctrl, sil_ctrl):
         plt.ylabel("Eigenvalue [-]", fontsize = 16)
         plt.legend(["real","imag"], fontsize = 16)
     plt.show()
+
+    for key, value in eigenvals.items():
+        plt.figure()    
+        plt.title(key, fontsize = 24)
+        plt.scatter(value["real"], value["imag"], s=1, c=speed_axis)
+        plt.scatter(value["real"][0], value["imag"][0], s=100, marker='x', c='r')
+        plt.xlabel("Real", fontsize = 16)
+        plt.ylabel("Imaginary", fontsize = 16)
+        plt.colorbar(label="speed",values=SPEEDRANGE)
+        plt.grid(True)
+    plt.show()
     return
 
 def log_tick_formatter(val,poss=None):
@@ -488,12 +499,12 @@ def sim_bode(bike_plant, bike_ref, mm_ctrl, sil_ctrl, pp_ctrl): # use the zero c
     X,Y = np.meshgrid(np.log10(FREQ_RANGE/(2*np.pi)), SPEEDRANGE,indexing='ij')
     #Plot
     plot_sim_bode(par,"plant",X,Y,plant_bodes["plant"])
-    # plot_sim_bode(par,X,Y,plant_bodes["plant+mm"])
-    # plot_sim_bode(par,X,Y,plant_bodes["ref"])
-    # plot_sim_bode(par,X,Y,plant_bodes["plant+sil"])
-    # plot_sim_bode(par,X,Y,(plant_bodes["plant+pp"]))
-    # plot_sim_bode(par,X,Y,(plant_bodes["plant+mm"]-plant_bodes["ref"]))
-    # plot_sim_bode(par,X,Y,(plant_bodes["plant+pp"]-plant_bodes["ref"]))
+    plot_sim_bode(par,"plant+mm",X,Y,plant_bodes["plant+mm"])
+    plot_sim_bode(par,"reference",X,Y,plant_bodes["ref"])
+    plot_sim_bode(par,"plant+sil",X,Y,plant_bodes["plant+sil"])
+    plot_sim_bode(par,"plant+pp",X,Y,(plant_bodes["plant+pp"]))
+    plot_sim_bode(par,"plant+mm/reference",X,Y,(plant_bodes["plant+mm"]-plant_bodes["ref"]))
+    plot_sim_bode(par,"plant+pp/reference",X,Y,(plant_bodes["plant+pp"]-plant_bodes["ref"]))
     # plt.show()
 
     return
@@ -975,10 +986,10 @@ zero_ctrl = VariableController(zero_funs)
 
 ###--------[SIMULATE
 ##--Simulate eigenvalues over speed
-# sim_eigen_vs_speed(bike_plant, bike_ref, pp_ctrl, mm_ctrl, sil_ctrl)
+sim_eigen_vs_speed(bike_plant, bike_ref, pp_ctrl, mm_ctrl, sil_ctrl)
 
 ##--Simulate bode plots
-sim_bode(bike_plant, bike_ref, mm_ctrl, sil_ctrl, pp_ctrl)
+# sim_bode(bike_plant, bike_ref, mm_ctrl, sil_ctrl, pp_ctrl)
 
 ##--Simulate dynamic behaviour 
 u_ext_fun = create_external_input
