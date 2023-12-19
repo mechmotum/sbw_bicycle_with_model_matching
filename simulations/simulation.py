@@ -33,8 +33,8 @@ WHEEL_RADIUS = 0.33#[m] TODO: make sure this is the actual correct one, both in 
 STEER_T_POS = 1 #position in the input vector that corresponds to the steer torque 
 
 # Steer into lean conroller
-SIL_AVG_SPEED = 6
-K_SIL_L = -12
+SIL_AVG_SPEED = 5.5
+K_SIL_L = -2
 K_SIL_H = -0.7
 
 NEG_CTRLRS = "sil"
@@ -625,7 +625,9 @@ def create_external_input(par):
         offset = offset + par["dt"]
     
     # Create external input vector
-    u_ext[:,STEER_T_POS] = 0.1*np.sin(time)
+    # u_ext[:,STEER_T_POS] = 0.1*np.sin(time)
+    # u_ext[100:,STEER_T_POS] = 0.1*np.ones_like(u_ext[100:,STEER_T_POS])
+    u_ext[10:,STEER_T_POS] = 0.1
     return u_ext
 
 def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
@@ -1017,12 +1019,21 @@ phi_kalman = KalmanSanjurjo( #TODO: initialize initial states inside the functio
     SIM_PAR_PLANT["vel"],
     SIM_PAR_PLANT["dt"])
 
+time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
+plt.figure()    
+plt.title("States")
+plt.plot(time, states)
+plt.xlabel("Time [s]")
+plt.ylabel("angle [rad] or angular velocity [rad/s]")
+# plt.axis((0,20,-0.3,0.3))
+plt.legend(("phi","delta","d_phi","d_delta"))
+plt.show()
 
 # # Test Kalman
-phi_kalman1 = KalmanSanjurjo(
-    KALMAN_PAR,
-    SIM_PAR_PLANT["vel"],
-    SIM_PAR_PLANT["dt"])
+# phi_kalman1 = KalmanSanjurjo(
+#     KALMAN_PAR,
+#     SIM_PAR_PLANT["vel"],
+#     SIM_PAR_PLANT["dt"])
 
 # phi_kalman2 = KalmanSanjurjo(
 #     KALMAN_PAR,
