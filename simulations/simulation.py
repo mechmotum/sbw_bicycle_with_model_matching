@@ -30,7 +30,8 @@ MAX_ENCODER_COUNT = 8192
 WHEELBASE_PLANT = 1.064 #[m]
 WHEELBASE_REF = 1.064 #[m]
 WHEEL_RADIUS = 0.33#[m] TODO: make sure this is the actual correct one, both in main and here
-STEER_T_POS = 1 #position in the input vector that corresponds to the steer torque 
+LEAN_T_POS = 0 #position in the input vector that corresponds to the lean torque
+STEER_T_POS = 1 #position in the input vector that corresponds to the steer torque
 
 # Steer into lean conroller
 SIL_AVG_SPEED = 5.5
@@ -50,7 +51,7 @@ UPPER_FREQ_RANGE = 2 # given in 10^x [rad/s]
 FREQ_STEPS = 1000
 FREQ_RANGE = np.logspace(LOWER_FREQ_RANGE,UPPER_FREQ_RANGE,FREQ_STEPS) #rad/s
 
-EPS = 1e-6# turning near 0 poles and zeros to 0. For numerical accuracy
+EPS = 1e-6 # turning near 0 poles and zeros to 0. For numerical accuracy
 
 BODE_LABELS = [["T_phi to delta","T_delta to delta"],["T_phi to d_phi","T_delta to d_phi"]]
 
@@ -63,12 +64,12 @@ Sanjurjo Kalman filter. As a result, you have to retune it.
 Otherwise the estimation of phi is completely off.
 '''
 SIM_PAR_PLANT = {
-    "vel" : 3.5, # [m/s] Static velocity of the bicycle
+    "vel" : 5.5, # [m/s] Static velocity of the bicycle
     "wheelbase" : WHEELBASE_PLANT, # [m] wheelbase of the bicycle
     "dt" : 0.01, # [s] Time step of the micro controller
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
-    "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
+    "x0" : np.array([1e-6,0,0,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
     "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
     "step_num" : 1000*1, # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
     "torque_noise_gain": 0.1 # size of the torque * gain = noise on the torque (larger torque = higher noise)
@@ -430,7 +431,7 @@ def calc_bode_mag(par,A,B,C,D):
                 plant_bodes[nbr_out,nbr_in,:] = mag
     return plant_bodes
 
-def sim_bode(bike_plant, bike_ref, mm_ctrl, sil_ctrl, pp_ctrl): # use the zero controller as default. Then hardcode controllers in this function
+def sim_bode(bike_plant, bike_ref, mm_ctrl, sil_ctrl, pp_ctrl): 
     #--[Get number of inputs and outputs
     bike_plant.calc_mtrx(1) # initialize for size. Any speed will do
     par = {
@@ -627,7 +628,7 @@ def create_external_input(par):
     # Create external input vector
     # u_ext[:,STEER_T_POS] = 0.1*np.sin(time)
     # u_ext[100:,STEER_T_POS] = 0.1*np.ones_like(u_ext[100:,STEER_T_POS])
-    u_ext[10:,STEER_T_POS] = 0.1
+    u_ext[1000,LEAN_T_POS] = 10
     return u_ext
 
 def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
@@ -928,6 +929,22 @@ def hw_in_the_loop_sim(par,system,u_ref):
 
     return (T_vec, y_vec, x_vec, y0_vec)
 
+def make_frf(dt,input_t, output_t):
+    input_frq = np.fft.rfft(input_t)
+    output_frq = np.fft.rfft(output_t)
+    freq_bins = np.fft.rfftfreq(len(input_t),dt) #Sampling time of the simulation (thus the ODE solver/lsim)
+    frf = output_frq/input_frq
+    
+    plt.figure()
+    plt.plot(freq_bins, abs(input_frq))
+    plt.figure()
+    plt.plot(freq_bins, abs(output_frq))
+    plt.figure()
+    plt.plot(freq_bins, abs(frf))
+    plt.show()
+    return
+
+
 ###---------------------------------[START]---------------------------------###
 ###--------[INITIALIZATION
 ##----Set up the matrices (created by [...].py)
@@ -988,7 +1005,7 @@ zero_ctrl = VariableController(zero_funs)
 
 ###--------[SIMULATE
 ##--Simulate eigenvalues over speed
-sim_eigen_vs_speed(bike_plant, bike_ref, pp_ctrl, mm_ctrl, sil_ctrl)
+# sim_eigen_vs_speed(bike_plant, bike_ref, pp_ctrl, mm_ctrl, sil_ctrl)
 
 ##--Simulate bode plots
 # sim_bode(bike_plant, bike_ref, mm_ctrl, sil_ctrl, pp_ctrl)
@@ -999,11 +1016,11 @@ u_ext_fun_ref = create_external_input
 
 #Linear controller to apply
 controller = {
-    "mm": mm_ctrl
+    # "mm": mm_ctrl
     # "place": pp_ctrl
     # "sil" : sil_ctrl
     # "mm+sil" : mm_sil_ctrl
-    # "zero" : zero_ctrl
+    "zero" : zero_ctrl
 }
 
 controller_ref = {
@@ -1020,6 +1037,8 @@ phi_kalman = KalmanSanjurjo( #TODO: initialize initial states inside the functio
     SIM_PAR_PLANT["dt"])
 
 time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
+make_frf(SIM_PAR_PLANT["h"],ext_input[:,0], states[:,1])
+
 plt.figure()    
 plt.title("States")
 plt.plot(time, states)
