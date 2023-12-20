@@ -628,7 +628,8 @@ def create_external_input(par):
     # Create external input vector
     # u_ext[:,STEER_T_POS] = 0.1*np.sin(time)
     # u_ext[100:,STEER_T_POS] = 0.1*np.ones_like(u_ext[100:,STEER_T_POS])
-    u_ext[1000,LEAN_T_POS] = 10
+    # u_ext[1000,LEAN_T_POS] = 10
+    u_ext[:,LEAN_T_POS] = 5*np.sin((time/2*np.pi)*time)
     return u_ext
 
 def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
@@ -929,20 +930,21 @@ def hw_in_the_loop_sim(par,system,u_ref):
 
     return (T_vec, y_vec, x_vec, y0_vec)
 
-def make_frf(dt,input_t, output_t):
-    input_frq = np.fft.rfft(input_t)
-    output_frq = np.fft.rfft(output_t)
-    freq_bins = np.fft.rfftfreq(len(input_t),dt) #Sampling time of the simulation (thus the ODE solver/lsim)
-    frf = output_frq/input_frq
+## THIS IS MOST LIKELY A VERY WRONG IMPLEMENTATION OF AN FRF CREATOR --> JUST USE MATLAB
+# def make_frf(dt,input_t, output_t): 
+#     input_frq = np.fft.rfft(input_t)
+#     output_frq = np.fft.rfft(output_t)
+#     freq_bins = np.fft.rfftfreq(len(input_t),dt) #Sampling time of the simulation (thus the ODE solver/lsim)
+#     frf = output_frq/input_frq
     
-    plt.figure()
-    plt.plot(freq_bins, abs(input_frq))
-    plt.figure()
-    plt.plot(freq_bins, abs(output_frq))
-    plt.figure()
-    plt.plot(freq_bins, abs(frf))
-    plt.show()
-    return
+#     plt.figure()
+#     plt.plot(freq_bins, abs(input_frq))
+#     plt.figure()
+#     plt.plot(freq_bins, abs(output_frq))
+#     plt.figure()
+#     plt.plot(freq_bins, abs(frf))
+#     plt.show()
+#     return
 
 
 ###---------------------------------[START]---------------------------------###
@@ -1037,7 +1039,6 @@ phi_kalman = KalmanSanjurjo( #TODO: initialize initial states inside the functio
     SIM_PAR_PLANT["dt"])
 
 time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
-make_frf(SIM_PAR_PLANT["h"],ext_input[:,0], states[:,1])
 
 plt.figure()    
 plt.title("States")
