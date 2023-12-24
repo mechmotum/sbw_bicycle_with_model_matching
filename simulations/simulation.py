@@ -46,8 +46,8 @@ SIM_RANGE = {"start": 0.01, "stop":10} # zero can not be in the range, as due to
 SIM_STEP = 0.01
 SPEEDRANGE = np.linspace(SIM_RANGE["start"] , SIM_RANGE["stop"] , num=int(round((SIM_RANGE["stop"]-SIM_RANGE["start"]) / SIM_STEP)))
 
-LOWER_FREQ_RANGE = -1 # given in 10^x [rad/s]
-UPPER_FREQ_RANGE = 2 # given in 10^x [rad/s]
+LOWER_FREQ_RANGE = -3 # given in 10^x [rad/s]
+UPPER_FREQ_RANGE = 3 # given in 10^x [rad/s]
 FREQ_STEPS = 1000
 FREQ_RANGE = np.logspace(LOWER_FREQ_RANGE,UPPER_FREQ_RANGE,FREQ_STEPS) #rad/s
 
@@ -69,9 +69,9 @@ SIM_PAR_PLANT = {
     "dt" : 0.01, # [s] Time step of the micro controller
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
-    "x0" : np.array([1e-6,0,0,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
+    "x0" : np.array([0,0,0,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
     "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
-    "step_num" : 1000*1, # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
+    "step_num" : 1000*10, # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
     "torque_noise_gain": 0.1 # size of the torque * gain = noise on the torque (larger torque = higher noise)
 }
 
@@ -245,7 +245,6 @@ class KalmanSanjurjo:
 def sgn(x):
     return ((int)(x >= 0) - (int)(x < 0))
 
-## gain calculation function for steer into lean controller
 def sensor_matrix_bike():
     return C_MATRIX_BIKE
 
@@ -628,8 +627,8 @@ def create_external_input(par):
     # Create external input vector
     # u_ext[:,STEER_T_POS] = 0.1*np.sin(time)
     # u_ext[100:,STEER_T_POS] = 0.1*np.ones_like(u_ext[100:,STEER_T_POS])
-    # u_ext[1000,LEAN_T_POS] = 10
-    u_ext[:,LEAN_T_POS] = 5*np.sin((time/2*np.pi)*time)
+    u_ext[0,LEAN_T_POS] = 10
+    # u_ext[:,LEAN_T_POS] = 5*np.sin((time/2*np.pi)*time)
     return u_ext
 
 def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
@@ -930,22 +929,51 @@ def hw_in_the_loop_sim(par,system,u_ref):
 
     return (T_vec, y_vec, x_vec, y0_vec)
 
-## THIS IS MOST LIKELY A VERY WRONG IMPLEMENTATION OF AN FRF CREATOR --> JUST USE MATLAB
-# def make_frf(dt,input_t, output_t): 
-#     input_frq = np.fft.rfft(input_t)
-#     output_frq = np.fft.rfft(output_t)
-#     freq_bins = np.fft.rfftfreq(len(input_t),dt) #Sampling time of the simulation (thus the ODE solver/lsim)
-#     frf = output_frq/input_frq
+## THERE IS SOMETHING WITH THE SAMPLE TIME LENGTH!!!!
+def calc_frf(dt,input_t, output_t):
+    if(input_t.shape[0] != output_t.shape[0]):
+        print("input and output signal length not equal\nIgnoring creation of FFT")
+        return
     
-#     plt.figure()
-#     plt.plot(freq_bins, abs(input_frq))
-#     plt.figure()
-#     plt.plot(freq_bins, abs(output_frq))
-#     plt.figure()
-#     plt.plot(freq_bins, abs(frf))
-#     plt.show()
-#     return
+    m = input_t.shape[1]
+    p = output_t.shape[1]
+    freq_bins = np.empty((p,input_t.shape[0]//2 +1))
+    frf = np.empty((p,m,input_t.shape[0]//2 +1))
+    for i in range(p):
+        output_frq = np.fft.rfft(output_t[:,i])
+        freq_bins[i,:] = 2*np.pi * np.fft.rfftfreq(len(output_t[:,i]),dt) #[rad/s] Sampling time of the simulation (thus the ODE solver/lsim)
+        for j in range(m):
+            input_frq = np.fft.rfft(input_t[:,j])
+            frf[i,j,:] = 20*np.log10(abs(output_frq/input_frq)) # [dB]
+    return freq_bins, frf
 
+def plot_bode_frf_comp(par,bodes_theory,bodes_empiric,freqs_emperic):
+    for i in range(par["p"]):
+        for j in range(par["m"]):
+            plt.figure()
+            plt.xscale('log')
+            plt.plot(FREQ_RANGE,bodes_theory[i,j])
+            plt.plot(freqs_emperic[i],bodes_empiric[i,j])
+            plt.title(f"Bode plot from input {j} to output {i}", fontsize=24)
+            plt.xlabel("Frequencies [rad/s]", fontsize=16)
+            plt.ylabel("Magnitude [dB]", fontsize=16)
+            plt.legend(("Theoretical","Simulated"), fontsize=16)
+    plt.show()
+    return
+
+def comp_bode_frf(par,system,meas_IO): #TODO: is it better to predefine m and p, or let calc_bode and calc_frf define the m and p form their inputs?
+
+    #TODO: write a check that sees if input and output and the system used match dimension wise.
+    system.calc_mtrx(par["vel"])
+    par["m"] = system.mat["B"].shape[1]
+    par["p"] = system.mat["C"].shape[0]
+
+    bodes_theory = calc_bode_mag(par,system.mat["A"],system.mat["B"],system.mat["C"],system.mat["D"])
+    freqs, bodes_empiric = calc_frf(par["h"],meas_IO["input"],meas_IO["output"])
+
+    plot_bode_frf_comp(par,bodes_theory,bodes_empiric,freqs)
+
+    return
 
 ###---------------------------------[START]---------------------------------###
 ###--------[INITIALIZATION
@@ -1039,6 +1067,8 @@ phi_kalman = KalmanSanjurjo( #TODO: initialize initial states inside the functio
     SIM_PAR_PLANT["dt"])
 
 time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
+
+comp_bode_frf(SIM_PAR_PLANT,bike_plant,{"input": ext_input,"output": output})
 
 plt.figure()    
 plt.title("States")
