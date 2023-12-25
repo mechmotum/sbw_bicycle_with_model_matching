@@ -631,6 +631,43 @@ def create_external_input(par):
     # u_ext[:,LEAN_T_POS] = 5*np.sin((time/2*np.pi)*time)
     return u_ext
 
+def sim_post_process(par,signal):
+    '''
+    The continuous simulation is interupted at every dt time step 
+    to calculate and input the new control input, after wich it 
+    runs another simulation for dt time. For this to work the x0 
+    of the k+1th itteration needs to be the last state value of 
+    the kth simulation. 
+    However, as the sim ends and starts at the same time with the 
+    same state, the total end result will have a repetition of a 
+    value every k*dt. 
+    This function removes this artifact, such that the simulations
+    of dt time join together smootly.
+    To do this, the signal is devided in 'step_num' blocks of 
+    'sim_steps' length. Then the last row/collumn is removed 
+    containing the repetition. Afterwards the signal is reshaped 
+    into its original form again. As the final value is no 
+    repetition, it is added again to the signal.
+    '''
+
+    a = par["sim_steps"]
+    b = par["step_num"]
+
+    if(len(signal.shape) == 1):
+        return np.hstack(
+            (signal.reshape(b,a)[:,:-1].reshape(-1),
+            signal[-1]))
+
+    elif(len(signal.shape) == 2):
+        c = signal.shape[1]
+        return np.vstack(
+                (signal.reshape(b,a,c)[:,:-1,:].reshape(-1,c),
+                signal[-1,:]))
+
+    else:
+        print("This function can only support up to two dimensional inputs")
+        return
+
 def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
     #--[Get all parameters
     par = sim_setup(par,system,ctrlrs)
@@ -741,8 +778,12 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
             #Make measured state vector
         y0 = np.array([phi,delta,d_phi,d_delta])
     #end of loop
-    
-    return (T_vec, y_vec, x_vec, y0_vec, u_ext)
+    T_vec = sim_post_process(par,T_vec)
+    y_vec = sim_post_process(par,y_vec)
+    x_vec = sim_post_process(par,x_vec)
+    y0_vec = sim_post_process(par,y0_vec)
+    u_ext = sim_post_process(par,u_ext)
+    return T_vec, y_vec, x_vec, y0_vec, u_ext
 
 def hw_in_the_loop_sim(par,system,u_ref):
     #--[Get all parameters
