@@ -377,6 +377,7 @@ def sim_eigen_vs_speed(bike_plant, bike_ref, pp_ctrl, mm_ctrl, sil_ctrl):
         plt.xlabel("Real", fontsize = 16)
         plt.ylabel("Imaginary", fontsize = 16)
         plt.colorbar(label="speed",values=SPEEDRANGE)
+        plt.axis((-20,5,-15,15))
         plt.grid(True)
     plt.show()
     return
@@ -1112,11 +1113,11 @@ time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant
 comp_bode_frf(SIM_PAR_PLANT,bike_plant,{"input": ext_input,"output": output})
 
 plt.figure()    
-plt.title("States")
+plt.title("State measurement after push",fontsize=24)
 plt.plot(time, states)
-plt.xlabel("Time [s]")
-plt.ylabel("angle [rad] or angular velocity [rad/s]")
-# plt.axis((0,20,-0.3,0.3))
+plt.xlabel("Time [s]",fontsize=16)
+plt.ylabel("angle [rad] or angular velocity [rad/s]",fontsize=16)
+plt.axis((0,20,-0.025,0.025))
 plt.legend(("phi","delta","d_phi","d_delta"))
 plt.show()
 
