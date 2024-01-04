@@ -104,6 +104,7 @@ void calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt);
 void calc_pd_control(float error, float derror_dt, double& command_fork, double& command_hand);
 void calc_mm_control(BikeMeasurements& bike, double& command_fork);
 void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& command_hand);
+void calc_mm_sil_control(BikeMeasurements& bike, double& command_fork, double& command_hand);
 void actuate_steer_motors(double command_fork, double command_hand);
 void calc_mm_gains(float& k_phi, float& k_delta, float& k_dphi, float& k_ddelta, float& k_tphi, float& k_tdelta, float speed);
 uint16_t read_motor_encoder(const uint8_t cs_pin);
@@ -493,6 +494,7 @@ void loop(){
     } else {
       calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
       // calc_sil_control(sbw_bike, command_fork, command_hand);
+      // calc_mm_sil_control(sbw_bike, command_fork, command_hand);
     }
 
     actuate_steer_motors(command_fork, command_hand);
@@ -825,7 +827,7 @@ void calc_pd_control(float error, float derror_dt, double& command_fork, double&
 //=========================== [Calculate model matching Control] ===========================//
 void calc_mm_control(BikeMeasurements& bike, double& command_fork){
 
-  //TODO: look into if it can be maded angle controlled?
+  //TODO: look into if it can be maded angle controlled?(I have no clue what I ment with this...)
 
   //------[Calculate model matching torques
   /* NOTE: The torque is only applied to the fork, as the driver should not notice 
@@ -884,6 +886,70 @@ void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& comm
   command_fork += sil_command;
   command_hand -= sil_command * FORK_FRICTION_COMP_RATIO;
 
+  Serial.print(sil_command);
+  Serial.print(",");
+  return;
+}
+
+void calc_mm_sil_control(BikeMeasurements& bike, double& command_fork, double& command_hand){
+
+  //TODO: look into if it can be maded angle controlled? (I have no clue what I ment with this...)
+
+  //------[Calculate model matching torques
+  /* NOTE: The torque is only applied to the fork, as the driver should not notice 
+  that the fork is moving differently than the handlebar. Furthermore, we assume the 
+  lean torque is zero, aka there is no external torque in lean direction applied
+  */
+
+  float k_phi, k_delta, k_dphi, k_ddelta, k_tphi, k_tdelta;
+  double sil_command;
+  calc_mm_gains(k_phi, k_delta, k_dphi, k_ddelta, k_tphi, k_tdelta, bike.get_bike_speed());
+  
+  if (bike.get_bike_speed() < V_AVERAGE)
+  {
+    sil_command = K_SIL1 * (V_AVERAGE - bike.get_bike_speed())*bike.get_lean_rate();
+    if (bike.get_bike_speed() < 1E-3 && bike.get_bike_speed() > -1E-3){
+      command_fork = sil_command;
+    }else{
+      command_fork =  k_phi*bike.get_lean_angle()
+                    + k_delta*bike.get_fork_angle()
+                    + (k_dphi + k_tdelta*(K_SIL1 * (V_AVERAGE - bike.get_bike_speed())))*bike.get_lean_rate() 
+                    + k_ddelta*bike.get_fork_rate()
+                    // + k_tphi*bike.get_lean_torque() //we cannot measure lean torque, so we assume it is zero. 
+                    + k_tdelta*bike.get_hand_torque();
+    }
+  }
+  else
+  {
+    sil_command = K_SIL2 * (bike.get_bike_speed() - V_AVERAGE)*bike.get_lean_angle();
+    if (bike.get_bike_speed() < 1E-3 && bike.get_bike_speed() > -1E-3){
+      command_fork = sil_command;
+    }else{
+      command_fork =  (k_phi + k_tdelta*(K_SIL2 * (bike.get_bike_speed() - V_AVERAGE)))*bike.get_lean_angle() 
+                    + k_delta*bike.get_fork_angle() 
+                    + k_dphi*bike.get_lean_rate() 
+                    + k_ddelta*bike.get_fork_rate() 
+                    // + k_tphi*bike.get_lean_torque() //we cannot measure lean torque, so we assume it is zero. 
+                    + k_tdelta*bike.get_hand_torque();
+    }
+  }
+
+  command_hand = -sil_command * FORK_FRICTION_COMP_RATIO;
+
+  Serial.print(k_phi);
+  Serial.print(",");
+  Serial.print(k_delta);
+  Serial.print(",");
+  Serial.print(k_dphi);
+  Serial.print(",");
+  Serial.print(k_ddelta);
+  Serial.print(",");
+  Serial.print(k_tphi);
+  Serial.print(",");
+  Serial.print(k_tdelta);
+  Serial.print(",");
+  Serial.print(command_fork);
+  Serial.print(",");
   Serial.print(sil_command);
   Serial.print(",");
   return;
