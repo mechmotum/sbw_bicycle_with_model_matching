@@ -34,6 +34,7 @@ class BikeMeasurements{
     float m_fork_rate;     // [rad/s]
     float m_lean_rate;     // [rad/s]
     float m_hand_torque;   // Measurement of the torque on the handlebar applied by the human 
+    float m_lat_torque;    // [Nm] Measurement of the input impulse on the force trancducer beneath the seat.
     float m_bike_speed;    // [m/s]
     #if USE_PEDAL_CADANCE
     float m_pedal_cadance; // [rad/s]
@@ -56,6 +57,7 @@ class BikeMeasurements{
       m_fork_rate = 0;
       m_lean_rate = 0;
       m_hand_torque = 0;
+      m_lat_torque = 0;
       m_bike_speed = 0;
       #if USE_PEDAL_CADANCE
       m_pedal_cadance = 0;
@@ -77,6 +79,7 @@ class BikeMeasurements{
     float get_fork_rate(){return m_fork_rate;}
     float get_lean_rate(){return m_lean_rate;}
     float get_hand_torque(){return m_hand_torque;}
+    float get_lat_torque(){return m_lat_torque;}
     uint32_t get_dt_steer_meas(){return m_dt_steer_meas;}
     float get_bike_speed(){return m_bike_speed;}
     #if USE_PEDAL_CADANCE
@@ -90,6 +93,7 @@ class BikeMeasurements{
     // Retreive measurements
     void measure_steer_angles();
     void measure_hand_torque();
+    void measure_lat_perturbation();
     void calculate_fork_rate();
     void calculate_roll_states();
     void calc_lean_angle_meas(float omega_x, float omega_y, float omega_z);
@@ -274,6 +278,7 @@ const uint8_t enable_motor_enc = 31; // HIGH to send power to the motor encoders
 const uint8_t hand_led = 32; // LED installed on the handlebars
 const uint8_t hand_switch = 28; // Switch installed on the handlebars
 
+const uint8_t transducer_pin = 20; // Analog output of the force transducer
 const uint8_t a_torque = 21; // Analog output pin of the torque sensor
 
 const uint8_t encdr_pin1_wheel = 2; //1 of 2 pins to read out the wheel encoder
@@ -484,6 +489,7 @@ void loop(){
     sbw_bike.measure_steer_angles();
     sbw_bike.calculate_fork_rate(); //also calculates moving average of fork angle and sets it
     sbw_bike.measure_hand_torque();
+    sbw_bike.measure_lat_perturbation();
 
     //------[Perform steering control
     if(!isSwitchControl){
@@ -579,6 +585,11 @@ void BikeMeasurements::measure_hand_torque(){
   // m_hand_torque = TORQUE_SLOPE*voltage + TORQUE_BIAS;
 }
 
+void BikeMeasurements::measure_lat_perturbation(){
+  int lat_force_readout = analogRead(transducer_pin);
+  Serial.print(lat_force_readout);
+  Serial.print(",");
+}
 
 //======================= [calculate steer derivatives] ============================//
 void BikeMeasurements::calculate_fork_rate(){
