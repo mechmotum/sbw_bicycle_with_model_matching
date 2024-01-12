@@ -64,16 +64,16 @@ Sanjurjo Kalman filter. As a result, you have to retune it.
 Otherwise the estimation of phi is completely off.
 '''
 SIM_PAR_PLANT = {
-    "vel" : 5.5, # [m/s] Static velocity of the bicycle
+    "vel" : 3.5, # [m/s] Static velocity of the bicycle
     "wheelbase" : WHEELBASE_PLANT, # [m] wheelbase of the bicycle
     "dt" : 0.01, # [s] Time step of the micro controller
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,0,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
     "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
-    "step_num" : 1000*10, # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
+    "step_num" : 1000*1, # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
     "torque_noise_gain": 0.0, # size of the torque * gain = noise on the torque (larger torque = higher noise)
-    "bike_mode": np.eye(2) # mode that the bike is simulated in (steer-by-wire:{np.array([[1,0],[0,0]])} or steer assist:{eye(2)})
+    "bike_mode": np.array([[1,0],[0,0]]) # np.eye(2) # mode that the bike is simulated in (steer-by-wire:{np.array([[1,0],[0,0]])} or steer assist:{eye(2)})
 }
 
 SIM_PAR_REF = {
@@ -82,10 +82,10 @@ SIM_PAR_REF = {
     "dt" : 0.01, # [s] Time step of the micro controller
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
-    "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta)
+    "x0" : np.array([0,0,0,0]), # initial state (phi, delta, d_phi, d_delta)
     "d_delta0" : 0, #Initial guess of steer rate for the y0 vector
     "step_num" : 1000*1, # number of times the continious plant is simulatied for dt time. total sim time = dt*step_num)
-    "torque_noise_gain": 0.00, # size of the torque * gain = noise on the torque (larger torque = higher noise)
+    "torque_noise_gain": 0.0, # size of the torque * gain = noise on the torque (larger torque = higher noise)
     "bike_mode": np.eye(2) # mode that the bike is simulated in (steer-by-wire:{np.array([[1,0],[0,0]])} or steer assist:{eye(2)})
 }
 
@@ -631,8 +631,8 @@ def create_external_input(par):
     # Create external input vector
     # u_ext[:,STEER_T_POS] = 0.1*np.sin(time)
     # u_ext[100:,STEER_T_POS] = 0.1*np.ones_like(u_ext[100:,STEER_T_POS])
-    # u_ext[0:11,STEER_T_POS] = 0.1/par["dt"] #long impulse
-    u_ext[0,STEER_T_POS] = (0.01/par["h"]) #true impulse
+    u_ext[0:11,STEER_T_POS] = 0.1/par["dt"] #long impulse
+    # u_ext[0,STEER_T_POS] = (0.01/par["h"]) #true impulse
     # u_ext[:,LEAN_T_POS] = 5*np.sin((time/2*np.pi)*time)
     return u_ext
 
@@ -999,7 +999,6 @@ def hw_in_the_loop_sim(par,system,u_ref):
 
     return (T_vec, y_vec, x_vec, y0_vec)
 
-## THERE IS SOMETHING WITH THE SAMPLE TIME LENGTH!!!!
 def calc_frf(dt,input_t, output_t):
     if(input_t.shape[0] != output_t.shape[0]):
         print("input and output signal length not equal\nIgnoring creation of FFT")
@@ -1121,11 +1120,11 @@ u_ext_fun_ref = create_external_input
 
 #Linear controller to apply
 controller = {
-    # "mm": mm_ctrl
+    "mm": mm_ctrl
     # "place": pp_ctrl
     # "sil" : sil_ctrl
     # "mm+sil" : mm_sil_ctrl
-    "zero" : zero_ctrl
+    # "zero" : zero_ctrl
 }
 
 controller_ref = {
@@ -1141,14 +1140,23 @@ phi_kalman = KalmanSanjurjo( #TODO: initialize initial states inside the functio
     SIM_PAR_PLANT["vel"],
     SIM_PAR_PLANT["dt"])
 
+phi_kalman_ref = KalmanSanjurjo( #TODO: initialize initial states inside the function not globally
+    KALMAN_PAR,
+    SIM_PAR_REF["vel"],
+    SIM_PAR_REF["dt"])
+
 time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
+# comp_bode_frf(SIM_PAR_PLANT,bike_plant,{"input": ext_input[:,:2],"output": output})
 
-
-comp_bode_frf(SIM_PAR_PLANT,bike_plant,{"input": ext_input[:,:2],"output": output})
+#So if the impuls is not dt long, the lengt the controller gives an impuls and the length external impuls lasts is not equal --> leading to separate ...
+#Furtermore, for some reason, taking the steer torque input with control will lead to the wrong FRF... why?
+time_ref, output_ref, states_ref, calc_states_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman_ref)
+# comp_bode_frf(SIM_PAR_REF,bike_ref,{"input": ext_input_ref(???)[:,:2],"output": output})
 
 plt.figure()    
 plt.title("State measurement after push",fontsize=24)
-plt.plot(time, states)
+plt.plot(time, states[:,0], time_ref, states_ref[:,0])
+# plt.plot(time, ext_input[:,:2], time_ref, ext_input_ref[:,:2])
 plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("angle [rad] or angular velocity [rad/s]",fontsize=16)
 # plt.axis((0,20,-0.025,0.025))
