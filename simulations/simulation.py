@@ -72,7 +72,8 @@ SIM_PAR_PLANT = {
     "x0" : np.array([0,0,0,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
     "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
     "step_num" : 1000*10, # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
-    "torque_noise_gain": 0.1 # size of the torque * gain = noise on the torque (larger torque = higher noise)
+    "torque_noise_gain": 0.0, # size of the torque * gain = noise on the torque (larger torque = higher noise)
+    "bike_mode": np.eye(2) # mode that the bike is simulated in (steer-by-wire:{np.array([[1,0],[0,0]])} or steer assist:{eye(2)})
 }
 
 SIM_PAR_REF = {
@@ -84,11 +85,13 @@ SIM_PAR_REF = {
     "x0" : np.array([0,0,0.5,0]), # initial state (phi, delta, d_phi, d_delta)
     "d_delta0" : 0, #Initial guess of steer rate for the y0 vector
     "step_num" : 1000*1, # number of times the continious plant is simulatied for dt time. total sim time = dt*step_num)
-    "torque_noise_gain": 0.00 # size of the torque * gain = noise on the torque (larger torque = higher noise)
+    "torque_noise_gain": 0.00, # size of the torque * gain = noise on the torque (larger torque = higher noise)
+    "bike_mode": np.eye(2) # mode that the bike is simulated in (steer-by-wire:{np.array([[1,0],[0,0]])} or steer assist:{eye(2)})
 }
 
-SIM_PAR_PLANT["sim_steps"] = math.ceil(SIM_PAR_PLANT["dt"]/SIM_PAR_PLANT["h"]) # number of steps in the simulation during a timestep 'dt'
-SIM_PAR_REF["sim_steps"] = math.ceil(SIM_PAR_REF["dt"]/SIM_PAR_REF["h"]) # number of steps in the simulation during a timestep 'dt'
+# TODO: talk about the plus one (to make the time vec actually with steps of h due to linspace)
+SIM_PAR_PLANT["sim_steps"] = math.ceil(SIM_PAR_PLANT["dt"]/SIM_PAR_PLANT["h"])+1 # number of steps in the simulation during a timestep 'dt'
+SIM_PAR_REF["sim_steps"] = math.ceil(SIM_PAR_REF["dt"]/SIM_PAR_REF["h"])+1 # number of steps in the simulation during a timestep 'dt'
 
 # Sensor placements matrix
 C_MATRIX_BIKE = np.array([[0,1,0,0],[0,0,1,0]])
@@ -287,7 +290,7 @@ def zero_gain_G_fun():
     Dummy functions to create the zero control case
     TODO: get rid of the magic numbers
     '''
-    return np.eye(2)
+    return np.zeros((2,2)) #np.eye(2) #np.eye --> zeros changed the high frequency artifacts, but removes the gain difference (also explains the influence of the step size as that would mean more or less noise inputs)
 
 def pp_gain_F_fun(plant, ref):
     def tmpy(speed):
@@ -628,7 +631,8 @@ def create_external_input(par):
     # Create external input vector
     # u_ext[:,STEER_T_POS] = 0.1*np.sin(time)
     # u_ext[100:,STEER_T_POS] = 0.1*np.ones_like(u_ext[100:,STEER_T_POS])
-    u_ext[0,LEAN_T_POS] = 10
+    # u_ext[0:11,STEER_T_POS] = 0.1/par["dt"] #long impulse
+    u_ext[0,STEER_T_POS] = (0.01/par["h"]) #true impulse
     # u_ext[:,LEAN_T_POS] = 5*np.sin((time/2*np.pi)*time)
     return u_ext
 
@@ -693,7 +697,8 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
     y_vec = np.empty((step_num*sim_steps, p))
     x_vec = np.empty((step_num*sim_steps, n))
     y0_vec = np.empty((step_num*sim_steps, n))
-    
+    u_vec = np.empty((step_num*sim_steps, m_ext))
+
     #--[Initialize lsim input
     # Time and state
     time_vec = np.linspace(0, dt, sim_steps)
@@ -701,7 +706,7 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
 
     # Input
         # Prealocate 'continuous' simulation input
-    u_vec = np.zeros((sim_steps, m_ext))
+    u_vec_sim = np.zeros((sim_steps, m_ext))
      
         # Calculate external input
     u_ext = external_input_fun(par)
@@ -737,23 +742,46 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
             # Controller artifacts
         u = control_artifacts(u)
         
-        # Continuous time input 'u_vec'
-        u_vec[:,:m] = u * np.ones((sim_steps, m)) + u_ext[k*sim_steps:(k+1)*sim_steps,:]
+        # Continuous time input 'u_vec_sim'
+        '''
+        Your actual continuous input is equal to
+        > your control input u actuated by the actuators, 
+          which is a zero order hold input
+        > your continuous input comming from the human 
+          or external disturbances (side wind), which
+          can change between timesteps dt
+        So we zoh the conrol input for dt time and 
+        add it to the dt slice of the continuous input
+
+        Q represents a selection matrix with two modes
+        > sbw -> The handlebar is decoupled from the fork. 
+          steer torque will have no direct continuous effect, 
+          but instead be used to calculate the discreet 
+          control input. Lean torque is not discoupled and will 
+          directly act on the bicycle via the continuous input 
+          whether or not it is sbw.
+        > steer assist -> The handlebar is directly connected to 
+          the front fork. Therefore both steer and lean torque 
+          will directly act on the bicycle via the continuous 
+          input.
+        '''
+        u_vec_sim[:,:m] = u * np.ones((sim_steps, m)) + (par["bike_mode"] @ u_ext[k*sim_steps:(k+1)*sim_steps,:].T).T
 
             # Sensor artifacts
-        # u_vec = measurement_artifacts(par,u_vec) #TODO: is this logical for my application? I measure delta and omega stuff.... 
+        # u_vec_sim = measurement_artifacts(par,u_vec_sim) #TODO: is this logical for my application? I measure delta and omega stuff.... 
         #                                          #NOTE: While the motors are continuously on, the measurements are only taken at dt time intervals....
 
             # Actuator artifacts
-        u_vec = process_artifacts(par,u_vec)
+        u_vec_sim = process_artifacts(par,u_vec_sim)
 
         #--[Simulate ODE
-        T,y,x = sign.lsim(ss_model,u_vec,time_vec,x0,interp=True)
+        T,y,x = sign.lsim(ss_model,u_vec_sim,time_vec,x0,interp=True)
         
         #--[Store values
         T_vec[k*sim_steps:(k+1)*sim_steps] = T + time
         y_vec[k*sim_steps:(k+1)*sim_steps, :] = y.reshape((sim_steps,p))
         x_vec[k*sim_steps:(k+1)*sim_steps, :] = x
+        u_vec[k*sim_steps:(k+1)*sim_steps, :] = u_vec_sim
 
         #--[Update current state, and time
         x0 = x[-1,:]
@@ -783,8 +811,8 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
     y_vec = sim_post_process(par,y_vec)
     x_vec = sim_post_process(par,x_vec)
     y0_vec = sim_post_process(par,y0_vec)
-    u_ext = sim_post_process(par,u_ext)
-    return T_vec, y_vec, x_vec, y0_vec, u_ext
+    u_vec = sim_post_process(par,u_vec)
+    return T_vec, y_vec, x_vec, y0_vec, u_vec #TODO: ALSO OUPUT THE ACTUAL INPUT TO THE MODEL -> u_vec_sim
 
 def hw_in_the_loop_sim(par,system,u_ref):
     #--[Get all parameters
@@ -986,6 +1014,11 @@ def calc_frf(dt,input_t, output_t):
         freq_bins[i,:] = 2*np.pi * np.fft.rfftfreq(len(output_t[:,i]),dt) #[rad/s] Sampling time of the simulation (thus the ODE solver/lsim)
         for j in range(m):
             input_frq = np.fft.rfft(input_t[:,j])
+            #---DEBUG
+            # plt.figure()
+            # plt.plot(freq_bins[i,:],20*np.log10(abs(input_frq)))
+            # plt.plot(freq_bins[i,:],20*np.log10(abs(output_frq)))
+            # plt.xscale('log')
             frf[i,j,:] = 20*np.log10(abs(output_frq/input_frq)) # [dB]
     return freq_bins, frf
 
@@ -1110,14 +1143,15 @@ phi_kalman = KalmanSanjurjo( #TODO: initialize initial states inside the functio
 
 time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
 
-comp_bode_frf(SIM_PAR_PLANT,bike_plant,{"input": ext_input,"output": output})
+
+comp_bode_frf(SIM_PAR_PLANT,bike_plant,{"input": ext_input[:,:2],"output": output})
 
 plt.figure()    
 plt.title("State measurement after push",fontsize=24)
 plt.plot(time, states)
 plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("angle [rad] or angular velocity [rad/s]",fontsize=16)
-plt.axis((0,20,-0.025,0.025))
+# plt.axis((0,20,-0.025,0.025))
 plt.legend(("phi","delta","d_phi","d_delta"))
 plt.show()
 
