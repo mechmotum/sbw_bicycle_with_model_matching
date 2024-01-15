@@ -539,8 +539,8 @@ def sim_setup(par,system,ctrl):
             G = ctrl[name].gain["G"]
     else: 
         F = np.zeros((par["m"],par["n"])) # u = F*x
-        G = np.eye((par["m"])) # u = G*u_ext
-        print("None, or multiple controllers picked. Only chose one\nZero control used instead")
+        G = np.zeros((par["m"],par["m"])) # u = G*u_ext
+        print("Simulation: None, or multiple controllers picked. Only chose one\nZero control used instead")
     par["F"] = F
     par["G"] = G
     return par
