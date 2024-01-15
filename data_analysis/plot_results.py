@@ -11,7 +11,8 @@ extraction = {
 "m_fork_angle": [],
 "lean_rate": [],
 "steer_rate": [],
-"m_lat_torque": []
+"m_lat_torque": [],
+"speed":[]
 }
 with open(PATH+FILENAME, newline='', mode="r") as f:
     reader = csv.DictReader(f)
@@ -32,6 +33,7 @@ ax1.plot(time[:-1500],extraction["m_lean_angle"][:-1500],label="phi")
 ax1.plot(time[:-1500],extraction["m_fork_angle"][:-1500],'--',label="delta")
 ax1.plot(time[:-1500],extraction["lean_rate"][:-1500],'k',label="d_phi")
 ax1.plot(time[:-1500],extraction["steer_rate"][:-1500],':',label="d_delta")
+ax1.plot(time[:-1500],extraction["speed"][:-1500],':',label="speed")
 ax1.legend(fontsize=16,loc="upper left")
 ax1.grid()
 
