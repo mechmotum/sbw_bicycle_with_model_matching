@@ -10,11 +10,11 @@ def calc_frf(par,input_t, output_t):
         input_frq = np.fft.rfft(input_t)
         output_frq = np.fft.rfft(output_t)
         freq_bins= 2*np.pi * np.fft.rfftfreq(len(output_t),par["h"]) #[rad/s] Sampling time of the simulation (thus the ODE solver/lsim)
-        #---DEBUG
-        plt.figure()
-        plt.plot(freq_bins,20*np.log10(abs(input_frq)))
-        plt.plot(freq_bins,20*np.log10(abs(output_frq)))
-        plt.xscale('log')
+        # #---DEBUG
+        # plt.figure()
+        # plt.plot(freq_bins,20*np.log10(abs(input_frq)))
+        # plt.plot(freq_bins,20*np.log10(abs(output_frq)))
+        # plt.xscale('log')
         frf = 20*np.log10(abs(output_frq/input_frq)) # [dB]
         return freq_bins, frf
 
@@ -25,7 +25,7 @@ def plot_frf(bodes_empiric,freqs_emperic):
     plt.title("Bode plot from input T_phi to output d_phi", fontsize=24)
     plt.xlabel("Frequencies [rad/s]", fontsize=16)
     plt.ylabel("Magnitude [dB]", fontsize=16)
-    plt.show()
+    # plt.show()
     return
 
 def comp_frf(par,input_meas,output_meas): #TODO: is it better to predefine m and p, or let calc_bode and calc_frf define the m and p form their inputs?
@@ -36,7 +36,14 @@ def comp_frf(par,input_meas,output_meas): #TODO: is it better to predefine m and
 
 with open("Tphi_in-d_phi_out","rb") as inf:
     input_meas,output_meas = pkl.load(inf)
+with open("tempy","rb") as inf:
+    theory_freq,theory_bode = pkl.load(inf)
 
 input_meas = np.array(input_meas)
 output_meas = np.array(output_meas)
 comp_frf(EXP_PARS,input_meas,output_meas)
+plt.plot(np.logspace(-3,3,1000),theory_bode,)
+plt.legend(("experimental","theoretical"),fontsize=16)
+plt.show()
+
+# RESULTS ARE TO SHORT FOR LOW FREQUENCY ANALYSIS!!!!!!
