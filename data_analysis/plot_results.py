@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import csv
+import pickle as pkl
 
 PATH = "..\\teensy\\logs\\"
 FILENAME = "pilot_test1_high_speeds.log"
@@ -61,3 +62,6 @@ ax4.legend(fontsize=16,loc="upper right")
 
 fig2.tight_layout()
 plt.show()
+
+# with open("Tphi_in-d_phi_out", "wb") as outf:
+#     pkl.dump([extraction["m_lat_torque"][9008:9150],extraction["lean_rate"][9008:9150]], outf)
