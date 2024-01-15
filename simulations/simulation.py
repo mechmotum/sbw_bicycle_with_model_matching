@@ -812,7 +812,8 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
     x_vec = sim_post_process(par,x_vec)
     y0_vec = sim_post_process(par,y0_vec)
     u_vec = sim_post_process(par,u_vec)
-    return T_vec, y_vec, x_vec, y0_vec, u_vec #TODO: ALSO OUPUT THE ACTUAL INPUT TO THE MODEL -> u_vec_sim
+    u_ext = sim_post_process(par,u_ext)
+    return T_vec, y_vec, x_vec, y0_vec, u_vec, u_ext #TODO: ALSO OUPUT THE ACTUAL INPUT TO THE MODEL -> u_vec_sim
 
 def hw_in_the_loop_sim(par,system,u_ref):
     #--[Get all parameters
@@ -1035,14 +1036,34 @@ def plot_bode_frf_comp(par,bodes_theory,bodes_empiric,freqs_emperic):
     plt.show()
     return
 
-def comp_bode_frf(par,system,meas_IO): #TODO: is it better to predefine m and p, or let calc_bode and calc_frf define the m and p form their inputs?
+def comp_bode_frf(par,system,ctrl,meas_IO): #TODO: is it better to predefine m and p, or let calc_bode and calc_frf define the m and p form their inputs?
 
     #TODO: write a check that sees if input and output and the system used match dimension wise.
     system.calc_mtrx(par["vel"])
-    par["m"] = system.mat["B"].shape[1]
-    par["p"] = system.mat["C"].shape[0]
+    # par["n"] = system.mat["A"].shape[0]
+    # par["m"] = system.mat["B"].shape[1]
+    # par["p"] = system.mat["C"].shape[0]
 
-    bodes_theory = calc_bode_mag(par,system.mat["A"],system.mat["B"],system.mat["C"],system.mat["D"])
+    if len(ctrl.keys()) == 1:
+        for name in ctrl.keys():
+            if name == "zero":
+                F = np.zeros((par["m"],par["n"]))
+                G = np.eye((par["m"]))
+            else:
+                ctrl[name].calc_gain(par["vel"])
+                F = ctrl[name].gain["F"] * ((np.int8)(name != NEG_CTRLRS) - (np.int8)(name == NEG_CTRLRS)) #While u_mm = +F*x, u_sil = -F*x
+                G = ctrl[name].gain["G"]
+    else: 
+        F = np.zeros((par["m"],par["n"])) # u = F*x
+        G = np.eye((par["m"])) # u = G*u_ext
+        print("In FRF: None, or multiple controllers picked. Only chose one\nZero control used instead")
+
+    A = system.mat["A"] + system.mat["B"] @ F
+    B = system.mat["B"] @ G
+    C = system.mat["C"] + system.mat["D"] @ F
+    D = system.mat["D"] @ G
+
+    bodes_theory = calc_bode_mag(par,A,B,C,D)
     freqs, bodes_empiric = calc_frf(par["h"],meas_IO["input"],meas_IO["output"])
 
     plot_bode_frf_comp(par,bodes_theory,bodes_empiric,freqs)
@@ -1145,12 +1166,12 @@ phi_kalman_ref = KalmanSanjurjo( #TODO: initialize initial states inside the fun
     SIM_PAR_REF["vel"],
     SIM_PAR_REF["dt"])
 
-time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
-# comp_bode_frf(SIM_PAR_PLANT,bike_plant,{"input": ext_input[:,:2],"output": output})
+time, output, states, calc_states, tot_input, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
+comp_bode_frf(SIM_PAR_PLANT,bike_plant,controller,{"input": ext_input[:,:2],"output": output})
 
 #So if the impuls is not dt long, the lengt the controller gives an impuls and the length external impuls lasts is not equal --> leading to separate ...
-#Furtermore, for some reason, taking the steer torque input with control will lead to the wrong FRF... why?
-time_ref, output_ref, states_ref, calc_states_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman_ref)
+#Furtermore, for some reason, taking the steer torque input with control will lead to the wrong FRF... why? --> mm control is part of the system. It is not the external input (u_bar)
+time_ref, output_ref, states_ref, calc_states_ref, tot_input_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman_ref)
 # comp_bode_frf(SIM_PAR_REF,bike_ref,{"input": ext_input_ref(???)[:,:2],"output": output})
 
 plt.figure()    
