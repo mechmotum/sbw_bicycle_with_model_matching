@@ -3,36 +3,61 @@ import matplotlib.pyplot as plt
 import csv
 
 PATH = "..\\teensy\\logs\\"
-FILENAME = "successfull_sil4.log"
+FILENAME = "pilot_test1_high_speeds.log"
 
-phi = []
-delta = []
-d_phi = []
-d_delta = []
+extraction = {
+"m_lean_angle": [],
+"m_fork_angle": [],
+"lean_rate": [],
+"steer_rate": [],
+"m_lat_torque": []
+}
 with open(PATH+FILENAME, newline='', mode="r") as f:
     reader = csv.DictReader(f)
     for i, row in enumerate(reader):
-        phi.append(float(row["m_lean_angle"]))
-        delta.append(float(row["m_fork_angle"]))
-        d_phi.append(float(row["lean_rate"]))
-        d_delta.append(float(row["steer_rate"]))
+        for key,value in extraction.items():
+            value.append(float(row[key]))
 
-time = np.arange(0,0.01*(len(phi)),0.01)
-mov_avg = [sum(d_phi[i:i+10])/10 for i in range(len(d_phi)-10)]
-# plt.figure()
-# plt.title("State response", fontsize=24)
-# plt.xlabel("Time[s]", fontsize=16)
-# plt.ylabel("Angle [rad]",fontsize=16)
-# plt.plot(time,phi)
-# plt.plot(time,delta)
-# plt.legend(("phi","delta"),fontsize=16)
+for value in extraction.values():
+    value = np.array(value)
 
-plt.figure()
-plt.title("State response", fontsize=24)
-plt.xlabel("Time[s]", fontsize=16)
-plt.ylabel("lean rate [rad/s]",fontsize=16)
-plt.plot(time,d_phi)
-plt.plot(time[5:-5],mov_avg,linewidth=5)
-# plt.plot(time,d_delta)
-plt.legend(("d_phi","moving avg"),fontsize=16)
+time = np.arange(0,0.01*(len(extraction["m_lean_angle"])),0.01)
+
+fig, ax1 = plt.subplots()
+ax1.set_title("State response", fontsize=24)
+ax1.set_xlabel("Time[s]", fontsize=16)
+ax1.set_ylabel("Angle [rad] or Rate [rad/s]",fontsize=16)
+ax1.plot(time[:-1500],extraction["m_lean_angle"][:-1500],label="phi")
+ax1.plot(time[:-1500],extraction["m_fork_angle"][:-1500],'--',label="delta")
+ax1.plot(time[:-1500],extraction["lean_rate"][:-1500],'k',label="d_phi")
+ax1.plot(time[:-1500],extraction["steer_rate"][:-1500],':',label="d_delta")
+ax1.legend(fontsize=16,loc="upper left")
+ax1.grid()
+
+ax2 = ax1.twinx()
+ax2.set_ylabel("Lateral force [N]",fontsize=16)
+ax2.plot(time[:-1500],extraction["m_lat_torque"][:-1500],'b',label="lat_torque")
+ax2.legend(fontsize=16,loc="upper right")
+
+fig.tight_layout()
+plt.show()
+
+
+fig2, ax3 = plt.subplots()
+ax3.set_title("State response", fontsize=24)
+ax3.set_xlabel("Time[s]", fontsize=16)
+ax3.set_ylabel("Angle [rad] or Rate [rad/s]",fontsize=16)
+ax3.plot(time[9008:9150],extraction["m_lean_angle"][9008:9150],label="phi")
+ax3.plot(time[9008:9150],extraction["m_fork_angle"][9008:9150],'--',label="delta")
+ax3.plot(time[9008:9150],extraction["lean_rate"][9008:9150],'k',label="d_phi")
+# ax3.plot(time[9008:9150],extraction["steer_rate"][9008:9150],':',label="d_delta")
+ax3.legend(fontsize=16,loc="upper left")
+ax3.grid()
+
+ax4 = ax3.twinx()
+ax4.set_ylabel("Lateral force [N]",fontsize=16)
+ax4.plot(time[9008:9150],extraction["m_lat_torque"][9008:9150],'b',label="lat_torque")
+ax4.legend(fontsize=16,loc="upper right")
+
+fig2.tight_layout()
 plt.show()

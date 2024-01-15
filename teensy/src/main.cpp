@@ -233,9 +233,9 @@ const float KP_H = 0.5*0.9f * RAD_TO_DEG; // Handlebar
 const float KD_H = 0.012f * RAD_TO_DEG; // Handlebar
 
 // Steer into lean gains (see 'Some recent developments in bicycle dynamics and control', A. L. Schwab et al., 2008)
-const uint8_t K_SIL1 = 12; // [Ns^2/rad] gain for the steer into lean controller when below stable speed range
+const uint8_t K_SIL1 = 2; // [Ns^2/rad] gain for the steer into lean controller when below stable speed range
 const float K_SIL2 = 0.7; // [Ns/rad] gain for the steer into lean controller when above stable speed range
-const float V_AVERAGE = 5.4; // [m/s] value somewhere in the stable speed range. (take the average of min and max stable speed)
+const float V_AVERAGE = 5.5; // [m/s] value somewhere in the stable speed range. (take the average of min and max stable speed)
 const float FORK_FRICTION_COMP_RATIO = 0.3;
 
 // Model matching gains: The "_Vx" indicates that the coefficient
@@ -495,11 +495,11 @@ void loop(){
     if(!isSwitchControl){
       calc_pd_errors(sbw_bike, error, derror_dt);
       calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
-      // Serial.print(",");
-      Serial.print(",,,,,,,");
+      Serial.print(",");
+      // Serial.print(",,,,,,,");
     } else {
-      calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
-      // calc_sil_control(sbw_bike, command_fork, command_hand);
+      // calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
+      calc_sil_control(sbw_bike, command_fork, command_hand);
       // calc_mm_sil_control(sbw_bike, command_fork, command_hand);
     }
 
