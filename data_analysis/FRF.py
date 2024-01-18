@@ -1,10 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import pickle as pkl
-
-EXP_PARS = {
-    "h": 0.001
-}
 
 def calc_frf(par,input_t, output_t):
         input_frq = np.fft.rfft(input_t)
@@ -21,7 +16,7 @@ def calc_frf(par,input_t, output_t):
 def plot_frf(bodes_empiric,freqs_emperic):
     plt.figure()
     plt.xscale('log')
-    plt.plot(freqs_emperic,bodes_empiric)
+    plt.plot(freqs_emperic,bodes_empiric,label="emperical")
     plt.title("Bode plot from input T_phi to output d_phi", fontsize=24)
     plt.xlabel("Frequencies [rad/s]", fontsize=16)
     plt.ylabel("Magnitude [dB]", fontsize=16)
@@ -32,18 +27,3 @@ def comp_frf(par,input_meas,output_meas): #TODO: is it better to predefine m and
     freqs, bodes_empiric = calc_frf(par,input_meas,output_meas)
     plot_frf(bodes_empiric,freqs)
     return
-#======================================================================
-
-with open("Tphi_in-d_phi_out","rb") as inf:
-    input_meas,output_meas = pkl.load(inf)
-with open("tempy","rb") as inf:
-    theory_freq,theory_bode = pkl.load(inf)
-
-input_meas = np.array(input_meas)
-output_meas = np.array(output_meas)
-comp_frf(EXP_PARS,input_meas,output_meas)
-plt.plot(np.logspace(-3,3,1000),theory_bode,)
-plt.legend(("experimental","theoretical"),fontsize=16)
-plt.show()
-
-# RESULTS ARE TO SHORT FOR LOW FREQUENCY ANALYSIS!!!!!!
