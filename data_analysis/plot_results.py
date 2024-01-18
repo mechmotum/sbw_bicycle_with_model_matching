@@ -3,10 +3,11 @@ import matplotlib.pyplot as plt
 from data_parsing import logfile2array
 from FRF import comp_frf
 import simulated_runtime_filter as filt
-import pickle as pkl
+# import pickle as pkl
+
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "pilot_test3_working_speed.log"
+FILENAME = "pilot_test1_high_speeds.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
@@ -26,20 +27,27 @@ extraction = {
 
 #---[Get variables & time
 extraction = logfile2array(PATH,FILENAME,extraction)
-time = np.arange(0,TIME_STEP*(len(extraction["m_lean_angle"])),TIME_STEP)
+time = np.arange(0,TIME_STEP*(len(extraction["lean_rate"])),TIME_STEP)
 
 #---[Apply filtering to lean rate
-mvavg_lean_rate = filt.mov_average(extraction["lean_rate"],    7    )
-runavg_lean_rate = filt.runnig_average(extraction["lean_rate"],    0.5    )
-static_butter = filt.butter_static(  2  ,  5  , extraction["lean_rate"], fs=1/TIME_STEP)
-running_butter = filt.butter_running(  2  ,  5  , extraction["lean_rate"], fs=1/TIME_STEP)
+# Lean rate
+mvavg_Dphi = filt.mov_average(extraction["lean_rate"],    7    )
+runavg_Dphi = filt.runnig_average(extraction["lean_rate"],    0.5    )
+lowpass1st_Dphi = filt.first_order_lp(  5  , extraction["lean_rate"], fs=1/TIME_STEP)
+running_butter_Dphi = filt.butter_running(  2  ,  5  , extraction["lean_rate"], fs=1/TIME_STEP)
+
+# lean torque
+mvavg_torque = filt.mov_average(extraction["m_lat_torque"],    5    )
+runavg_torque = filt.runnig_average(extraction["m_lat_torque"],    0.4    )
+lowpass1st_torque = filt.first_order_lp(  20  , extraction["m_lat_torque"], fs=1/TIME_STEP)
+running_butter_torque = filt.butter_running(  2  ,  10  , extraction["m_lat_torque"], fs=1/TIME_STEP) #<-- This one looks the best
 
 plt.figure()
-plt.plot(time, extraction["lean_rate"], label="original")
-# plt.plot(time, runavg_lean_rate,'--', label="running avg")
-# plt.plot(time, mvavg_lean_rate,'-.', label="moving avg")
-plt.plot(time, static_butter, '--', label="static butter")
-plt.plot(time, running_butter, '-.', label="running butter")
+plt.plot(time, extraction["m_lat_torque"], label="original")
+plt.plot(time, mvavg_torque,'-', label="moving avg")
+# plt.plot(time, runavg_torque,'--', label="running avg")
+plt.plot(time, lowpass1st_torque, '-.', label="1st order lp")
+plt.plot(time, running_butter_torque, '-.', label="running butter")
 plt.legend(fontsize=16)
 plt.show()
 
@@ -50,7 +58,7 @@ plt.show()
 # #     theory_freq,theory_bode = pkl.load(inf)
 # # plt.plot(np.logspace(-3,3,len(theory_bode)),theory_bode)
 # comp_frf(EXP_PARS,extraction["m_lat_torque"],extraction["lean_rate"])
-# comp_frf(EXP_PARS,extraction["m_lat_torque"],static_butter)
+# comp_frf(EXP_PARS,running_butter_torque,lowpass1st_Dphi)
 # plt.legend(fontsize=16)
 # plt.show()
 

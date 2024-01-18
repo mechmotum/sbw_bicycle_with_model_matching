@@ -22,11 +22,26 @@ def runnig_average(data,weight):
     out = np.zeros_like(data)
     tmp = 0
     for i in range(len(data)):
-        tmp = weight*tmp + weight*data[i]
+        tmp = (1-weight)*tmp + weight*data[i]
         out[i] = tmp
     return out
 
 #Runtime 1st order lowpass filter
+# G(s) = Wc/(s+Wc) --> a = [1 Wc], b = Wc
+def first_order_lp(w_c,data,fs):
+    a_c = [1, 2*np.pi*w_c]
+    b_c = [2*np.pi*w_c]
+    out = np.zeros_like(data)
+    b,a = signal.bilinear(b_c, a_c, fs=fs)
+    for i in range(max(len(a),len(b)),len(data)):
+        tmp_a = 0
+        tmp_b = 0
+        for l in range(1,len(a)):
+            tmp_a = tmp_a + a[l]*out[i-l]
+        for k in range(len(b)):
+            tmp_b = tmp_b + b[k]*data[i-k]
+        out[i] = (tmp_b - tmp_a)/a[0]
+    return out
 
 
 #2nd order Buttersworth filter
