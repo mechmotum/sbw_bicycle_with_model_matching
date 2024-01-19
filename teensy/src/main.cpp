@@ -34,7 +34,7 @@ class BikeMeasurements{
     float m_fork_rate;     // [rad/s]
     float m_lean_rate;     // [rad/s]
     float m_hand_torque;   // Measurement of the torque on the handlebar applied by the human 
-    float m_lat_torque;    // [Nm] Measurement of the input impulse on the force trancducer beneath the seat.
+    float m_lean_torque;    // [Nm] Measurement of the input impulse on the force trancducer beneath the seat.
     float m_bike_speed;    // [m/s]
     #if USE_PEDAL_CADANCE
     float m_pedal_cadance; // [rad/s]
@@ -57,7 +57,7 @@ class BikeMeasurements{
       m_fork_rate = 0;
       m_lean_rate = 0;
       m_hand_torque = 0;
-      m_lat_torque = 0;
+      m_lean_torque = 0;
       m_bike_speed = 0;
       #if USE_PEDAL_CADANCE
       m_pedal_cadance = 0;
@@ -79,7 +79,7 @@ class BikeMeasurements{
     float get_fork_rate(){return m_fork_rate;}
     float get_lean_rate(){return m_lean_rate;}
     float get_hand_torque(){return m_hand_torque;}
-    float get_lat_torque(){return m_lat_torque;}
+    float get_lean_torque(){return m_lean_torque;}
     uint32_t get_dt_steer_meas(){return m_dt_steer_meas;}
     float get_bike_speed(){return m_bike_speed;}
     #if USE_PEDAL_CADANCE
@@ -170,11 +170,16 @@ const uint32_t FORK_PWM_MIN = 7956;
 const uint16_t INITIAL_FORK_PWM = 16384; //K: I think that the middle is a zero command. That 0 and 32,768 are both maximum torque but in opposite directions.
 const uint16_t INITIAL_STEER_PWM = 16384;
 
-// Torque
+// Steer Torque
 const float TEENSY_ANALOG_VOLTAGE = 3.3;
 const uint16_t HAND_TORQUE_RESOLUTION = 1023;
 const uint8_t TORQUE_SLOPE = 1;
 const uint8_t TORQUE_BIAS  = 0;
+
+// Lateral force
+float LAT_FORCE2TORQUE = 0.95; // Height of the force sensor attachment point, measured from the ground in meters. (wheels at 4bar)
+float MEAS2LAT_FORCE = 1/29.382639222963817*9.81; // [kg/-]*[N/kg]calibration has been done in [kg](independend) vs [-](dependend){no unit as it is a mapping from 0-3,3V to 0-1023}
+uint8_t FORCE_BIAS_AVGING_WINDOW = 200;
 
 // Timing
 const uint16_t MIN_LOOP_LENGTH_MU = 10000; // target minimum loop length in microseconds. (Currently set at dt = 0.01sec as this corrosponsds with the current Kalman gains)
@@ -184,8 +189,8 @@ const uint16_t CTRL_STARTUP_ITTERATIONS = 13000*LOOP_TIME_SCALING; // itteration
 
 // Motor encoders
 const uint32_t ENCODER_CLK_FREQ = 225000; //clock frequency for the encoders SPI protocol
-const float HAND_ENC_BIAS = 153.65 * DEG_TO_RAD + 0.035;
-const float FORK_ENC_BIAS = 100.65 * DEG_TO_RAD - 0.085 + 0.11;
+const float HAND_ENC_BIAS = 153.65 * DEG_TO_RAD + 0.0203;
+const float FORK_ENC_BIAS = 100.65 * DEG_TO_RAD - 0.0564;
 const float HAND_ENC_MAX_VAL = 8192.0; //ticks go from 0 to 8191. At the 8192th tick encoder_tick/HAND_ENC_MAX_VAL = 1 --> 2*pi == 0
 const float FORK_ENC_MAX_VAL = 8192.0;
 
@@ -292,6 +297,10 @@ const uint8_t encdr_pin2_pedal = 22; //1 of 2 pins to read out the pedal encoder
 uint32_t dt_torque_command = 0;
 float command_fork_prev = 0;
 float command_hand_prev = 0;
+
+//----------------------- lateral force measurement --------------------------//
+float force_bias = 0;
+bool haveSampledBias = false;
 
 
 //------------------------------ PD Control ----------------------------------//
@@ -414,7 +423,7 @@ void setup(){
   digitalWrite(enable_motor_enc, HIGH); // Set HIGH to enable power to the encoders
   digitalWrite(enable_fork,      HIGH); // Set HIGH to enable motor
   digitalWrite(enable_hand,      HIGH); // Set HIGH to enable motor
-  digitalWrite(hand_led,         LOW);
+  digitalWrite(hand_led,         HIGH);
   analogWrite(pwm_pin_fork,      INITIAL_FORK_PWM);
   analogWrite(pwm_pin_hand,      INITIAL_STEER_PWM);
 
@@ -453,8 +462,8 @@ void loop(){
   
   
   if (since_last_loop >= MIN_LOOP_LENGTH_MU){ //K: Sort of have a max freq? (cause that is not garanteed in this way)
-    if(Serial.available()){
-      isSwitchControl = true;
+    if(Serial.available()){ //check if user inputted a character in the serial
+      isSwitchControl = true; //if true, switch controller
     }
     // #if SERIAL_DEBUG
     // Serial.print(since_last_loop);
@@ -466,8 +475,8 @@ void loop(){
     // looptime = 0;
     since_last_loop = since_last_loop - MIN_LOOP_LENGTH_MU; //reset counter
 
-    if (control_iteration_counter >= CTRL_STARTUP_ITTERATIONS) // Turn on LED when bike is ready
-      digitalWrite(hand_led, HIGH);
+    if (control_iteration_counter >= CTRL_STARTUP_ITTERATIONS) // Turn off LED when bike is ready (does effecet the transducer value)
+      digitalWrite(hand_led, LOW);
 
     // // Read the switch state
     // hand_switch_state_prev = hand_switch_state;
@@ -587,7 +596,20 @@ void BikeMeasurements::measure_hand_torque(){
 
 void BikeMeasurements::measure_lat_perturbation(){
   int lat_force_readout = analogRead(transducer_pin);
-  Serial.print(lat_force_readout);
+
+  if(control_iteration_counter > CTRL_STARTUP_ITTERATIONS){// Wait untill the led light is off
+    if(haveSampledBias){ //check if already taken a measurement of the bias
+      m_lean_torque = max(0,lat_force_readout-force_bias)*MEAS2LAT_FORCE*LAT_FORCE2TORQUE; //'max()' since the force transducer can only sense pulling forces
+    }
+    else{ //perform bias measurement
+      force_bias += lat_force_readout;
+      if(control_iteration_counter >= CTRL_STARTUP_ITTERATIONS + FORCE_BIAS_AVGING_WINDOW){ //
+        force_bias /= (control_iteration_counter - CTRL_STARTUP_ITTERATIONS);
+        haveSampledBias = true;
+      }
+    }
+  }
+  Serial.print(m_lean_torque);
   Serial.print(",");
 }
 
@@ -1118,7 +1140,7 @@ void serial_setup(){
   // Serial.print("k_tphi,");
   // Serial.print("k_tdelta,");
   // Serial.print("command_fork,");
-  Serial.print("m_lat_torque,");
+  Serial.print("m_lean_torque,");
   Serial.print("sil_command,");
   // Serial.print("fork_com,");
   // Serial.print("hand_com,");

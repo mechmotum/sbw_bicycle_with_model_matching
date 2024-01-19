@@ -7,7 +7,7 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "pilot_test1_high_speeds.log"
+FILENAME = "lat_force_cal.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
@@ -17,9 +17,11 @@ extraction = {
     "m_lean_angle": [],
     "lean_rate": [],
     "enc_counts_fork": [],
+    "enc_counts_hand": [],
     "m_fork_angle": [],
+    "m_hand_angle": [],
     "steer_rate": [],
-    "m_lat_torque": [],
+    "m_lean_torque": [],
     "sil_command": [],
     "post_fork_pwm": []
 }
@@ -27,31 +29,29 @@ extraction = {
 
 #---[Get variables & time
 extraction = logfile2array(PATH,FILENAME,extraction)
-time = np.arange(0,TIME_STEP*(len(extraction["lean_rate"])),TIME_STEP)
+time = np.linspace(0,TIME_STEP*(len(extraction["lean_rate"])),len(extraction["lean_rate"]))
 
 #---[Apply filtering to lean rate
 # Lean rate
-mvavg_Dphi = filt.mov_average(extraction["lean_rate"],    7    )
-runavg_Dphi = filt.runnig_average(extraction["lean_rate"],    0.5    )
-lowpass1st_Dphi = filt.first_order_lp(  5  , extraction["lean_rate"], fs=1/TIME_STEP)
-running_butter_Dphi = filt.butter_running(  2  ,  5  , extraction["lean_rate"], fs=1/TIME_STEP)
+# mvavg_Dphi = filt.mov_average(extraction["lean_rate"],    7    )
+# runavg_Dphi = filt.runnig_average(extraction["lean_rate"],    0.5    )
+# lowpass1st_Dphi = filt.first_order_lp(  5  , extraction["lean_rate"], fs=1/TIME_STEP)
+# running_butter_Dphi = filt.butter_running(  2  ,  5  , extraction["lean_rate"], fs=1/TIME_STEP)
 
-# lean torque
-mvavg_torque = filt.mov_average(extraction["m_lat_torque"],    5    )
-runavg_torque = filt.runnig_average(extraction["m_lat_torque"],    0.4    )
-lowpass1st_torque = filt.first_order_lp(  20  , extraction["m_lat_torque"], fs=1/TIME_STEP)
-running_butter_torque = filt.butter_running(  2  ,  10  , extraction["m_lat_torque"], fs=1/TIME_STEP) #<-- This one looks the best
+# # lean torque
+# mvavg_torque = filt.mov_average(extraction["m_lat_torque"],    5    )
+# runavg_torque = filt.runnig_average(extraction["m_lat_torque"],    0.4    )
+# lowpass1st_torque = filt.first_order_lp(  20  , extraction["m_lat_torque"], fs=1/TIME_STEP)
+# running_butter_torque = filt.butter_running(  2  ,  10  , extraction["m_lat_torque"], fs=1/TIME_STEP) #<-- This one looks the best
 
-plt.figure()
-plt.plot(time, extraction["m_lat_torque"], label="original")
-plt.plot(time, mvavg_torque,'-', label="moving avg")
-# plt.plot(time, runavg_torque,'--', label="running avg")
-plt.plot(time, lowpass1st_torque, '-.', label="1st order lp")
-plt.plot(time, running_butter_torque, '-.', label="running butter")
-plt.legend(fontsize=16)
-plt.show()
-
-#---[Apply lean rate to torque sensor
+# plt.figure()
+# plt.plot(time, extraction["m_lat_torque"], label="original")
+# plt.plot(time, mvavg_torque,'-', label="moving avg")
+# # plt.plot(time, runavg_torque,'--', label="running avg")
+# plt.plot(time, lowpass1st_torque, '-.', label="1st order lp")
+# plt.plot(time, running_butter_torque, '-.', label="running butter")
+# plt.legend(fontsize=16)
+# plt.show()
 
 #---[Calculate frf
 # # with open("tempy","rb") as inf:
@@ -71,6 +71,11 @@ plt.show()
 #     plt.title(key)
 # plt.show()
 
+#---[Nice plots for lat_force_cal.log
+# "lat_force_cal.log" --> pulled with wheigth sensor from 4 to 8 to 12 to 2. Callibration succesfull
+plt.figure()
+plt.plot(time,extraction["m_lean_torque"])
+plt.show()
 
 #---[Nice plots for pilot_test3_working speed
 # fig,ax1 = plt.subplots()
