@@ -7,7 +7,7 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "lat_force_cal.log"
+FILENAME = "sil_test_ramping_speed_giving_high_perturbations.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
@@ -71,11 +71,31 @@ time = np.linspace(0,TIME_STEP*(len(extraction["lean_rate"])),len(extraction["le
 #     plt.title(key)
 # plt.show()
 
+# plt.figure()
+# plt.plot(time,extraction["sil_command"],label="sil")
+# plt.plot(time,-(extraction["post_fork_pwm"]-16384)/842,'--',label="post fork")
+# plt.show()
+
+plt.figure()
+plt.plot(time,extraction["m_lean_angle"],label="lean_angle")
+plt.plot(time,extraction["lean_rate"],'--',label="lean_rate")
+plt.plot(time,extraction["m_fork_angle"], '-.',label="steer_angle")
+plt.plot(time,extraction["steer_rate"],'--',label="steer_rate")
+plt.plot(time,extraction["speed"],':',label="speed")
+plt.grid()
+plt.legend()
+plt.show()
+
+# plt.figure()
+# plt.plot(time, 2*(5.5-extraction["speed"])*extraction["lean_rate"])
+# plt.plot(time,extraction["sil_command"],'--',label="sil")
+# plt.show()
+
 #---[Nice plots for lat_force_cal.log
 # "lat_force_cal.log" --> pulled with wheigth sensor from 4 to 8 to 12 to 2. Callibration succesfull
-plt.figure()
-plt.plot(time,extraction["m_lean_torque"])
-plt.show()
+# plt.figure()
+# plt.plot(time,extraction["m_lean_torque"])
+# plt.show()
 
 #---[Nice plots for pilot_test3_working speed
 # fig,ax1 = plt.subplots()
