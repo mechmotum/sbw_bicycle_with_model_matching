@@ -7,7 +7,7 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "sil_test_ramping_speed_giving_high_perturbations.log"
+FILENAME = "single_wobble_sil_w_force.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
@@ -77,11 +77,13 @@ time = np.linspace(0,TIME_STEP*(len(extraction["lean_rate"])),len(extraction["le
 # plt.show()
 
 plt.figure()
-plt.plot(time,extraction["m_lean_angle"],label="lean_angle")
+# plt.plot(time,extraction["m_lean_angle"],label="lean_angle")
 plt.plot(time,extraction["lean_rate"],'--',label="lean_rate")
 plt.plot(time,extraction["m_fork_angle"], '-.',label="steer_angle")
-plt.plot(time,extraction["steer_rate"],'--',label="steer_rate")
+# plt.plot(time,extraction["steer_rate"],'--',label="steer_rate")
 plt.plot(time,extraction["speed"],':',label="speed")
+plt.plot(time,extraction["sil_command"],':',label="sil_command")
+# plt.plot(time,extraction["m_lean_torque"],':',label="force")
 plt.grid()
 plt.legend()
 plt.show()

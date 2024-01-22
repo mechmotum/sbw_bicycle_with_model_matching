@@ -178,7 +178,7 @@ const uint8_t TORQUE_BIAS  = 0;
 
 // Lateral force
 float LAT_FORCE2TORQUE = 0.95; // Height of the force sensor attachment point, measured from the ground in meters. (wheels at 4bar)
-float MEAS2LAT_FORCE = 1/29.382639222963817*9.81; // [kg/-]*[N/kg]calibration has been done in [kg](independend) vs [-](dependend){no unit as it is a mapping from 0-3,3V to 0-1023}
+float MEAS2LAT_FORCE = (1/29.382639222963817)*9.81; // [kg/-]*[N/kg]calibration has been done in [kg](independend) vs [-](dependend){no unit as it is a mapping from 0-3,3V to 0-1023}
 uint8_t FORCE_BIAS_AVGING_WINDOW = 200;
 
 // Timing
