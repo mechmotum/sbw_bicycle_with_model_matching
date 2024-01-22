@@ -118,6 +118,8 @@ float calc_bckwrd_derivative(float val_cur, float& val_prev, uint32_t dt);
 float return_scaling(uint64_t iteration);
 uint8_t check_switch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
 float steer_moving_avg(float new_value);
+void calc_friction_callibration_control(uint64_t loop_iter, double& fork_command);
+void apply_friction_compensation(double& fork_command);
 #if USE_BT
 void bt_setup();
 void print_to_bt(BikeMeasurements& sbw_bike, double command_fork, double command_hand);
@@ -270,6 +272,11 @@ const double T0 = 0; //initial time
 // roll angle measurement estimation
 float PHI_METHOD_WEIGHT = 0.05;
 
+//--------------------------- Fork friction compensation -------------------------------//
+const uint16_t LOOPS_PER_SEC = (1E6/MIN_LOOP_LENGTH_MU);
+const uint16_t LOOPS_PER_HALF_SEC = LOOPS_PER_SEC/2;
+const float FRIC_COMPENSATION_BIAS = 0.2;
+
 //-------------------------------- Pins --------------------------------------//
 const uint8_t cs_hand = 24; // SPI Chip Select for handlebar encoder
 const uint8_t cs_fork = 25; // SPI Chip Select for fork encoder
@@ -297,6 +304,10 @@ const uint8_t encdr_pin2_pedal = 22; //1 of 2 pins to read out the pedal encoder
 uint32_t dt_torque_command = 0;
 float command_fork_prev = 0;
 float command_hand_prev = 0;
+
+//---------------------------- fork friction callibration --------------------------------//
+int itteration_step_friction = 0;
+int8_t steer_direction_friction = 1;
 
 //----------------------- lateral force measurement --------------------------//
 float force_bias = 0;
@@ -504,6 +515,7 @@ void loop(){
     if(!isSwitchControl){
       calc_pd_errors(sbw_bike, error, derror_dt);
       calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
+      // calc_friction_callibration_control(control_iteration_counter,command_fork);
       Serial.print(",");
       // Serial.print(",,,,,,,");
     } else {
@@ -512,6 +524,7 @@ void loop(){
       // calc_mm_sil_control(sbw_bike, command_fork, command_hand);
     }
 
+    apply_friction_compensation(command_fork);
     actuate_steer_motors(command_fork, command_hand);
     Serial.print('\n');
     //------[Increase counters
@@ -855,6 +868,20 @@ void calc_pd_control(float error, float derror_dt, double& command_fork, double&
   command_fork += (KP_F*error + KD_F*derror_dt) / return_scaling(control_iteration_counter); //Scaling is done to prevent a jerk of the motors at startup
   command_hand += (KP_H*error + KD_H*derror_dt) / return_scaling(control_iteration_counter); // , as the fork and handlebar can be misaligned
   return;
+}
+
+void calc_friction_callibration_control(uint64_t loop_iter, double& fork_command){
+    if(loop_iter%LOOPS_PER_SEC == 0) //increase torque every seccond
+        itteration_step_friction++;
+    if(loop_iter%LOOPS_PER_HALF_SEC == 0) //switch direction every half seccond
+        steer_direction_friction *= -1; 
+    
+    fork_command = max(-0.4, min(0.4,(itteration_step_friction*0.1)*steer_direction_friction));
+    return;
+}
+
+void apply_friction_compensation(double& fork_command){
+  fork_command += sgn(fork_command)*FRIC_COMPENSATION_BIAS;
 }
 
 //=========================== [Calculate model matching Control] ===========================//
