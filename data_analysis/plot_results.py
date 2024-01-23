@@ -7,7 +7,7 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "device-monitor-240123-140454.log"
+FILENAME = "compensated_weight_____unsure.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
@@ -34,10 +34,10 @@ time = np.linspace(0,TIME_STEP*(len(extraction["lean_rate"])),len(extraction["le
 
 #---[Apply filtering to lean rate
 # Lean rate
-# mvavg_Dphi = filt.mov_average(extraction["lean_rate"],    7    )
+mvavg_Dphi = filt.mov_average(extraction["lean_rate"],    7    )
 # runavg_Dphi = filt.runnig_average(extraction["lean_rate"],    0.5    )
 # lowpass1st_Dphi = filt.first_order_lp(  5  , extraction["lean_rate"], fs=1/TIME_STEP)
-# running_butter_Dphi = filt.butter_running(  2  ,  5  , extraction["lean_rate"], fs=1/TIME_STEP)
+running_butter_Dphi = filt.butter_running(  2  ,  5  , extraction["lean_rate"], fs=1/TIME_STEP)
 
 # # lean torque
 # mvavg_torque = filt.mov_average(extraction["m_lat_torque"],    5    )
@@ -75,52 +75,37 @@ time = np.linspace(0,TIME_STEP*(len(extraction["lean_rate"])),len(extraction["le
 #     plt.title(key)
 # plt.show()
 
-
-
-
-# plt.figure()
-# plt.title("State response of bicycel with sil controller", fontsize=24)
-# plt.xlabel("Time[s]",fontsize=16)
-# plt.ylabel("fork angles [rad], lean rate [rad/s] and commands [Nm]",fontsize=16)
-# # plt.plot(time,extraction["speed"],':',label="speed")
-# plt.plot(time,-(extraction["post_fork_pwm"]-16384)/842,':k',label="actual fork command")
-# plt.plot(time,extraction["lean_rate"],'--',label="lean_rate",linewidth=3)
-# plt.plot(time,extraction["sil_command"],':',label="sil_command",linewidth=3)
-# plt.plot(time,extraction["m_fork_angle"], '-.',label="steer_angle",linewidth=3)
-# plt.legend(fontsize=16)
-# plt.grid()
-# plt.show()
-
-
-
-
 #---[Nice plots for sil drift investigation
-# plt.figure()
-# # plt.plot(time,extraction["m_lean_angle"],label="lean_angle")
-# plt.plot(time,extraction["speed"],':',label="speed")
+plt.figure()
+plt.title("title", fontsize=24)
+plt.xlabel("X",fontsize=16)
+plt.ylabel("Y",fontsize=16)
+plt.plot(time,extraction["speed"],':',label="speed")
+# plt.plot(time,extraction["command_fork"],':k',label="actual fork command")
 # plt.plot(time,-(extraction["post_fork_pwm"]-16384)/842,':',label="post fork")
-# plt.plot(time,extraction["lean_rate"],'--',label="lean_rate")
-# # plt.plot(time,extraction["steer_rate"],'--',label="steer_rate")
-# plt.plot(time,extraction["sil_command"],':',label="sil_command")
-# plt.plot(time,extraction["m_fork_angle"], '-.',label="steer_angle")
-# # plt.plot(time,extraction["m_lean_torque"],':',label="force")
-# plt.grid()
-# plt.legend()
-# plt.show()
+plt.plot(time,extraction["lean_rate"],'--',label="lean_rate",linewidth=3)
+plt.plot(time,running_butter_Dphi,'-',label="lean_rate",linewidth=2)
+plt.plot(time,extraction["m_lean_angle"],'--',label="lean_angle",linewidth=3)
+# plt.plot(time,extraction["sil_command"],':',label="sil_command",linewidth=3)
+plt.plot(time,extraction["m_fork_angle"], '-.',label="steer_angle",linewidth=3)
+# plt.plot(time,extraction["m_lean_torque"],':',label="force")
+plt.legend(fontsize=16)
+plt.grid()
+plt.show()
 
 #---[Nice plots for friction compensation calibration
-plt.figure()
-plt.title("Unequal fork rotation for equal command", fontsize = 24)
-plt.xlabel("Time [s]", fontsize = 16)
-plt.ylabel("Command [Nm] and steer angle [rad]", fontsize = 16)
-# plt.axhline(y=16384)
-plt.plot(time,extraction["m_fork_angle"], '-.',label="steer_angle")
-# plt.plot(time,extraction["post_fork_pwm"],':',label="fork_pwm")
-# plt.plot(time,extraction["m_lean_torque"],':',label="force")
-plt.plot(time,extraction["command_fork"],':',label="command")
-plt.grid()
-plt.legend(fontsize = 16)
-plt.show()
+# plt.figure()
+# plt.title("Unequal fork rotation for equal command", fontsize = 24)
+# plt.xlabel("Time [s]", fontsize = 16)
+# plt.ylabel("Command [Nm] and steer angle [rad]", fontsize = 16)
+# # plt.axhline(y=16384)
+# plt.plot(time,extraction["m_fork_angle"], '-.',label="steer_angle")
+# # plt.plot(time,extraction["post_fork_pwm"],':',label="fork_pwm")
+# # plt.plot(time,extraction["m_lean_torque"],':',label="force")
+# plt.plot(time,extraction["command_fork"],':',label="command")
+# plt.grid()
+# plt.legend(fontsize = 16)
+# plt.show()
 
 #---[Nice plots for lat_force_cal.log
 # "lat_force_cal.log" --> pulled with wheigth sensor from 4 to 8 to 12 to 2. Callibration succesfull
