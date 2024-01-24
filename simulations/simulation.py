@@ -632,6 +632,7 @@ def create_external_input(par):
     # u_ext[:,STEER_T_POS] = 0.1*np.sin(time)
     # u_ext[100:,STEER_T_POS] = 0.1*np.ones_like(u_ext[100:,STEER_T_POS])
     u_ext[0:11,STEER_T_POS] = 0.1/par["dt"] #long impulse
+    u_ext[:,LEAN_T_POS] = 0.1
     # u_ext[0,STEER_T_POS] = (0.01/par["h"]) #true impulse
     # u_ext[:,LEAN_T_POS] = 5*np.sin((time/2*np.pi)*time)
     return u_ext
@@ -1167,22 +1168,31 @@ phi_kalman_ref = KalmanSanjurjo( #TODO: initialize initial states inside the fun
     SIM_PAR_REF["dt"])
 
 time, output, states, calc_states, tot_input, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
-comp_bode_frf(SIM_PAR_PLANT,bike_plant,controller,{"input": ext_input[:,:2],"output": output})
+# comp_bode_frf(SIM_PAR_PLANT,bike_plant,controller,{"input": ext_input[:,:2],"output": output})
 
 #So if the impuls is not dt long, the lengt the controller gives an impuls and the length external impuls lasts is not equal --> leading to separate ...
 #Furtermore, for some reason, taking the steer torque input with control will lead to the wrong FRF... why? --> mm control is part of the system. It is not the external input (u_bar)
-time_ref, output_ref, states_ref, calc_states_ref, tot_input_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman_ref)
+# time_ref, output_ref, states_ref, calc_states_ref, tot_input_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman_ref)
 # comp_bode_frf(SIM_PAR_REF,bike_ref,{"input": ext_input_ref(???)[:,:2],"output": output})
 
 plt.figure()    
 plt.title("State measurement after push",fontsize=24)
-plt.plot(time, states[:,0], time_ref, states_ref[:,0])
-# plt.plot(time, ext_input[:,:2], time_ref, ext_input_ref[:,:2])
 plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("angle [rad] or angular velocity [rad/s]",fontsize=16)
-# plt.axis((0,20,-0.025,0.025))
-plt.legend(("phi","delta","d_phi","d_delta"))
+plt.plot(time,states,label=["phi","delta","d_phi","d_delta"])
+plt.legend(fontsize=16)
+
+plt.figure()    
+plt.title("External input",fontsize=24)
+plt.xlabel("Time [s]",fontsize=16)
+plt.ylabel("Torque [Nm]",fontsize=16)
+plt.plot(time, ext_input, label=["Lean torque","Steer torque"])
+plt.legend(fontsize=16)
 plt.show()
+
+# plt.axis((0,20,-0.025,0.025))
+# plt.plot(time, states[:,0], time_ref, states_ref[:,0])
+# plt.plot(time, ext_input[:,:2], time_ref, ext_input_ref[:,:2])
 
 # # Test Kalman
 # phi_kalman1 = KalmanSanjurjo(
