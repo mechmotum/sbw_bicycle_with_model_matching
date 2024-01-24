@@ -121,6 +121,7 @@ float steer_moving_avg(float new_value);
 void calc_friction_callibration_control(uint64_t loop_iter, double& command);
 void calc_directional_bias_callibration(uint64_t loop_iter, double& fork_command);
 void apply_friction_compensation(double& fork_command);
+void one_sided_steer_torque_call_control(uint64_t loop_iter, double& hand_command, const bool direction);
 #if USE_BT
 void bt_setup();
 void print_to_bt(BikeMeasurements& sbw_bike, double command_fork, double command_hand);
@@ -285,6 +286,12 @@ const float FRIC_CAL_STEP_INCREASE = 0.1;
 const float DIR_BIAS_INCREASE_STEP = 0.01;
 const float BASE_STEER_TORQUE_DIR_BIAS = 1.5;
 
+//--------------------------- Steer torque sensing callibration -------------------------------//
+const float STEER_TORQUE_CAL_STEP_INCREASE = 0.1;
+const float STEER_TRQ_CAL_CTRL_BOUND = 6;
+const bool RIGHT = true;
+const bool LEFT = false;
+
 //-------------------------------- Pins --------------------------------------//
 const uint8_t cs_hand = 24; // SPI Chip Select for handlebar encoder
 const uint8_t cs_fork = 25; // SPI Chip Select for fork encoder
@@ -299,7 +306,7 @@ const uint8_t hand_led = 32; // LED installed on the handlebars
 const uint8_t hand_switch = 28; // Switch installed on the handlebars
 
 const uint8_t transducer_pin = 20; // Analog output of the force transducer
-const uint8_t a_torque = 21; // Analog output pin of the torque sensor
+const uint8_t a_hand = 41; // Analog output pin of the handlebar motor drive
 
 const uint8_t encdr_pin1_wheel = 2; //1 of 2 pins to read out the wheel encoder
 const uint8_t encdr_pin2_wheel = 3; //1 of 2 pins to read out the wheel encoder
@@ -419,7 +426,7 @@ void setup(){
   
   //------[Setup INPUT pins
   pinMode(hand_switch,      INPUT);
-  pinMode(a_torque,         INPUT);
+  pinMode(a_hand,         INPUT);
 
   //------[Setup OUTPUT pins
   pinMode(enable_motor_enc, OUTPUT);
@@ -528,6 +535,7 @@ void loop(){
       // calc_friction_callibration_control(control_iteration_counter,command_fork); //used for the fork friction callibration
       // calc_directional_bias_callibration(control_iteration_counter,command_fork);
       calc_friction_callibration_control(control_iteration_counter,command_hand); //used for the steer torque callibration
+      one_sided_steer_torque_call_control(control_iteration_counter,command_hand,RIGHT);
       Serial.print(",");
       // Serial.print(",,,,,,,");
     } else {
@@ -617,7 +625,7 @@ void BikeMeasurements::measure_steer_angles(){
 
 //=========================== [Get handlebar torque] ===============================//
 void BikeMeasurements::measure_hand_torque(){
-  float voltage = TEENSY_ANALOG_VOLTAGE * analogRead(a_torque)/HAND_TORQUE_RESOLUTION;
+  float voltage = TEENSY_ANALOG_VOLTAGE * analogRead(a_hand)/HAND_TORQUE_RESOLUTION;
   Serial.print(voltage);
   Serial.print(",");
   // m_hand_torque = TORQUE_SLOPE*voltage + TORQUE_BIAS;
@@ -886,6 +894,7 @@ void calc_pd_control(float error, float derror_dt, double& command_fork, double&
   return;
 }
 
+//=========================== [Friction compensation] ===========================//
 void calc_friction_callibration_control(uint64_t loop_iter, double& command){
     if(loop_iter%LOOPS_PER_SEC == 0) //increase torque every second
         itteration_step_friction++;
@@ -913,6 +922,18 @@ void calc_directional_bias_callibration(uint64_t loop_iter, double& fork_command
 
 void apply_friction_compensation(double& fork_command){
   fork_command += sgmd(fork_command)*FRIC_COMPENSATION_BIAS;
+}
+
+//=========================== [Steer torque callibration] ===========================//
+void one_sided_steer_torque_call_control(uint64_t loop_iter, double& hand_command, const bool direction){
+  if(loop_iter%(2*LOOPS_PER_SEC) == 0) //increase bias torque every second
+        itteration_step_dir_bias++;
+
+  if(direction)
+    hand_command = -min(STEER_TRQ_CAL_CTRL_BOUND,itteration_step_dir_bias*STEER_TORQUE_CAL_STEP_INCREASE);
+  else
+    hand_command = min(STEER_TRQ_CAL_CTRL_BOUND,itteration_step_dir_bias*STEER_TORQUE_CAL_STEP_INCREASE);
+  return;
 }
 
 //=========================== [Calculate model matching Control] ===========================//

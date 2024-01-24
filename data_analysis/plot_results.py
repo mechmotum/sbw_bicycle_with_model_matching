@@ -7,7 +7,7 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "steer_torque_cal_test_command2volt.log"
+FILENAME = "steer_torque_cal_test_command2volt_unstrapped.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
@@ -31,7 +31,7 @@ extraction = {
 
 #---[Get variables & time
 extraction = logfile2array(PATH,FILENAME,extraction)
-time = np.linspace(0,TIME_STEP*(len(extraction["lean_rate"])),len(extraction["lean_rate"]))
+time = np.linspace(0,TIME_STEP*(len(extraction["lean_rate"])-1),len(extraction["lean_rate"]))
 
 #---[Apply filtering to lean rate
 # Lean rate
@@ -83,6 +83,15 @@ plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("Y",fontsize=16)
 plt.plot(time,extraction["command_hand"],'',label="command hand")
 plt.plot(time,extraction["voltage_mtr_driver"],'--',label="mtr driver voltage")
+plt.legend(fontsize=16)
+plt.grid()
+# plt.show()
+
+plt.figure()
+plt.title("title", fontsize=24)
+plt.xlabel("Commanded torque [Nm]",fontsize=16)
+plt.ylabel("Voltage [V]",fontsize=16)
+plt.scatter(extraction["command_hand"],extraction["voltage_mtr_driver"])
 plt.legend(fontsize=16)
 plt.grid()
 plt.show()
