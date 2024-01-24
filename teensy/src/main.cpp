@@ -118,7 +118,7 @@ float calc_bckwrd_derivative(float val_cur, float& val_prev, uint32_t dt);
 float return_scaling(uint64_t iteration);
 uint8_t check_switch(uint8_t curr_value, uint8_t *val_array, uint8_t array_size);
 float steer_moving_avg(float new_value);
-void calc_friction_callibration_control(uint64_t loop_iter, double& fork_command);
+void calc_friction_callibration_control(uint64_t loop_iter, double& command);
 void calc_directional_bias_callibration(uint64_t loop_iter, double& fork_command);
 void apply_friction_compensation(double& fork_command);
 #if USE_BT
@@ -143,6 +143,9 @@ void print_to_SD(BikeMeasurements bike, float command_fork, float command_hand);
 made by user79758 and stef, altered to fit current implementation.
 Under https://creativecommons.org/licenses/by-sa/2.5/ (original post),
 and https://creativecommons.org/licenses/by-sa/4.0/ (edited post)*/
+template <typename T> 
+int sgmd(T val) { return (T(0) < val) - (val < T(0));}
+
 template <typename T> 
 int sgn(T val) { return (T(0) <= val) - (val < T(0));} //altered to give 1 at zero. (so no longer sigmund function) This was required for the implementation regarding of Sanjurjo
 
@@ -277,6 +280,8 @@ float PHI_METHOD_WEIGHT = 0.05;
 const uint16_t LOOPS_PER_SEC = (1E6/MIN_LOOP_LENGTH_MU);
 const uint16_t LOOPS_PER_HALF_SEC = LOOPS_PER_SEC/2;
 const float FRIC_COMPENSATION_BIAS = 0.2;
+const float FRICT_CAL_CTRL_BOUND = 1;
+const float FRIC_CAL_STEP_INCREASE = 0.1;
 const float DIR_BIAS_INCREASE_STEP = 0.01;
 const float BASE_STEER_TORQUE_DIR_BIAS = 1.5;
 
@@ -518,22 +523,23 @@ void loop(){
 
     //------[Perform steering control
     if(!isSwitchControl){
-      calc_pd_errors(sbw_bike, error, derror_dt);
-      calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
-      // calc_friction_callibration_control(control_iteration_counter,command_fork);
+      // calc_pd_errors(sbw_bike, error, derror_dt);
+      // calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
+      // calc_friction_callibration_control(control_iteration_counter,command_fork); //used for the fork friction callibration
       // calc_directional_bias_callibration(control_iteration_counter,command_fork);
+      calc_friction_callibration_control(control_iteration_counter,command_hand); //used for the steer torque callibration
       Serial.print(",");
       // Serial.print(",,,,,,,");
     } else {
       // calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
-      calc_sil_control(sbw_bike, command_fork, command_hand);
+      // calc_sil_control(sbw_bike, command_fork, command_hand);
       // calc_mm_sil_control(sbw_bike, command_fork, command_hand);
     }
 
     apply_friction_compensation(command_fork);
     actuate_steer_motors(command_fork, command_hand);
     Serial.print(",");
-    Serial.print(command_fork);
+    Serial.print(command_hand);
     Serial.print('\n');
     //------[Increase counters
     control_iteration_counter++;
@@ -878,13 +884,13 @@ void calc_pd_control(float error, float derror_dt, double& command_fork, double&
   return;
 }
 
-void calc_friction_callibration_control(uint64_t loop_iter, double& fork_command){
+void calc_friction_callibration_control(uint64_t loop_iter, double& command){
     if(loop_iter%LOOPS_PER_SEC == 0) //increase torque every second
         itteration_step_friction++;
     if(loop_iter%LOOPS_PER_HALF_SEC == 0) //switch direction every half seccond
         steer_direction_friction *= -1;
     
-    fork_command = max(-0.4, min(0.4,(itteration_step_friction*0.1)*steer_direction_friction)); //from the first data 0.4 seemed like a safe number to not cross for a stationairy bicycle.
+    command = max(-FRICT_CAL_CTRL_BOUND, min(FRICT_CAL_CTRL_BOUND, (itteration_step_friction*FRIC_CAL_STEP_INCREASE)*steer_direction_friction)); //from the first data 0.4 seemed like a safe number to not cross for a stationairy bicycle.
     return;
 }
 
@@ -904,7 +910,7 @@ void calc_directional_bias_callibration(uint64_t loop_iter, double& fork_command
 }
 
 void apply_friction_compensation(double& fork_command){
-  fork_command += sgn(fork_command)*FRIC_COMPENSATION_BIAS;
+  fork_command += sgmd(fork_command)*FRIC_COMPENSATION_BIAS;
 }
 
 //=========================== [Calculate model matching Control] ===========================//
@@ -1061,10 +1067,10 @@ void actuate_steer_motors(double command_fork, double command_hand){
     Serial.print(command_fork);
     Serial.print(command_fork_prev);
     Serial.print(" ");
-    command_fork = command_fork_prev + sgn(command_fork_rate)*(float)MAX_FORK_TORQUE_RATE*(dt*MICRO_TO_UNIT);
+    command_fork = command_fork_prev + sgmd(command_fork_rate)*(float)MAX_FORK_TORQUE_RATE*(dt*MICRO_TO_UNIT);
   }
   if(command_hand_rate < -MAX_HAND_TORQUE_RATE || command_hand_rate > MAX_HAND_TORQUE_RATE ){
-    command_hand = command_hand_prev + sgn(command_hand_rate)*MAX_HAND_TORQUE_RATE*(dt*MICRO_TO_UNIT);
+    command_hand = command_hand_prev + sgmd(command_hand_rate)*MAX_HAND_TORQUE_RATE*(dt*MICRO_TO_UNIT);
   }
   Serial.print(command_fork);
   Serial.print(',');
@@ -1202,7 +1208,7 @@ void serial_setup(){
   // Serial.print("hand_pwm,");
   Serial.print("post_fork_pwm,");
   Serial.print("post_hand_pwm");
-  Serial.print(",command_fork");
+  Serial.print(",command_hand");
 
   Serial.print("\n");
 }
