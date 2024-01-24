@@ -7,7 +7,7 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "compensated_weight_____unsure.log"
+FILENAME = "steer_torque_cal_test_command2volt.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
@@ -24,7 +24,8 @@ extraction = {
     "m_lean_torque": [],
     "sil_command": [],
     "post_fork_pwm": [],
-    "command_fork":[]
+    "command_hand":[],
+    "voltage_mtr_driver":[]
 }
 
 
@@ -34,10 +35,10 @@ time = np.linspace(0,TIME_STEP*(len(extraction["lean_rate"])),len(extraction["le
 
 #---[Apply filtering to lean rate
 # Lean rate
-mvavg_Dphi = filt.mov_average(extraction["lean_rate"],    7    )
+# mvavg_Dphi = filt.mov_average(extraction["lean_rate"],    7    )
 # runavg_Dphi = filt.runnig_average(extraction["lean_rate"],    0.5    )
 # lowpass1st_Dphi = filt.first_order_lp(  5  , extraction["lean_rate"], fs=1/TIME_STEP)
-running_butter_Dphi = filt.butter_running(  2  ,  5  , extraction["lean_rate"], fs=1/TIME_STEP)
+# running_butter_Dphi = filt.butter_running(  2  ,  5  , extraction["lean_rate"], fs=1/TIME_STEP)
 
 # # lean torque
 # mvavg_torque = filt.mov_average(extraction["m_lat_torque"],    5    )
@@ -75,23 +76,34 @@ running_butter_Dphi = filt.butter_running(  2  ,  5  , extraction["lean_rate"], 
 #     plt.title(key)
 # plt.show()
 
-#---[Nice plots for sil drift investigation
+#---[Nice Plots for steer torque callibration
 plt.figure()
 plt.title("title", fontsize=24)
-plt.xlabel("X",fontsize=16)
+plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("Y",fontsize=16)
-plt.plot(time,extraction["speed"],':',label="speed")
-# plt.plot(time,extraction["command_fork"],':k',label="actual fork command")
-# plt.plot(time,-(extraction["post_fork_pwm"]-16384)/842,':',label="post fork")
-plt.plot(time,extraction["lean_rate"],'--',label="lean_rate",linewidth=3)
-plt.plot(time,running_butter_Dphi,'-',label="lean_rate",linewidth=2)
-plt.plot(time,extraction["m_lean_angle"],'--',label="lean_angle",linewidth=3)
-# plt.plot(time,extraction["sil_command"],':',label="sil_command",linewidth=3)
-plt.plot(time,extraction["m_fork_angle"], '-.',label="steer_angle",linewidth=3)
-# plt.plot(time,extraction["m_lean_torque"],':',label="force")
+plt.plot(time,extraction["command_hand"],'',label="command hand")
+plt.plot(time,extraction["voltage_mtr_driver"],'--',label="mtr driver voltage")
 plt.legend(fontsize=16)
 plt.grid()
 plt.show()
+
+#---[Nice plots for sil drift investigation
+# plt.figure()
+# plt.title("title", fontsize=24)
+# plt.xlabel("X",fontsize=16)
+# plt.ylabel("Y",fontsize=16)
+# plt.plot(time,extraction["speed"],':',label="speed")
+# # plt.plot(time,extraction["command_fork"],':k',label="actual fork command")
+# # plt.plot(time,-(extraction["post_fork_pwm"]-16384)/842,':',label="post fork")
+# plt.plot(time,extraction["lean_rate"],'--',label="lean_rate",linewidth=3)
+# plt.plot(time,running_butter_Dphi,'-',label="lean_rate",linewidth=2)
+# plt.plot(time,extraction["m_lean_angle"],'--',label="lean_angle",linewidth=3)
+# # plt.plot(time,extraction["sil_command"],':',label="sil_command",linewidth=3)
+# plt.plot(time,extraction["m_fork_angle"], '-.',label="steer_angle",linewidth=3)
+# # plt.plot(time,extraction["m_lean_torque"],':',label="force")
+# plt.legend(fontsize=16)
+# plt.grid()
+# plt.show()
 
 #---[Nice plots for friction compensation calibration
 # plt.figure()

@@ -280,7 +280,7 @@ float PHI_METHOD_WEIGHT = 0.05;
 const uint16_t LOOPS_PER_SEC = (1E6/MIN_LOOP_LENGTH_MU);
 const uint16_t LOOPS_PER_HALF_SEC = LOOPS_PER_SEC/2;
 const float FRIC_COMPENSATION_BIAS = 0.2;
-const float FRICT_CAL_CTRL_BOUND = 1;
+const float FRICT_CAL_CTRL_BOUND = 6;
 const float FRIC_CAL_STEP_INCREASE = 0.1;
 const float DIR_BIAS_INCREASE_STEP = 0.01;
 const float BASE_STEER_TORQUE_DIR_BIAS = 1.5;
@@ -444,7 +444,7 @@ void setup(){
   digitalWrite(enable_motor_enc, HIGH); // Set HIGH to enable power to the encoders
   digitalWrite(enable_fork,      HIGH); // Set HIGH to enable motor
   digitalWrite(enable_hand,      HIGH); // Set HIGH to enable motor
-  digitalWrite(hand_led,         HIGH);
+  digitalWrite(hand_led,         LOW);
   analogWrite(pwm_pin_fork,      INITIAL_FORK_PWM);
   analogWrite(pwm_pin_hand,      INITIAL_STEER_PWM);
 
@@ -617,7 +617,9 @@ void BikeMeasurements::measure_steer_angles(){
 
 //=========================== [Get handlebar torque] ===============================//
 void BikeMeasurements::measure_hand_torque(){
-  // float voltage = TEENSY_ANALOG_VOLTAGE * analogRead(a_torque)/HAND_TORQUE_RESOLUTION;
+  float voltage = TEENSY_ANALOG_VOLTAGE * analogRead(a_torque)/HAND_TORQUE_RESOLUTION;
+  Serial.print(voltage);
+  Serial.print(",");
   // m_hand_torque = TORQUE_SLOPE*voltage + TORQUE_BIAS;
 }
 
@@ -1189,6 +1191,8 @@ void serial_setup(){
   Serial.print("m_hand_angle,");
   Serial.print("m_fork_angle,");
   Serial.print("steer_rate,");
+  Serial.print("voltage_mtr_driver,");
+  Serial.print("m_lean_torque,");
   // Serial.print("k_phi,");
   // Serial.print("k_delta,");
   // Serial.print("k_dphi,");
@@ -1196,7 +1200,6 @@ void serial_setup(){
   // Serial.print("k_tphi,");
   // Serial.print("k_tdelta,");
   // Serial.print("command_fork,");
-  Serial.print("m_lean_torque,");
   Serial.print("sil_command,");
   // Serial.print("fork_com,");
   // Serial.print("hand_com,");
