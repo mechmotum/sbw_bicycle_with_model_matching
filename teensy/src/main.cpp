@@ -122,6 +122,7 @@ void calc_friction_callibration_control(uint64_t loop_iter, double& command);
 void calc_directional_bias_callibration(uint64_t loop_iter, double& fork_command);
 void apply_friction_compensation(double& fork_command);
 void one_sided_steer_torque_call_control(uint64_t loop_iter, double& hand_command, const bool direction);
+void calc_hand_straigtening_control(BikeMeasurements& bike, double& command_hand);
 #if USE_BT
 void bt_setup();
 void print_to_bt(BikeMeasurements& sbw_bike, double command_fork, double command_hand);
@@ -291,6 +292,7 @@ const float STEER_TORQUE_CAL_STEP_INCREASE = 0.1;
 const float STEER_TRQ_CAL_CTRL_BOUND = 6;
 const bool RIGHT = true;
 const bool LEFT = false;
+const float KP_HAND_STRAIGHTENING = 20;
 
 //-------------------------------- Pins --------------------------------------//
 const uint8_t cs_hand = 24; // SPI Chip Select for handlebar encoder
@@ -535,7 +537,8 @@ void loop(){
       // calc_friction_callibration_control(control_iteration_counter,command_fork); //used for the fork friction callibration
       // calc_directional_bias_callibration(control_iteration_counter,command_fork);
       // calc_friction_callibration_control(control_iteration_counter,command_hand); //used for the steer torque callibration
-      one_sided_steer_torque_call_control(control_iteration_counter,command_hand,LEFT);
+      // one_sided_steer_torque_call_control(control_iteration_counter,command_hand,LEFT);
+      calc_hand_straigtening_control(sbw_bike, command_hand);
       Serial.print(",");
       // Serial.print(",,,,,,,");
     } else {
@@ -892,6 +895,14 @@ void calc_pd_control(float error, float derror_dt, double& command_fork, double&
   command_fork += (KP_F*error + KD_F*derror_dt) / return_scaling(control_iteration_counter); //Scaling is done to prevent a jerk of the motors at startup
   command_hand += (KP_H*error + KD_H*derror_dt) / return_scaling(control_iteration_counter); // , as the fork and handlebar can be misaligned
   return;
+}
+
+//=========================== [P control for keeping the handle bar at 0 rad] ===========================//
+// to check the callibration of applied torque to voltage read out, the handelebar has to give a counter torque.
+// So it is controlled like a torsion spring with rest length at 0 rad.
+// Also usefull for keeping the handlebar straight when there is no handlebar feedback.
+void calc_hand_straigtening_control(BikeMeasurements& bike, double& command_hand){
+  command_hand = bike.get_hand_angle()*KP_HAND_STRAIGHTENING;
 }
 
 //=========================== [Friction compensation] ===========================//
