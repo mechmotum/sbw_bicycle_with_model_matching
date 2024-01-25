@@ -534,8 +534,8 @@ void loop(){
       // calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
       // calc_friction_callibration_control(control_iteration_counter,command_fork); //used for the fork friction callibration
       // calc_directional_bias_callibration(control_iteration_counter,command_fork);
-      calc_friction_callibration_control(control_iteration_counter,command_hand); //used for the steer torque callibration
-      one_sided_steer_torque_call_control(control_iteration_counter,command_hand,RIGHT);
+      // calc_friction_callibration_control(control_iteration_counter,command_hand); //used for the steer torque callibration
+      one_sided_steer_torque_call_control(control_iteration_counter,command_hand,LEFT);
       Serial.print(",");
       // Serial.print(",,,,,,,");
     } else {
@@ -926,7 +926,7 @@ void apply_friction_compensation(double& fork_command){
 
 //=========================== [Steer torque callibration] ===========================//
 void one_sided_steer_torque_call_control(uint64_t loop_iter, double& hand_command, const bool direction){
-  if(loop_iter%(2*LOOPS_PER_SEC) == 0) //increase bias torque every second
+  if(loop_iter%(15*LOOPS_PER_SEC) == 0) //increase bias torque every second
         itteration_step_dir_bias++;
 
   if(direction)
