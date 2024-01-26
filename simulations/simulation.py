@@ -251,6 +251,21 @@ def sgn(x):
 def sensor_matrix_bike():
     return C_MATRIX_BIKE
 
+def mm_sim_gain_G_fun(mm_gain_fun_G):
+    ''' The mm cotroller is imported from another
+    py script. This controller is the theoretic 
+    version, where the F and G also contain external 
+    inputs. In the case for a steer by wire bicycle, 
+    this means the lean torque is part of G. For the 
+    simulation, only the the control input is calculated. 
+    As such, external inputs should be kept out of 
+    the control calculation. Hence the minus
+    [[1, 0], [0, 0]]
+    '''
+    def tmpy():
+        return mm_gain_fun_G() - np.array([[1, 0], [0, 0]])
+    return tmpy
+
 def sil_gain_F_fun(speed):
     '''
     Feedback part of the SiL controller.
@@ -267,18 +282,36 @@ def sil_gain_F_fun(speed):
         gain[1][0] = K_SIL_H*(speed - SIL_AVG_SPEED) # *phi
     return gain
 
-def sil_gain_G_fun():
+def sil_sim_gain_G_fun():
     '''
     Feedforward part of the SiL controller.
+    In the simulation F and G are used to 
+    calculate the control input on the system.
+    External inputs/disturbances are handled 
+    seperately.
     As the control is only dependend on the states,
     there will be no control reacting to the external
-    inputs. 
+    inputs. For the simulation this means that G = 0.
     Matrix having appropriate dimensions.
     Dimensions: B-4x2
     Input vector: [Tphi, Tdelta]
     TODO: remove magic numbers 2?
     '''
     return np.zeros((2,2))
+
+def sil_theory_gain_G_fun():
+    '''
+    Feedforward part of the SiL controller.
+    As the control is only dependend on the states,
+    there will be no control reacting to the external
+    inputs. For theory this means that the feedforward
+    part is identity.
+    Matrix having appropriate dimensions.
+    Dimensions: B-4x2
+    Input vector: [Tphi, Tdelta]
+    TODO: remove magic numbers 2?
+    '''
+    return np.eye(2)
 
 def zero_gain_F_fun():
     '''
@@ -303,23 +336,39 @@ def pp_gain_F_fun(plant, ref):
         return bunch.gain_matrix
     return tmpy
 
-def pp_gain_G_fun():
+def pp_sim_gain_G_fun():
     '''
-    Dummy functions to create the pole placement case
+    Dummy functions to create the pole placement case.
     As pole placement has only state feedback and no 
-    feedforward.
+    feedforward. For the simulation this means 
+    G = 0, as external inputs are handled seperately.
     TODO: get rid of the magic numbers
     '''
     return np.zeros((2,2))
 
-def mm_sil_gain_F_fun(speed):
-    mm_ctrl.calc_gain(speed)
-    sil_ctrl.calc_gain(speed)
-    return mm_ctrl.gain["F"] - mm_ctrl.gain["G"]@sil_ctrl.gain["F"]
+def pp_theory_gain_G_fun():
+    '''
+    Dummy functions to create the pole placement case.
+    As pole placement has only state feedback and no 
+    feedforward. For a theoretic model this means
+    G is identity
+    TODO: get rid of the magic numbers
+    '''
+    return np.eye(2)
 
-def mm_sil_gain_G_fun(speed):
-    mm_ctrl.calc_gain(speed)
-    return mm_ctrl.gain["G"]
+def mm_sil_gain_F_fun(speed):
+    mm_ctrl_theory.calc_gain(speed)
+    sil_ctrl_theory.calc_gain(speed)
+    return mm_ctrl_theory.gain["F"] - mm_ctrl_theory.gain["G"]@sil_ctrl_theory.gain["F"]
+
+def mm_sil_sim_gain_G_fun(speed):
+    mm_ctrl_sim.calc_gain(speed)
+    return mm_ctrl_sim.gain["G"]
+
+def mm_sil_theory_gain_G_fun(speed):
+    mm_ctrl_theory.calc_gain(speed)
+    sil_ctrl_theory.calc_gain(speed)
+    return mm_ctrl_theory.gain["G"]@sil_ctrl_theory.gain["G"]
 
 def sim_eigen_vs_speed(bike_plant, bike_ref, pp_ctrl, mm_ctrl, sil_ctrl):
     eigenvals = {
@@ -1092,34 +1141,54 @@ bike_ref = VariableStateSpaceSystem(sys_mtrx["ref"]) #The reference bicycle
 #Model matching (created by [...].py)
 with open("model_matching_gains", "rb") as inf:
     mm_gain_fun = dill.load(inf)
-mm_funs = {
+mm_sim_funs = {
+    "F": mm_gain_fun["F"],
+    "G": mm_sim_gain_G_fun(mm_gain_fun["G"])
+}
+mm_theory_funs = {
     "F": mm_gain_fun["F"],
     "G": mm_gain_fun["G"]
 }
-mm_ctrl = VariableController(mm_funs)
+mm_ctrl_sim = VariableController(mm_sim_funs)
+mm_ctrl_theory = VariableController(mm_theory_funs)
 
 #Steer into lean controller
 # TODO: set correct V_AVG
 # VariableController uses functions as input.
-sil_funs = {
+sil_sim_funs = {
     "F": sil_gain_F_fun, 
-    "G": sil_gain_G_fun
+    "G": sil_sim_gain_G_fun
 }
-sil_ctrl = VariableController(sil_funs)
+sil_theory_funs = {
+    "F": sil_gain_F_fun, 
+    "G": sil_theory_gain_G_fun
+}
+sil_ctrl_sim = VariableController(sil_sim_funs)
+sil_ctrl_theory = VariableController(sil_theory_funs)
 
 #Model matching a reference plant that uses steer-into-lean control
-mm_sil_funs = {
+mm_sil_sim_funs = {
     "F" : mm_sil_gain_F_fun,
-    "G" : mm_sil_gain_G_fun
+    "G" : mm_sil_sim_gain_G_fun
 }
-mm_sil_ctrl = VariableController(mm_sil_funs)
+mm_sil_theory_funs = {
+    "F" : mm_sil_gain_F_fun,
+    "G" : mm_sil_theory_gain_G_fun
+}
+mm_sil_ctrl_sim = VariableController(mm_sil_sim_funs)
+mm_sil_ctrl_theory = VariableController(mm_sil_theory_funs)
 
 # Pole placement controller
-pp_funs = {
+pp_sim_funs = {
     "F": pp_gain_F_fun(bike_plant, bike_ref),
-    "G": pp_gain_G_fun
+    "G": pp_sim_gain_G_fun
 }
-pp_ctrl = VariableController(pp_funs)
+pp_theory_funs = {
+    "F": pp_gain_F_fun(bike_plant, bike_ref),
+    "G": pp_theory_gain_G_fun
+}
+pp_ctrl_sim = VariableController(pp_sim_funs)
+pp_ctrl_theory = VariableController(pp_theory_funs)
 
 #Zero controller (no control)
 zero_funs = {
@@ -1132,10 +1201,10 @@ zero_ctrl = VariableController(zero_funs)
 
 ###--------[SIMULATE
 ##--Simulate eigenvalues over speed
-# sim_eigen_vs_speed(bike_plant, bike_ref, pp_ctrl, mm_ctrl, sil_ctrl)
+# sim_eigen_vs_speed(bike_plant, bike_ref, pp_ctrl_theory, mm_ctrl_theory, sil_ctrl_theory)
 
 ##--Simulate bode plots
-# sim_bode(bike_plant, bike_ref, mm_ctrl, sil_ctrl, pp_ctrl)
+# sim_bode(bike_plant, bike_ref, mm_ctrl_theory, sil_ctrl_theory, pp_ctrl_theory)
 
 ##--Simulate dynamic behaviour 
 u_ext_fun = create_external_input
@@ -1143,18 +1212,18 @@ u_ext_fun_ref = create_external_input
 
 #Linear controller to apply
 controller = {
-    # "mm": mm_ctrl
-    # "place": pp_ctrl
-    "sil" : sil_ctrl
-    # "mm+sil" : mm_sil_ctrl
+    "mm": mm_ctrl_sim
+    # "place": pp_ctrl_sim
+    # "sil" : sil_ctrl_sim
+    # "mm+sil" : mm_sil_ctrl_sim
     # "zero" : zero_ctrl
 }
 
 controller_ref = {
-    # "mm": mm_ctrl
-    # "place": pp_ctrl
-    # "sil" : sil_ctrl
-    # "mm+sil" : mm_sil_ctrl
+    # "mm": mm_ctrl_sim
+    # "place": pp_ctrl_sim
+    # "sil" : sil_ctrl_sim
+    # "mm+sil" : mm_sil_ctrl_sim
     "zero" : zero_ctrl
 }
 
@@ -1173,7 +1242,7 @@ time, output, states, calc_states, tot_input, ext_input = simulate(SIM_PAR_PLANT
 
 #So if the impuls is not dt long, the lengt the controller gives an impuls and the length external impuls lasts is not equal --> leading to separate ...
 #Furtermore, for some reason, taking the steer torque input with control will lead to the wrong FRF... why? --> mm control is part of the system. It is not the external input (u_bar)
-# time_ref, output_ref, states_ref, calc_states_ref, tot_input_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman_ref)
+time_ref, output_ref, states_ref, calc_states_ref, tot_input_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman_ref)
 # comp_bode_frf(SIM_PAR_REF,bike_ref,{"input": ext_input_ref(???)[:,:2],"output": output})
 
 plt.figure()    
@@ -1181,6 +1250,7 @@ plt.title("State measurement after push",fontsize=24)
 plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("angle [rad] or angular velocity [rad/s]",fontsize=16)
 plt.plot(time,states,label=["phi","delta","d_phi","d_delta"])
+plt.plot(time_ref,states_ref,'--',label=["phi","delta","d_phi","d_delta"])
 plt.grid()
 plt.legend(fontsize=16)
 
@@ -1217,7 +1287,7 @@ plt.show()
 # controller1 = {
 #     "mm": mm_ctrl
 #     # "sil" : sil_ctrl
-#     # "mm+sil" : mm_sil_ctrl
+#     # "mm+sil" : mm_sil_ctrl_sim
 #     # "zero" : zero_ctrl
 # }
 
@@ -1283,7 +1353,7 @@ plt.show()
 # controller1 = {
 #     "mm": mm_ctrl
 #     # "sil" : sil_ctrl
-#     # "mm+sil" : mm_sil_ctrl
+#     # "mm+sil" : mm_sil_ctrl_sim
 #     # "zero" : zero_ctrl
 # }
 # time, output, states, calc_states, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
