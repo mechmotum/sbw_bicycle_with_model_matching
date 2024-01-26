@@ -310,7 +310,7 @@ def pp_gain_G_fun():
     feedforward.
     TODO: get rid of the magic numbers
     '''
-    return np.eye(2)
+    return np.zeros((2,2))
 
 def mm_sil_gain_F_fun(speed):
     mm_ctrl.calc_gain(speed)
@@ -319,8 +319,7 @@ def mm_sil_gain_F_fun(speed):
 
 def mm_sil_gain_G_fun(speed):
     mm_ctrl.calc_gain(speed)
-    sil_ctrl.calc_gain(speed)
-    return mm_ctrl.gain["G"]@sil_ctrl.gain["G"]
+    return mm_ctrl.gain["G"]
 
 def sim_eigen_vs_speed(bike_plant, bike_ref, pp_ctrl, mm_ctrl, sil_ctrl):
     eigenvals = {
