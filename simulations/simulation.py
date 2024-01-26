@@ -36,7 +36,7 @@ STEER_T_POS = 1 #position in the input vector that corresponds to the steer torq
 # Steer into lean conroller
 SIL_AVG_SPEED = 5.5
 K_SIL_L = -2
-K_SIL_H = -0.7
+K_SIL_H = -2
 
 NEG_CTRLRS = "sil"
 
@@ -69,7 +69,7 @@ SIM_PAR_PLANT = {
     "dt" : 0.01, # [s] Time step of the micro controller
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
-    "x0" : np.array([0,0,0,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
+    "x0" : np.array([0,0,0.0,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
     "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
     "step_num" : 1000*1, # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
     "torque_noise_gain": 0.0, # size of the torque * gain = noise on the torque (larger torque = higher noise)
@@ -270,13 +270,15 @@ def sil_gain_F_fun(speed):
 def sil_gain_G_fun():
     '''
     Feedforward part of the SiL controller.
-    As it has none, it will be the identity 
-    matrix having appropriate dimensions.
+    As the control is only dependend on the states,
+    there will be no control reacting to the external
+    inputs. 
+    Matrix having appropriate dimensions.
     Dimensions: B-4x2
     Input vector: [Tphi, Tdelta]
     TODO: remove magic numbers 2?
     '''
-    return np.eye(2)
+    return np.zeros((2,2))
 
 def zero_gain_F_fun():
     '''
@@ -1142,9 +1144,9 @@ u_ext_fun_ref = create_external_input
 
 #Linear controller to apply
 controller = {
-    "mm": mm_ctrl
+    # "mm": mm_ctrl
     # "place": pp_ctrl
-    # "sil" : sil_ctrl
+    "sil" : sil_ctrl
     # "mm+sil" : mm_sil_ctrl
     # "zero" : zero_ctrl
 }
@@ -1180,13 +1182,15 @@ plt.title("State measurement after push",fontsize=24)
 plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("angle [rad] or angular velocity [rad/s]",fontsize=16)
 plt.plot(time,states,label=["phi","delta","d_phi","d_delta"])
+plt.grid()
 plt.legend(fontsize=16)
 
 plt.figure()    
-plt.title("External input",fontsize=24)
+plt.title("Total & external input",fontsize=24)
 plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("Torque [Nm]",fontsize=16)
-plt.plot(time, ext_input, label=["Lean torque","Steer torque"])
+plt.plot(time, tot_input[:,:2], label=["Total Lean torque","Total Steer torque"])
+plt.plot(time, ext_input, '--', label=["Ext Lean torque","Ext Steer torque"])
 plt.legend(fontsize=16)
 plt.show()
 
