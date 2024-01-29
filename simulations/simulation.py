@@ -73,6 +73,8 @@ SIM_PAR_PLANT = {
     "plant_type": "Carvallo-Whipple", #plant_type can be "Carvallo-Whipple", "extended heading - continuous", or "extended heading - discreet",
     "vel" : 3.5, # [m/s] Static velocity of the bicycle
     "wheelbase" : WHEELBASE_PLANT, # [m] wheelbase of the bicycle
+    "steer_tilt": STEER_TILT, #[rad] Steer tilt of the bicycle
+    "trail": TRAIL, #[m] trail of the bicycle
     "dt" : 0.01, # [s] Time step of the micro controller
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
@@ -87,6 +89,8 @@ SIM_PAR_REF = {
     "plant_type": "Carvallo-Whipple", #plant_type can be "Carvallo-Whipple", "extended heading - continuous", or "extended heading - discreet",
     "vel" : 3.5, # [m/s] Static velocity of the bicycle
     "wheelbase" : WHEELBASE_REF, # [m] wheelbase of the bicycle
+    "steer_tilt": STEER_TILT, #[rad] Steer tilt of the bicycle
+    "trail": TRAIL, #[m] trail of the bicycle
     "dt" : 0.01, # [s] Time step of the micro controller
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
@@ -221,8 +225,10 @@ class KalmanSanjurjo:
         phi = bike_state[0]
         delta = bike_state[1]
         d_phi = bike_state[2]
+        d_delta = bike_state[3]
 
-        d_psi = self.speed*math.tan(delta)/par["wheelbase"]
+        d_psi = (delta * par["vel"]*np.cos(par["steer_tilt"])/par["wheelbase"]\
+                + d_delta * par["trail"]*np.cos(par["steer_tilt"])/par["wheelbase"])
         self.omega_x = d_phi
         self.omega_y = math.sin(phi)*d_psi
         self.omega_z = math.cos(phi)*d_psi
@@ -1369,7 +1375,7 @@ phi_kalman_alt = KalmanSanjurjo( #TODO: initialize initial states inside the fun
     SIM_PAR_PLANT["vel"],
     SIM_PAR_PLANT["dt"])
 
-# time, output, states, calc_states, tot_input, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
+time, output, states, calc_states, tot_input, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
 # comp_bode_frf(SIM_PAR_PLANT,bike_plant,controller,{"input": ext_input[:,:2],"output": output})
 
 #So if the impuls is not dt long, the lengt the controller gives an impuls and the length external impuls lasts is not equal --> leading to separate ...
@@ -1378,25 +1384,25 @@ phi_kalman_alt = KalmanSanjurjo( #TODO: initialize initial states inside the fun
 # comp_bode_frf(SIM_PAR_REF,bike_ref,{"input": ext_input_ref(???)[:,:2],"output": output})
 
 # altered sil control (including integral action)
-time_alt, output_alt, states_alt, calc_states_alt, tot_input_alt, ext_input_alt = simulate(SIM_PAR_ALT,bike_plant_alt,controller_alt,u_ext_fun,phi_kalman_alt)
+# time_alt, output_alt, states_alt, calc_states_alt, tot_input_alt, ext_input_alt = simulate(SIM_PAR_ALT,bike_plant_alt,controller_alt,u_ext_fun,phi_kalman_alt)
 
 plt.figure()    
 plt.title("State measurement after push",fontsize=24)
 plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("angle [rad] or angular velocity [rad/s]",fontsize=16)
-plt.plot(time_alt,states_alt,label=["phi","delta","d_phi","d_delta","heading","heading integral"])
-plt.plot(time_alt,calc_states_alt,'--',label=["phi","delta","d_phi","d_delta","heading","heading integral"])
+plt.plot(time,states[:,0])#,label=["phi","delta","d_phi","d_delta","heading","heading integral"])
+plt.plot(time,calc_states[:,0],'--')#,label=["phi","delta","d_phi","d_delta","heading","heading integral"])
 # plt.plot(time_ref,states_ref,'--',label=["phi","delta","d_phi","d_delta"])
 plt.grid()
 plt.legend(fontsize=16)
 
-plt.figure()    
-plt.title("Total & external input",fontsize=24)
-plt.xlabel("Time [s]",fontsize=16)
-plt.ylabel("Torque [Nm]",fontsize=16)
-plt.plot(time_alt, tot_input_alt[:,:2], label=["Total Lean torque","Total Steer torque"])
-plt.plot(time_alt, ext_input_alt, '--', label=["Ext Lean torque","Ext Steer torque"])
-plt.legend(fontsize=16)
+# plt.figure()    
+# plt.title("Total & external input",fontsize=24)
+# plt.xlabel("Time [s]",fontsize=16)
+# plt.ylabel("Torque [Nm]",fontsize=16)
+# plt.plot(time_alt, tot_input_alt[:,:2], label=["Total Lean torque","Total Steer torque"])
+# plt.plot(time_alt, ext_input_alt, '--', label=["Ext Lean torque","Ext Steer torque"])
+# plt.legend(fontsize=16)
 plt.show()
 
 # plt.axis((0,20,-0.025,0.025))
