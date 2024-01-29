@@ -70,6 +70,7 @@ Sanjurjo Kalman filter. As a result, you have to retune it.
 Otherwise the estimation of phi is completely off.
 '''
 SIM_PAR_PLANT = {
+    "plant_type": "Carvallo-Whipple", #plant_type can be "Carvallo-Whipple", "extended heading - continuous", or "extended heading - discreet",
     "vel" : 3.5, # [m/s] Static velocity of the bicycle
     "wheelbase" : WHEELBASE_PLANT, # [m] wheelbase of the bicycle
     "dt" : 0.01, # [s] Time step of the micro controller
@@ -83,6 +84,7 @@ SIM_PAR_PLANT = {
 }
 
 SIM_PAR_REF = {
+    "plant_type": "Carvallo-Whipple", #plant_type can be "Carvallo-Whipple", "extended heading - continuous", or "extended heading - discreet",
     "vel" : 3.5, # [m/s] Static velocity of the bicycle
     "wheelbase" : WHEELBASE_REF, # [m] wheelbase of the bicycle
     "dt" : 0.01, # [s] Time step of the micro controller
@@ -96,6 +98,7 @@ SIM_PAR_REF = {
 }
 
 SIM_PAR_ALT = {
+    "plant_type": "extended heading - discreet", #plant_type can be "Carvallo-Whipple", "extended heading - continuous", or "extended heading - discreet",
     "vel" : 3.5, # [m/s] Static velocity of the bicycle
     "wheelbase" : WHEELBASE_PLANT, # [m] wheelbase of the bicycle
     "steer_tilt": STEER_TILT, #[rad] Steer tilt of the bicycle
@@ -280,7 +283,7 @@ def make_integrating_plant(plant,par):
         plant_A = np.zeros((A.shape[0] + 2, A.shape[1] + 2))
         plant_A[:A.shape[0],:A.shape[1]] = A
         plant_A[4,1] = (speed*np.cos(par["steer_tilt"]))/par["wheelbase"]
-        plant_A[4,3] = (TRAIL*np.cos(par["steer_tilt"]))/par["wheelbase"]
+        plant_A[4,3] = (par["trail"]*np.cos(par["steer_tilt"]))/par["wheelbase"]
         plant_A[5,4] = 1
         return plant_A
     def plantB():
@@ -338,9 +341,9 @@ def sil_gain_F_fun(speed):
 def sil_heading_gain_F_fun(speed):
     '''
     Feedback part of the SiL controller.
-    See Schwab et al., 'Some Recent Developments in Bicycle Dynamics and Control', 2008
+    addapted from Schwab et al., 'Some Recent Developments in Bicycle Dynamics and Control', 2008
     Dimensions: A-4x4, B-4x2
-    State vector: [phi, delta, dphi, ddelta],
+    State vector: [phi, delta, dphi, ddelta, psi, dummy],
     Input vector: [Tphi, Tdelta]
     TODO: remove magic numbers (2,4) and [2][1]?
     '''
@@ -797,6 +800,41 @@ def sim_post_process(par,signal):
         print("This function can only support up to two dimensional inputs")
         return
 
+def make_meas_state_vec(par,x0,y0,phi,delta,d_phi,d_delta):
+    '''Create the measured state vector depending of 
+    what type of system model is used.
+    The state vector is made from measured or infered
+    state variables phi, delta, d_phi, d_delta(, psi, 
+    dummy).
+    '''
+    if(par["plant_type"] == "Carvallo-Whipple"):
+        '''Original Carvallo-Whipple model (no extra states)
+        '''
+        y0 = np.array([phi,delta,d_phi,d_delta], dtype=np.float64) #original state vector
+    elif(par["plant_type"] == "extended heading - discreet"): 
+        '''Carvallo-Whipple model with heading angle and a dummy 
+        variable for integration added to the state vector. Realistic 
+        implementation of heading angle controller, where heading rate 
+        is measured, and integrated once for heading angle. then 
+        integrated again for the area under the heading angle curve.
+        '''
+        d_psi = (delta * par["vel"]*np.cos(par["steer_tilt"])/par["wheelbase"]\
+                + d_delta * par["trail"]*np.cos(par["steer_tilt"])/par["wheelbase"])
+        
+        y0[:4] = np.array([phi,delta,d_phi,d_delta], dtype=np.float64)
+        y0[5] = y0[5] + y0[4]*par["dt"] #Riemann integration: dummy = dummy + psi * dt (done before updating psi)
+        y0[4] = y0[4] + d_psi*par["dt"] #Riemann integration: psi = psi + d_psi * dt
+    elif(par["plant_type"] == "extended heading - continuous"):
+        '''Carvallo-Whipple model with heading angle and a dummy 
+        variable for integration added to the state vector. Heading
+        angle is directly taken from the true states, integration 
+        is continuously done with a dummy variable
+        Used to check how well the discreet version holds up.
+        '''
+        y0[:] = x0[:]
+        y0[:4] = np.array([phi,delta,d_phi,d_delta], dtype=np.float64)
+    return y0
+
 def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
     #--[Get all parameters
     par = sim_setup(par,system,ctrlrs)
@@ -841,10 +879,9 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
     past_delta = x0[1]
     # d_phi = x0[2]
     # d_delta = par["d_delta0"]
-    # (dummy = x[4]) --> Optional
     # y0[:4] = np.array([phi,past_delta,d_phi,d_delta]) 
     y0 = np.zeros_like(x0) #TODO: How does the modular artifacts, x0/y0, and Kalman interact???
-    y0[:] = x0[:] 
+    y0[:] = x0[:] #TODO: seperate y0[psi] & y0[dummy] from x0[psi] & x0[dummy]
     y0[0] = phi_kalman.x_post[0,0]
     y0[3] = par["d_delta0"]
 
@@ -933,8 +970,7 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
         d_phi = y_meas[1] - bias
 
             #Make measured state vector
-        y0[:] = x0[:] #QUICK FIX TODO: how do we the integration value?
-        y0[:4] = np.array([phi,delta,d_phi,d_delta])
+        y0 = make_meas_state_vec(par,x0,y0,phi,delta,d_phi,d_delta)
 
     #end of loop
     T_vec = sim_post_process(par,T_vec)
@@ -1349,6 +1385,7 @@ plt.title("State measurement after push",fontsize=24)
 plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("angle [rad] or angular velocity [rad/s]",fontsize=16)
 plt.plot(time_alt,states_alt,label=["phi","delta","d_phi","d_delta","heading","heading integral"])
+plt.plot(time_alt,calc_states_alt,'--',label=["phi","delta","d_phi","d_delta","heading","heading integral"])
 # plt.plot(time_ref,states_ref,'--',label=["phi","delta","d_phi","d_delta"])
 plt.grid()
 plt.legend(fontsize=16)
