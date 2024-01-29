@@ -30,6 +30,8 @@ MAX_ENCODER_COUNT = 8192
 WHEELBASE_PLANT = 1.064 #[m]
 WHEELBASE_REF = 1.064 #[m]
 WHEEL_RADIUS = 0.33#[m] TODO: make sure this is the actual correct one, both in main and here
+STEER_TILT = np.pi/10 #[rad] the lambda parameter from meijaards set of bicycle parameters
+TRAIL = 0.06 #[m]
 LEAN_T_POS = 0 #position in the input vector that corresponds to the lean torque
 STEER_T_POS = 1 #position in the input vector that corresponds to the steer torque
 
@@ -37,7 +39,10 @@ STEER_T_POS = 1 #position in the input vector that corresponds to the steer torq
 SIL_AVG_SPEED = 5.5
 K_SIL_L = -2
 K_SIL_H = -0.7
-K_SIL_I = -10 #integral gain (integrating phi)
+
+# heading angle control parameters
+K_P_HEADING = -1 #P control on the heading
+K_I_HEADING = -0.1 #I control on the heading
 
 NEG_CTRLRS = "sil"
 
@@ -93,10 +98,12 @@ SIM_PAR_REF = {
 SIM_PAR_ALT = {
     "vel" : 3.5, # [m/s] Static velocity of the bicycle
     "wheelbase" : WHEELBASE_PLANT, # [m] wheelbase of the bicycle
+    "steer_tilt": STEER_TILT, #[rad] Steer tilt of the bicycle
+    "trail": TRAIL, #[m] trail of the bicycle
     "dt" : 0.01, # [s] Time step of the micro controller
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
-    "x0" : np.array([0,0,0,0,0],dtype=np.float64), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
+    "x0" : np.array([0,0,0,0,0,0],dtype=np.float64), # initial state (phi, delta, d_phi, d_delta, heading, dummy) in rads and seconds. The dummy is to calculate the integral of the heading
     "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
     "step_num" : 1000*5, # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
     "torque_noise_gain": 0.0, # size of the torque * gain = noise on the torque (larger torque = higher noise)
@@ -263,25 +270,27 @@ class KalmanSanjurjo:
 def sgn(x):
     return ((int)(x >= 0) - (int)(x < 0))
 
-def make_integrating_plant(plant):
+def make_integrating_plant(plant,par):
     '''Introduce a dummy variable for integrating phi.
     To accomplish this, alter the A, B and C matrices
     accordingly'''
 
     def plantA(speed):
         A = plant["A"](speed)
-        plant_A = np.zeros((A.shape[0] + 1, A.shape[1] + 1))
+        plant_A = np.zeros((A.shape[0] + 2, A.shape[1] + 2))
         plant_A[:A.shape[0],:A.shape[1]] = A
-        plant_A[4,0] = 1 #integrate phi with dummy variable: d_dummy/dt = phi --> dummy = Integral(phi)
+        plant_A[4,1] = (speed*np.cos(par["steer_tilt"]))/par["wheelbase"]
+        plant_A[4,3] = (TRAIL*np.cos(par["steer_tilt"]))/par["wheelbase"]
+        plant_A[5,4] = 1
         return plant_A
     def plantB():
         B = plant["B"]()
-        plant_B = np.zeros((B.shape[0] + 1, B.shape[1]))
+        plant_B = np.zeros((B.shape[0] + 2, B.shape[1]))
         plant_B[:B.shape[0],:B.shape[1]] = B
         return plant_B
     def plantC():
         C = plant["C"]()
-        plant_C = np.zeros((C.shape[0], C.shape[1] + 1))
+        plant_C = np.zeros((C.shape[0], C.shape[1] + 2))
         plant_C[:C.shape[0],:C.shape[1]] = C
         return plant_C
 
@@ -326,7 +335,7 @@ def sil_gain_F_fun(speed):
         gain[1][0] = K_SIL_H*(speed - SIL_AVG_SPEED) # *phi
     return gain
 
-def altered_sil_gain_F_fun(speed):
+def sil_heading_gain_F_fun(speed):
     '''
     Feedback part of the SiL controller.
     See Schwab et al., 'Some Recent Developments in Bicycle Dynamics and Control', 2008
@@ -335,12 +344,15 @@ def altered_sil_gain_F_fun(speed):
     Input vector: [Tphi, Tdelta]
     TODO: remove magic numbers (2,4) and [2][1]?
     '''
-    gain = np.zeros((2,5))
+    gain = np.zeros((2,6))
     if speed < SIL_AVG_SPEED:
         gain[1][2] = K_SIL_L*(SIL_AVG_SPEED - speed) # *dphi
-        gain[1][4] = K_SIL_I
+        gain[1][4] = K_P_HEADING
+        gain[1][5] = K_I_HEADING
     else:
         gain[1][0] = K_SIL_H*(speed - SIL_AVG_SPEED) # *phi
+        gain[1][4] = K_P_HEADING
+        gain[1][5] = K_I_HEADING
     return gain
 
 def sil_sim_gain_G_fun():
@@ -1198,7 +1210,7 @@ sys_mtrx["ref"]["C"] = sensor_matrix_bike
 bike_plant = VariableStateSpaceSystem(sys_mtrx["plant"]) # The real bicycle
 bike_ref = VariableStateSpaceSystem(sys_mtrx["ref"]) #The reference bicycle
 bike_plant_alt = VariableStateSpaceSystem(
-    make_integrating_plant(sys_mtrx["plant"])
+    make_integrating_plant(sys_mtrx["plant"],SIM_PAR_ALT)
 )
 
 # # Model mismatch
@@ -1233,13 +1245,13 @@ sil_theory_funs = {
     "F": sil_gain_F_fun, 
     "G": sil_theory_gain_G_fun
 }
-altered_sil_sim_funs = {
-    "F": altered_sil_gain_F_fun,
+sil_heading_sim_funs = {
+    "F": sil_heading_gain_F_fun,
     "G": sil_sim_gain_G_fun
 }
 sil_ctrl_sim = VariableController(sil_sim_funs)
 sil_ctrl_theory = VariableController(sil_theory_funs)
-sil_ctrl_sim_altered = VariableController(altered_sil_sim_funs)
+sil_heading_ctrl_sim = VariableController(sil_heading_sim_funs)
 
 #Model matching a reference plant that uses steer-into-lean control
 mm_sil_sim_funs = {
@@ -1303,7 +1315,7 @@ controller_ref = {
 }
 
 controller_alt = {
-    "sil" : sil_ctrl_sim_altered
+    "sil" : sil_heading_ctrl_sim
 }
 
 phi_kalman = KalmanSanjurjo( #TODO: initialize initial states inside the function not globally
@@ -1336,7 +1348,7 @@ plt.figure()
 plt.title("State measurement after push",fontsize=24)
 plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("angle [rad] or angular velocity [rad/s]",fontsize=16)
-plt.plot(time_alt,states_alt,label=["phi","delta","d_phi","d_delta","integral"])
+plt.plot(time_alt,states_alt,label=["phi","delta","d_phi","d_delta","heading","heading integral"])
 # plt.plot(time_ref,states_ref,'--',label=["phi","delta","d_phi","d_delta"])
 plt.grid()
 plt.legend(fontsize=16)
