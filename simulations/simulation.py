@@ -36,7 +36,8 @@ STEER_T_POS = 1 #position in the input vector that corresponds to the steer torq
 # Steer into lean conroller
 SIL_AVG_SPEED = 5.5
 K_SIL_L = -2
-K_SIL_H = -2
+K_SIL_H = -0.7
+K_SIL_I = -10 #integral gain (integrating phi)
 
 NEG_CTRLRS = "sil"
 
@@ -69,11 +70,11 @@ SIM_PAR_PLANT = {
     "dt" : 0.01, # [s] Time step of the micro controller
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
-    "x0" : np.array([0,0,0.0,0]), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
+    "x0" : np.array([0,0,0,0],dtype=np.float64), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
     "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
     "step_num" : 1000*1, # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
     "torque_noise_gain": 0.0, # size of the torque * gain = noise on the torque (larger torque = higher noise)
-    "bike_mode": np.array([[1,0],[0,0]]) # np.eye(2) # mode that the bike is simulated in (steer-by-wire:{np.array([[1,0],[0,0]])} or steer assist:{eye(2)})
+    "bike_mode": np.eye(2) # np.array([[1,0],[0,0]]) # mode that the bike is simulated in (steer-by-wire:{np.array([[1,0],[0,0]])} or steer assist:{eye(2)})
 }
 
 SIM_PAR_REF = {
@@ -82,16 +83,30 @@ SIM_PAR_REF = {
     "dt" : 0.01, # [s] Time step of the micro controller
     "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
-    "x0" : np.array([0,0,0,0]), # initial state (phi, delta, d_phi, d_delta)
+    "x0" : np.array([0,0,0,0],dtype=np.float64), # initial state (phi, delta, d_phi, d_delta)
     "d_delta0" : 0, #Initial guess of steer rate for the y0 vector
     "step_num" : 1000*1, # number of times the continious plant is simulatied for dt time. total sim time = dt*step_num)
     "torque_noise_gain": 0.0, # size of the torque * gain = noise on the torque (larger torque = higher noise)
     "bike_mode": np.eye(2) # mode that the bike is simulated in (steer-by-wire:{np.array([[1,0],[0,0]])} or steer assist:{eye(2)})
 }
 
+SIM_PAR_ALT = {
+    "vel" : 3.5, # [m/s] Static velocity of the bicycle
+    "wheelbase" : WHEELBASE_PLANT, # [m] wheelbase of the bicycle
+    "dt" : 0.01, # [s] Time step of the micro controller
+    "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
+    "time" : 0, # [s] variable that keeps track of the current time
+    "x0" : np.array([0,0,0,0,0],dtype=np.float64), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
+    "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
+    "step_num" : 1000*5, # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
+    "torque_noise_gain": 0.0, # size of the torque * gain = noise on the torque (larger torque = higher noise)
+    "bike_mode": np.eye(2) # np.array([[1,0],[0,0]]) # mode that the bike is simulated in (steer-by-wire:{np.array([[1,0],[0,0]])} or steer assist:{eye(2)})
+}
+
 # TODO: talk about the plus one (to make the time vec actually with steps of h due to linspace)
 SIM_PAR_PLANT["sim_steps"] = math.ceil(SIM_PAR_PLANT["dt"]/SIM_PAR_PLANT["h"])+1 # number of steps in the simulation during a timestep 'dt'
 SIM_PAR_REF["sim_steps"] = math.ceil(SIM_PAR_REF["dt"]/SIM_PAR_REF["h"])+1 # number of steps in the simulation during a timestep 'dt'
+SIM_PAR_ALT["sim_steps"] = math.ceil(SIM_PAR_ALT["dt"]/SIM_PAR_ALT["h"])+1
 
 # Sensor placements matrix
 C_MATRIX_BIKE = np.array([[0,1,0,0],[0,0,1,0]])
@@ -248,6 +263,35 @@ class KalmanSanjurjo:
 def sgn(x):
     return ((int)(x >= 0) - (int)(x < 0))
 
+def make_integrating_plant(plant):
+    '''Introduce a dummy variable for integrating phi.
+    To accomplish this, alter the A, B and C matrices
+    accordingly'''
+
+    def plantA(speed):
+        A = plant["A"](speed)
+        plant_A = np.zeros((A.shape[0] + 1, A.shape[1] + 1))
+        plant_A[:A.shape[0],:A.shape[1]] = A
+        plant_A[4,0] = 1 #integrate phi with dummy variable: d_dummy/dt = phi --> dummy = Integral(phi)
+        return plant_A
+    def plantB():
+        B = plant["B"]()
+        plant_B = np.zeros((B.shape[0] + 1, B.shape[1]))
+        plant_B[:B.shape[0],:B.shape[1]] = B
+        return plant_B
+    def plantC():
+        C = plant["C"]()
+        plant_C = np.zeros((C.shape[0], C.shape[1] + 1))
+        plant_C[:C.shape[0],:C.shape[1]] = C
+        return plant_C
+
+    tmp = {
+    "A": plantA,
+    "B": plantB,
+    "C": plantC
+    }
+    return tmp
+    
 def sensor_matrix_bike():
     return C_MATRIX_BIKE
 
@@ -278,6 +322,23 @@ def sil_gain_F_fun(speed):
     gain = np.zeros((2,4))
     if speed < SIL_AVG_SPEED:
         gain[1][2] = K_SIL_L*(SIL_AVG_SPEED - speed) # *dphi
+    else:
+        gain[1][0] = K_SIL_H*(speed - SIL_AVG_SPEED) # *phi
+    return gain
+
+def altered_sil_gain_F_fun(speed):
+    '''
+    Feedback part of the SiL controller.
+    See Schwab et al., 'Some Recent Developments in Bicycle Dynamics and Control', 2008
+    Dimensions: A-4x4, B-4x2
+    State vector: [phi, delta, dphi, ddelta],
+    Input vector: [Tphi, Tdelta]
+    TODO: remove magic numbers (2,4) and [2][1]?
+    '''
+    gain = np.zeros((2,5))
+    if speed < SIL_AVG_SPEED:
+        gain[1][2] = K_SIL_L*(SIL_AVG_SPEED - speed) # *dphi
+        gain[1][4] = K_SIL_I
     else:
         gain[1][0] = K_SIL_H*(speed - SIL_AVG_SPEED) # *phi
     return gain
@@ -682,7 +743,7 @@ def create_external_input(par):
     # u_ext[:,STEER_T_POS] = 0.1*np.sin(time)
     # u_ext[100:,STEER_T_POS] = 0.1*np.ones_like(u_ext[100:,STEER_T_POS])
     u_ext[0:11,STEER_T_POS] = 0.1/par["dt"] #long impulse
-    u_ext[:,LEAN_T_POS] = 0.1
+    u_ext[:,LEAN_T_POS] = 5
     # u_ext[0,STEER_T_POS] = (0.01/par["h"]) #true impulse
     # u_ext[:,LEAN_T_POS] = 5*np.sin((time/2*np.pi)*time)
     return u_ext
@@ -764,12 +825,16 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
     u_ext[:,STEER_T_POS] = torque_sens_artifact(par,u_ext[:,STEER_T_POS])
 
     #--[Initial 'measurements'
-    phi = phi_kalman.x_post[0,0]
+    # phi = phi_kalman.x_post[0,0]
     past_delta = x0[1]
-    d_phi = x0[2]
-    d_delta = par["d_delta0"]
-
-    y0 = np.array([phi,past_delta,d_phi,d_delta]) #TODO: How does the modular artifacts, x0/y0, and Kalman interact???
+    # d_phi = x0[2]
+    # d_delta = par["d_delta0"]
+    # (dummy = x[4]) --> Optional
+    # y0[:4] = np.array([phi,past_delta,d_phi,d_delta]) 
+    y0 = np.zeros_like(x0) #TODO: How does the modular artifacts, x0/y0, and Kalman interact???
+    y0[:] = x0[:] 
+    y0[0] = phi_kalman.x_post[0,0]
+    y0[3] = par["d_delta0"]
 
     # Run simulation
     for k in range(step_num):
@@ -856,7 +921,9 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
         d_phi = y_meas[1] - bias
 
             #Make measured state vector
-        y0 = np.array([phi,delta,d_phi,d_delta])
+        y0[:] = x0[:] #QUICK FIX TODO: how do we the integration value?
+        y0[:4] = np.array([phi,delta,d_phi,d_delta])
+
     #end of loop
     T_vec = sim_post_process(par,T_vec)
     y_vec = sim_post_process(par,y_vec)
@@ -1130,6 +1197,9 @@ sys_mtrx["plant"]["C"] = sensor_matrix_bike
 sys_mtrx["ref"]["C"] = sensor_matrix_bike
 bike_plant = VariableStateSpaceSystem(sys_mtrx["plant"]) # The real bicycle
 bike_ref = VariableStateSpaceSystem(sys_mtrx["ref"]) #The reference bicycle
+bike_plant_alt = VariableStateSpaceSystem(
+    make_integrating_plant(sys_mtrx["plant"])
+)
 
 # # Model mismatch
 # with open("bike_and_ref_variable_dependend_system_matrices_model_error2","rb") as inf:
@@ -1163,8 +1233,13 @@ sil_theory_funs = {
     "F": sil_gain_F_fun, 
     "G": sil_theory_gain_G_fun
 }
+altered_sil_sim_funs = {
+    "F": altered_sil_gain_F_fun,
+    "G": sil_sim_gain_G_fun
+}
 sil_ctrl_sim = VariableController(sil_sim_funs)
 sil_ctrl_theory = VariableController(sil_theory_funs)
+sil_ctrl_sim_altered = VariableController(altered_sil_sim_funs)
 
 #Model matching a reference plant that uses steer-into-lean control
 mm_sil_sim_funs = {
@@ -1212,9 +1287,9 @@ u_ext_fun_ref = create_external_input
 
 #Linear controller to apply
 controller = {
-    "mm": mm_ctrl_sim
+    # "mm": mm_ctrl_sim
     # "place": pp_ctrl_sim
-    # "sil" : sil_ctrl_sim
+    "sil" : sil_ctrl_sim
     # "mm+sil" : mm_sil_ctrl_sim
     # "zero" : zero_ctrl
 }
@@ -1227,6 +1302,10 @@ controller_ref = {
     "zero" : zero_ctrl
 }
 
+controller_alt = {
+    "sil" : sil_ctrl_sim_altered
+}
+
 phi_kalman = KalmanSanjurjo( #TODO: initialize initial states inside the function not globally
     KALMAN_PAR,
     SIM_PAR_PLANT["vel"],
@@ -1237,20 +1316,28 @@ phi_kalman_ref = KalmanSanjurjo( #TODO: initialize initial states inside the fun
     SIM_PAR_REF["vel"],
     SIM_PAR_REF["dt"])
 
-time, output, states, calc_states, tot_input, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
+phi_kalman_alt = KalmanSanjurjo( #TODO: initialize initial states inside the function not globally
+    KALMAN_PAR,
+    SIM_PAR_PLANT["vel"],
+    SIM_PAR_PLANT["dt"])
+
+# time, output, states, calc_states, tot_input, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
 # comp_bode_frf(SIM_PAR_PLANT,bike_plant,controller,{"input": ext_input[:,:2],"output": output})
 
 #So if the impuls is not dt long, the lengt the controller gives an impuls and the length external impuls lasts is not equal --> leading to separate ...
 #Furtermore, for some reason, taking the steer torque input with control will lead to the wrong FRF... why? --> mm control is part of the system. It is not the external input (u_bar)
-time_ref, output_ref, states_ref, calc_states_ref, tot_input_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman_ref)
+# time_ref, output_ref, states_ref, calc_states_ref, tot_input_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman_ref)
 # comp_bode_frf(SIM_PAR_REF,bike_ref,{"input": ext_input_ref(???)[:,:2],"output": output})
+
+# altered sil control (including integral action)
+time_alt, output_alt, states_alt, calc_states_alt, tot_input_alt, ext_input_alt = simulate(SIM_PAR_ALT,bike_plant_alt,controller_alt,u_ext_fun,phi_kalman_alt)
 
 plt.figure()    
 plt.title("State measurement after push",fontsize=24)
 plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("angle [rad] or angular velocity [rad/s]",fontsize=16)
-plt.plot(time,states,label=["phi","delta","d_phi","d_delta"])
-plt.plot(time_ref,states_ref,'--',label=["phi","delta","d_phi","d_delta"])
+plt.plot(time_alt,states_alt,label=["phi","delta","d_phi","d_delta","integral"])
+# plt.plot(time_ref,states_ref,'--',label=["phi","delta","d_phi","d_delta"])
 plt.grid()
 plt.legend(fontsize=16)
 
@@ -1258,8 +1345,8 @@ plt.figure()
 plt.title("Total & external input",fontsize=24)
 plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("Torque [Nm]",fontsize=16)
-plt.plot(time, tot_input[:,:2], label=["Total Lean torque","Total Steer torque"])
-plt.plot(time, ext_input, '--', label=["Ext Lean torque","Ext Steer torque"])
+plt.plot(time_alt, tot_input_alt[:,:2], label=["Total Lean torque","Total Steer torque"])
+plt.plot(time_alt, ext_input_alt, '--', label=["Ext Lean torque","Ext Steer torque"])
 plt.legend(fontsize=16)
 plt.show()
 
