@@ -1,4 +1,4 @@
-CLOCKWISE, arm = 312.5mm
+COUNTERCLOCKWISE, arm = 312.5mm
 command,kg1_CCW_push,kg2_CW_pull
 0.1,0.0,0.0
 0.2,0.0,0.0
