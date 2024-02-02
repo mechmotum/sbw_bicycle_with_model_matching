@@ -7,7 +7,7 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "LOG_torque_kg_easurements_CW_high_saddle_pull.log"
+FILENAME = "LOG_torque_kg_measurements_CW_high_saddle_pull.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001

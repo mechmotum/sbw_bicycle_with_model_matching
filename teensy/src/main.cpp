@@ -537,8 +537,8 @@ void loop(){
       // calc_friction_callibration_control(control_iteration_counter,command_fork); //used for the fork friction callibration
       // calc_directional_bias_callibration(control_iteration_counter,command_fork);
       // calc_friction_callibration_control(control_iteration_counter,command_hand); //used for the steer torque callibration
-      // one_sided_steer_torque_call_control(control_iteration_counter,command_hand,LEFT);
-      calc_hand_straigtening_control(sbw_bike, command_hand);
+      one_sided_steer_torque_call_control(control_iteration_counter,command_hand,LEFT);
+      // calc_hand_straigtening_control(sbw_bike, command_hand);
       Serial.print(",");
       // Serial.print(",,,,,,,");
     } else {
