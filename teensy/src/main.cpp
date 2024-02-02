@@ -33,8 +33,9 @@ class BikeMeasurements{
     float m_lean_angle;    // [rad]
     float m_fork_rate;     // [rad/s]
     float m_lean_rate;     // [rad/s]
-    float m_hand_torque;   // Measurement of the torque on the handlebar applied by the human 
-    float m_lean_torque;    // [Nm] Measurement of the input impulse on the force trancducer beneath the seat.
+    float m_hand_mtr_vlt;  // [V] Voltage given by the motor driver that indicates the amount of current
+    float m_hand_torque;   // [Nm] Measurement of the torque on the handlebar applied by the human 
+    float m_lean_torque;   // [Nm] Measurement of the input impulse on the force trancducer beneath the seat.
     float m_bike_speed;    // [m/s]
     #if USE_PEDAL_CADANCE
     float m_pedal_cadance; // [rad/s]
@@ -57,6 +58,7 @@ class BikeMeasurements{
       m_fork_rate = 0;
       m_lean_rate = 0;
       m_hand_torque = 0;
+      m_hand_mtr_vlt = 0;
       m_lean_torque = 0;
       m_bike_speed = 0;
       #if USE_PEDAL_CADANCE
@@ -79,6 +81,7 @@ class BikeMeasurements{
     float get_fork_rate(){return m_fork_rate;}
     float get_lean_rate(){return m_lean_rate;}
     float get_hand_torque(){return m_hand_torque;}
+    float get_hand_mtr_vlt(){return m_hand_mtr_vlt;}
     float get_lean_torque(){return m_lean_torque;}
     uint32_t get_dt_steer_meas(){return m_dt_steer_meas;}
     float get_bike_speed(){return m_bike_speed;}
@@ -123,6 +126,7 @@ void calc_directional_bias_callibration(uint64_t loop_iter, double& fork_command
 void apply_friction_compensation(double& fork_command);
 void one_sided_steer_torque_call_control(uint64_t loop_iter, double& hand_command, const bool direction);
 void calc_hand_straigtening_control(BikeMeasurements& bike, double& command_hand);
+void calc_steer_torque_input_control(BikeMeasurements& bike, double& command_fork);
 #if USE_BT
 void bt_setup();
 void print_to_bt(BikeMeasurements& sbw_bike, double command_fork, double command_hand);
@@ -181,8 +185,11 @@ const uint16_t INITIAL_STEER_PWM = 16384;
 // Steer Torque
 const float TEENSY_ANALOG_VOLTAGE = 3.3;
 const uint16_t HAND_TORQUE_RESOLUTION = 1023;
-const uint8_t TORQUE_SLOPE = 1;
-const uint8_t TORQUE_BIAS  = 0;
+const float TORQUE_SLOPE = 15.610654072386788; // Obtained from experimental measurements. See data_analysis/steer_torque_current_meas_callibration
+const float TORQUE_BIAS  = -26.079960214259234;
+
+const float CMD2VOLT_SLOPE = -0.09472095747953171; // Obtained from experimental measurements. See data_analysis/steer_torque_current_meas_callibration
+const float CMD2VOLT_BIAS = 1.6679204455723928;
 
 // Lateral force
 float LAT_FORCE2TORQUE = 0.95; // Height of the force sensor attachment point, measured from the ground in meters. (wheels at 4bar)
@@ -537,8 +544,9 @@ void loop(){
       // calc_friction_callibration_control(control_iteration_counter,command_fork); //used for the fork friction callibration
       // calc_directional_bias_callibration(control_iteration_counter,command_fork);
       // calc_friction_callibration_control(control_iteration_counter,command_hand); //used for the steer torque callibration
-      one_sided_steer_torque_call_control(control_iteration_counter,command_hand,LEFT);
-      // calc_hand_straigtening_control(sbw_bike, command_hand);
+      // one_sided_steer_torque_call_control(control_iteration_counter,command_hand,LEFT);
+      calc_hand_straigtening_control(sbw_bike, command_hand);
+      calc_steer_torque_input_control(sbw_bike, command_fork); //Having the voltage applied on the steer, calculate the torque that needs to be applied on the fork
       Serial.print(",");
       // Serial.print(",,,,,,,");
     } else {
@@ -549,6 +557,8 @@ void loop(){
 
     apply_friction_compensation(command_fork);
     actuate_steer_motors(command_fork, command_hand);
+    Serial.print(",");
+    Serial.print(command_fork);
     Serial.print(",");
     Serial.print(command_hand);
     Serial.print('\n');
@@ -628,10 +638,12 @@ void BikeMeasurements::measure_steer_angles(){
 
 //=========================== [Get handlebar torque] ===============================//
 void BikeMeasurements::measure_hand_torque(){
-  float voltage = TEENSY_ANALOG_VOLTAGE * analogRead(a_hand)/HAND_TORQUE_RESOLUTION;
-  Serial.print(voltage);
+  m_hand_mtr_vlt = TEENSY_ANALOG_VOLTAGE * analogRead(a_hand)/HAND_TORQUE_RESOLUTION;
+  m_hand_torque = TORQUE_SLOPE*m_hand_mtr_vlt + TORQUE_BIAS;
+  Serial.print(m_hand_mtr_vlt,5);
   Serial.print(",");
-  // m_hand_torque = TORQUE_SLOPE*voltage + TORQUE_BIAS;
+  Serial.print(m_hand_torque,5);
+  Serial.print(",");
 }
 
 void BikeMeasurements::measure_lat_perturbation(){
@@ -643,7 +655,7 @@ void BikeMeasurements::measure_lat_perturbation(){
     }
     else{ //perform bias measurement
       force_bias += lat_force_readout;
-      if(control_iteration_counter >= CTRL_STARTUP_ITTERATIONS + FORCE_BIAS_AVGING_WINDOW){ //
+      if(control_iteration_counter >= (uint16_t)(CTRL_STARTUP_ITTERATIONS + FORCE_BIAS_AVGING_WINDOW)){ //
         force_bias /= (control_iteration_counter - CTRL_STARTUP_ITTERATIONS);
         haveSampledBias = true;
       }
@@ -903,6 +915,10 @@ void calc_pd_control(float error, float derror_dt, double& command_fork, double&
 // Also usefull for keeping the handlebar straight when there is no handlebar feedback.
 void calc_hand_straigtening_control(BikeMeasurements& bike, double& command_hand){
   command_hand = bike.get_hand_angle()*KP_HAND_STRAIGHTENING;
+}
+
+void calc_steer_torque_input_control(BikeMeasurements& bike, double& command_fork){
+  command_fork += (bike.get_hand_mtr_vlt()-CMD2VOLT_BIAS)/CMD2VOLT_SLOPE;
 }
 
 //=========================== [Friction compensation] ===========================//
@@ -1224,6 +1240,7 @@ void serial_setup(){
   Serial.print("m_fork_angle,");
   Serial.print("steer_rate,");
   Serial.print("voltage_mtr_driver,");
+  Serial.print("m_hand_torque,");
   Serial.print("m_lean_torque,");
   // Serial.print("k_phi,");
   // Serial.print("k_delta,");
@@ -1243,6 +1260,7 @@ void serial_setup(){
   // Serial.print("hand_pwm,");
   Serial.print("post_fork_pwm,");
   Serial.print("post_hand_pwm");
+  Serial.print(",command_fork");
   Serial.print(",command_hand");
 
   Serial.print("\n");

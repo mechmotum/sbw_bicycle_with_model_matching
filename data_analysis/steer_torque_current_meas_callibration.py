@@ -72,11 +72,14 @@ for value in linreg_cmd2volt.values():
     cmd2volt_intercept = cmd2volt_intercept + value.intercept
 cmd2volt_slope = cmd2volt_slope/len(linreg_cmd2volt)
 cmd2volt_intercept = cmd2volt_intercept/len(linreg_cmd2volt)
+print(f"cmd2volt slope: {cmd2volt_slope}")
+print(f"cmd2volt intercept: {cmd2volt_intercept}")
+
 
 volt2Nm_slope = (cmd2Nm_slope/cmd2volt_slope) 
 volt2Nm_intercept = -cmd2volt_intercept*(cmd2Nm_slope/cmd2volt_slope) + cmd2Nm_intercept
-print(volt2Nm_slope)
-print(volt2Nm_intercept)
+print(f"volt2Nm slope: {volt2Nm_slope}")
+print(f"volt2Nm intercept: {volt2Nm_intercept}")
 
 #=====[PLOT RESULTS FOR VISUAL VALIDATION
 #---[plot commanded torque to measured torque

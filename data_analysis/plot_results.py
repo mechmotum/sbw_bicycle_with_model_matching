@@ -7,7 +7,7 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "LOG_torque_kg_measurements_CW_high_saddle_pull.log"
+FILENAME = "simulated_spring_steer_torque_test3(simulated_nominal_steering).log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
@@ -25,7 +25,8 @@ extraction = {
     "sil_command": [],
     "post_fork_pwm": [],
     "command_hand":[],
-    "voltage_mtr_driver":[]
+    "voltage_mtr_driver":[],
+    "m_hand_torque":[]
 }
 
 
@@ -84,18 +85,20 @@ plt.ylabel("Y",fontsize=16)
 plt.plot(time,extraction["command_hand"],'',label="command hand")
 plt.plot(time,extraction["voltage_mtr_driver"],'--',label="mtr driver voltage")
 plt.plot(time,extraction["m_hand_angle"],label="hand_angle")
-plt.legend(fontsize=16)
-plt.grid()
-# plt.show()
-
-plt.figure()
-plt.title("title", fontsize=24)
-plt.xlabel("Commanded torque [Nm]",fontsize=16)
-plt.ylabel("Voltage [V]",fontsize=16)
-plt.scatter(extraction["command_hand"],extraction["voltage_mtr_driver"])
+plt.plot(time,extraction["m_hand_torque"],label="hand_torque")
+plt.plot(time,extraction["command_hand"]*-1.4786561006182275 -0.042631118167373305 ,':',label="command hand")
 plt.legend(fontsize=16)
 plt.grid()
 plt.show()
+
+# plt.figure()
+# plt.title("title", fontsize=24)
+# plt.xlabel("Commanded torque [Nm]",fontsize=16)
+# plt.ylabel("Voltage [V]",fontsize=16)
+# plt.scatter(extraction["command_hand"],extraction["voltage_mtr_driver"])
+# plt.legend(fontsize=16)
+# plt.grid()
+# plt.show()
 
 #---[Nice plots for sil drift investigation
 # plt.figure()
