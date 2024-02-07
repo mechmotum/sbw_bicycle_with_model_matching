@@ -7,7 +7,7 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "simulated_spring_steer_torque_test3(simulated_nominal_steering).log"
+FILENAME = "force_transducer_pull_test.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
@@ -77,19 +77,28 @@ time = np.linspace(0,TIME_STEP*(len(extraction["lean_rate"])-1),len(extraction["
 #     plt.title(key)
 # plt.show()
 
-#---[Nice Plots for steer torque callibration
 plt.figure()
 plt.title("title", fontsize=24)
 plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("Y",fontsize=16)
-plt.plot(time,extraction["command_hand"],'',label="command hand")
-plt.plot(time,extraction["voltage_mtr_driver"],'--',label="mtr driver voltage")
-plt.plot(time,extraction["m_hand_angle"],label="hand_angle")
-plt.plot(time,extraction["m_hand_torque"],label="hand_torque")
-plt.plot(time,extraction["command_hand"]*-1.4786561006182275 -0.042631118167373305 ,':',label="command hand")
+plt.plot(time,extraction["m_lean_torque"],'',label="Force transducer")
 plt.legend(fontsize=16)
 plt.grid()
 plt.show()
+
+#---[Nice Plots for steer torque callibration
+# plt.figure()
+# plt.title("title", fontsize=24)
+# plt.xlabel("Time [s]",fontsize=16)
+# plt.ylabel("Y",fontsize=16)
+# plt.plot(time,extraction["command_hand"],'',label="command hand")
+# plt.plot(time,extraction["voltage_mtr_driver"],'--',label="mtr driver voltage")
+# plt.plot(time,extraction["m_hand_angle"],label="hand_angle")
+# plt.plot(time,extraction["m_hand_torque"],label="hand_torque")
+# plt.plot(time,extraction["command_hand"]*-1.4786561006182275 -0.042631118167373305 ,':',label="command hand")
+# plt.legend(fontsize=16)
+# plt.grid()
+# plt.show()
 
 # plt.figure()
 # plt.title("title", fontsize=24)

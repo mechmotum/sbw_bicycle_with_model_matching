@@ -462,7 +462,7 @@ void setup(){
   digitalWrite(enable_motor_enc, HIGH); // Set HIGH to enable power to the encoders
   digitalWrite(enable_fork,      HIGH); // Set HIGH to enable motor
   digitalWrite(enable_hand,      HIGH); // Set HIGH to enable motor
-  digitalWrite(hand_led,         LOW);
+  digitalWrite(hand_led,         HIGH);
   analogWrite(pwm_pin_fork,      INITIAL_FORK_PWM);
   analogWrite(pwm_pin_hand,      INITIAL_STEER_PWM);
 
@@ -547,8 +547,8 @@ void loop(){
       // calc_directional_bias_callibration(control_iteration_counter,command_fork);
       // calc_friction_callibration_control(control_iteration_counter,command_hand); //used for the steer torque callibration
       // one_sided_steer_torque_call_control(control_iteration_counter,command_hand,LEFT);
-      calc_hand_straigtening_control(sbw_bike, command_hand, control_iteration_counter);
-      calc_steer_torque_input_control(sbw_bike, command_fork); //Having the voltage applied on the steer, calculate the torque that needs to be applied on the fork
+      // calc_hand_straigtening_control(sbw_bike, command_hand, control_iteration_counter);
+      // calc_steer_torque_input_control(sbw_bike, command_fork); //Having the voltage applied on the steer, calculate the torque that needs to be applied on the fork
       Serial.print(",");
       // Serial.print(",,,,,,,");
     } else {
@@ -663,7 +663,7 @@ void BikeMeasurements::measure_lat_perturbation(){
       }
     }
   }
-  Serial.print(m_lean_torque);
+  Serial.print(lat_force_readout);
   Serial.print(",");
 }
 
