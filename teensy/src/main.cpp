@@ -125,7 +125,7 @@ void calc_friction_callibration_control(uint64_t loop_iter, double& command);
 void calc_directional_bias_callibration(uint64_t loop_iter, double& fork_command);
 void apply_friction_compensation(double& fork_command);
 void one_sided_steer_torque_call_control(uint64_t loop_iter, double& hand_command, const bool direction);
-void calc_hand_straigtening_control(BikeMeasurements& bike, double& command_hand);
+void calc_hand_straigtening_control(BikeMeasurements& bike, double& command_hand, uint64_t loop_iter);
 void calc_steer_torque_input_control(BikeMeasurements& bike, double& command_fork);
 #if USE_BT
 void bt_setup();
@@ -339,6 +339,8 @@ bool steer_direction_dir_bias = true;
 float force_bias = 0;
 bool haveSampledBias = false;
 
+//----------------------- Steer Torque input following --------------------------//
+float past_hand_angle = 0;
 
 //------------------------------ PD Control ----------------------------------//
 float error_prev = 0.0f; // [rad] Variable to store the previos mismatch between handlebar and fork
@@ -545,7 +547,7 @@ void loop(){
       // calc_directional_bias_callibration(control_iteration_counter,command_fork);
       // calc_friction_callibration_control(control_iteration_counter,command_hand); //used for the steer torque callibration
       // one_sided_steer_torque_call_control(control_iteration_counter,command_hand,LEFT);
-      calc_hand_straigtening_control(sbw_bike, command_hand);
+      calc_hand_straigtening_control(sbw_bike, command_hand, control_iteration_counter);
       calc_steer_torque_input_control(sbw_bike, command_fork); //Having the voltage applied on the steer, calculate the torque that needs to be applied on the fork
       Serial.print(",");
       // Serial.print(",,,,,,,");
@@ -911,10 +913,15 @@ void calc_pd_control(float error, float derror_dt, double& command_fork, double&
 
 //=========================== [P control for keeping the handle bar at 0 rad] ===========================//
 // to check the callibration of applied torque to voltage read out, the handelebar has to give a counter torque.
-// So it is controlled like a torsion spring with rest length at 0 rad.
-// Also usefull for keeping the handlebar straight when there is no handlebar feedback.
-void calc_hand_straigtening_control(BikeMeasurements& bike, double& command_hand){
-  command_hand = bike.get_hand_angle()*KP_HAND_STRAIGHTENING;
+// So it is controlled like a torsion spring with rest length at varying over time.
+// In this way if the steer is kept still at a non zero angle, the torque becomes zero (which is also the 
+// case for normal bikes) and when steering back, there is again a torque. Where with a static 
+// rest lengt, steerign towards zero rest length will give a torque in the wrong direction.
+void calc_hand_straigtening_control(BikeMeasurements& bike, double& command_hand, uint64_t loop_iter){
+  command_hand = (bike.get_hand_angle()-past_hand_angle)*KP_HAND_STRAIGHTENING;
+  
+  if(loop_iter% 10 == 0) //Reset the rest lengt/bias
+    past_hand_angle = bike.get_hand_angle();
 }
 
 void calc_steer_torque_input_control(BikeMeasurements& bike, double& command_fork){
