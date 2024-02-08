@@ -23,6 +23,8 @@ a_hand = 41; // Analog output pin of the handlebar motor drive
 #define USE_SD 0
 #define USE_PEDAL_CADANCE 0
 #define SERIAL_DEBUG 1
+#define TRANSDUCER_ON_STEER 0
+#define TRANSDUCER_ON_SADLE 1
 
 //================================= Classes ==================================//
 class BikeMeasurements{
@@ -193,8 +195,8 @@ const float CMD2VOLT_SLOPE = -0.09472095747953171; // Obtained from experimental
 const float CMD2VOLT_BIAS = 1.6679204455723928;
 
 // Lateral force
-float LAT_FORCE2TORQUE = 0.95; // Height of the force sensor attachment point, measured from the ground in meters. (wheels at 4bar)
-float MEAS2LAT_FORCE = (1/29.382639222963817)*9.81; // [kg/-]*[N/kg]calibration has been done in [kg](independend) vs [-](dependend){no unit as it is a mapping from 0-3,3V to 0-1023}
+float FORCE2LEAN_TORQUE = 0.95; // Height of the force sensor attachment point, measured from the ground in meters. (wheels at 4bar)
+float TRANSDUCER_MEAS2FORCE = (1/29.382639222963817)*9.81; // [kg/-]*[N/kg]calibration has been done in [kg](independend) vs [-](dependend){no unit as it is a mapping from 0-3,3V to 0-1023}
 uint8_t FORCE_BIAS_AVGING_WINDOW = 200;
 
 // Timing
@@ -639,20 +641,35 @@ void BikeMeasurements::measure_steer_angles(){
 
 //=========================== [Get handlebar torque] ===============================//
 void BikeMeasurements::measure_hand_torque(){
-  m_hand_mtr_vlt = TEENSY_ANALOG_VOLTAGE * analogRead(a_hand)/HAND_TORQUE_RESOLUTION;
-  m_hand_torque = TORQUE_SLOPE*m_hand_mtr_vlt + TORQUE_BIAS;
-  Serial.print(m_hand_mtr_vlt,5);
-  Serial.print(",");
-  Serial.print(m_hand_torque,5);
-  Serial.print(",");
+  // m_hand_mtr_vlt = TEENSY_ANALOG_VOLTAGE * analogRead(a_hand)/HAND_TORQUE_RESOLUTION;
+  // m_hand_torque = TORQUE_SLOPE*m_hand_mtr_vlt + TORQUE_BIAS;
+  // Serial.print(m_hand_mtr_vlt,5);
+  // Serial.print(",");
+  // Serial.print(m_hand_torque,5);
+  // Serial.print(",");
+  #if TRANSDUCER_ON_STEER
+  int transducer_readout = analogRead(transducer_pin); //int as it is used in calculation later on, where it can get negative. 
+  if(control_iteration_counter > CTRL_STARTUP_ITTERATIONS){// Wait untill the led light is off
+    if(haveSampledBias){ //check if already taken a measurement of the bias
+      m_hand_torque = (transducer_readout-force_bias)*TRANSDUCER_MEAS2FORCE*FORCE2STEER_TORQUE;
+    }
+    else{ //perform bias measurement
+      force_bias += transducer_readout;
+      if(control_iteration_counter >= (uint16_t)(CTRL_STARTUP_ITTERATIONS + FORCE_BIAS_AVGING_WINDOW)){
+        force_bias /= (control_iteration_counter - CTRL_STARTUP_ITTERATIONS);
+        haveSampledBias = true;
+      }
+    }
+  }
+  #endif
 }
 
 void BikeMeasurements::measure_lat_perturbation(){
+  #if TRANSDUCER_ON_SADLE
   int lat_force_readout = analogRead(transducer_pin);
-
   if(control_iteration_counter > CTRL_STARTUP_ITTERATIONS){// Wait untill the led light is off
     if(haveSampledBias){ //check if already taken a measurement of the bias
-      m_lean_torque = max(0,lat_force_readout-force_bias)*MEAS2LAT_FORCE*LAT_FORCE2TORQUE; //'max()' since the force transducer can only sense pulling forces
+      m_lean_torque = max(0,lat_force_readout-force_bias)*TRANSDUCER_MEAS2FORCE*FORCE2LEAN_TORQUE; //'max()' since the force transducer can only sense pulling forces
     }
     else{ //perform bias measurement
       force_bias += lat_force_readout;
@@ -664,6 +681,7 @@ void BikeMeasurements::measure_lat_perturbation(){
   }
   Serial.print(lat_force_readout);
   Serial.print(",");
+  #endif
 }
 
 //======================= [calculate steer derivatives] ============================//
