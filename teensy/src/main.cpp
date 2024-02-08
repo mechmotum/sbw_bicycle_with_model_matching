@@ -127,6 +127,7 @@ void apply_friction_compensation(double& fork_command);
 void one_sided_steer_torque_call_control(uint64_t loop_iter, double& hand_command, const bool direction);
 void calc_hand_straigtening_control(BikeMeasurements& bike, double& command_hand, uint64_t loop_iter);
 void calc_steer_torque_input_control(BikeMeasurements& bike, double& command_fork);
+void relay_measured_hand_torque(BikeMeasurements& bike, double& command_fork);
 #if USE_BT
 void bt_setup();
 void print_to_bt(BikeMeasurements& sbw_bike, double command_fork, double command_hand);
@@ -541,19 +542,17 @@ void loop(){
 
     //------[Perform steering control
     if(!isSwitchControl){
-      // calc_pd_errors(sbw_bike, error, derror_dt);
-      // calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
+      calc_pd_errors(sbw_bike, error, derror_dt);
+      calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
       // calc_friction_callibration_control(control_iteration_counter,command_fork); //used for the fork friction callibration
       // calc_directional_bias_callibration(control_iteration_counter,command_fork);
-      // calc_friction_callibration_control(control_iteration_counter,command_hand); //used for the steer torque callibration
       // one_sided_steer_torque_call_control(control_iteration_counter,command_hand,LEFT);
       // calc_hand_straigtening_control(sbw_bike, command_hand, control_iteration_counter);
       // calc_steer_torque_input_control(sbw_bike, command_fork); //Having the voltage applied on the steer, calculate the torque that needs to be applied on the fork
       Serial.print(",");
-      // Serial.print(",,,,,,,");
     } else {
-      // calc_mm_control(sbw_bike, command_fork); // add model matching torque to fork torque
-      // calc_sil_control(sbw_bike, command_fork, command_hand);
+      calc_sil_control(sbw_bike, command_fork, command_hand);
+      relay_measured_hand_torque(sbw_bike,command_hand);
       // calc_mm_sil_control(sbw_bike, command_fork, command_hand);
     }
 
@@ -968,6 +967,11 @@ void one_sided_steer_torque_call_control(uint64_t loop_iter, double& hand_comman
   else
     hand_command = min(STEER_TRQ_CAL_CTRL_BOUND,itteration_step_dir_bias*STEER_TORQUE_CAL_STEP_INCREASE);
   return;
+}
+
+//=========================== [Relay measured hand torque] ===========================//
+void relay_measured_hand_torque(BikeMeasurements& bike, double& command_fork){
+  command_fork += bike.get_hand_torque();
 }
 
 //=========================== [Calculate model matching Control] ===========================//
