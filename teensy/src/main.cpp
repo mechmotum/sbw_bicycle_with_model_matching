@@ -247,7 +247,7 @@ const float SOFTWARE_LIMIT = 42.0 * DEG_TO_RAD;
 
 // Lateral force
 float FORCE2LEAN_TORQUE = 0.95; // Height of the force sensor attachment point, measured from the ground in meters. (wheels at 4bar)
-float TRANSDUCER_MEAS2FORCE = (1/29.382639222963817)*9.81; // [kg/-]*[N/kg]calibration has been done in [kg](independend) vs [-](dependend){no unit as it is a mapping from 0-3,3V to 0-1023}
+float TRANSDUCER_MEAS2FORCE = (1/29.689376936164084)*9.81; // [kg/-]*[N/kg]calibration has been done in [kg](independend) vs [-](dependend){no unit as it is a mapping from 0-3,3V to 0-1023}
 uint8_t FORCE_BIAS_AVGING_WINDOW = 200; //Transducer seems to have a different offset every new code start. So take a sample of FORCE_BIAS_AVGING_WINDOW long, to figure out the offset.
 
 // Pedal and wheel encoders

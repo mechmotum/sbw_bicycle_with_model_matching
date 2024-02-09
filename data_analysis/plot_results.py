@@ -1,13 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from data_parsing import logfile2array
-from FRF import comp_frf
 import simulated_runtime_filter as filt
+# from FRF import comp_frf
 # import pickle as pkl
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "force_transducer_pull_test.log"
+FILENAME = "force_transducer_zero_load.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
@@ -34,8 +34,41 @@ extraction = {
 extraction = logfile2array(PATH,FILENAME,extraction)
 time = np.linspace(0,TIME_STEP*(len(extraction["lean_rate"])-1),len(extraction["lean_rate"]))
 
-#---[Apply filtering to lean rate
-# Lean rate
+#---[Nice Plots for Calibrating the force transducer
+print(f"Average read-out value at 0   kg:\t{np.average(extraction['m_lean_torque'][1301:])}")
+# print(f"Average read-out value at 1   kg:\t{np.average(extraction['m_lean_torque'][4291:6590])}")
+# print(f"Average read-out value at 2   kg:\t{np.average(extraction['m_lean_torque'][8475:8879])}")
+# print(f"Average read-out value at 4   kg:\t{np.average(extraction['m_lean_torque'][10411:12437])}")
+# print(f"Average read-out value at 6   kg:\t{np.average(extraction['m_lean_torque'][14237:16724])}")
+# print(f"Average read-out value at 8   kg:\t{np.average(extraction['m_lean_torque'][18155:21637])}")
+# print(f"Average read-out value at 10  kg:\t{np.average(extraction['m_lean_torque'][22967:23713])}")
+
+
+plt.figure()
+plt.title("Force transducer measured value", fontsize=24)
+plt.xlabel("Time [s]",fontsize=16)
+plt.ylabel("Voltage read by teensy [0-1023]",fontsize=16)
+plt.plot(time,extraction["m_lean_torque"],'',label="Force transducer")
+plt.axhline(np.average(extraction['m_lean_torque'][1301:]))
+# plt.axhline(np.average(extraction['m_lean_torque'][4291:6590]))
+# plt.axhline(np.average(extraction['m_lean_torque'][8475:8879]))
+# plt.axhline(np.average(extraction['m_lean_torque'][10411:12437]))
+# plt.axhline(np.average(extraction['m_lean_torque'][14237:16724]))
+# plt.axhline(np.average(extraction['m_lean_torque'][18155:21637]))
+# plt.axhline(np.average(extraction['m_lean_torque'][22967:23713]))
+plt.grid()
+plt.show()
+
+
+#---[Quick plot
+# for key,value in extraction.items():
+#     plt.figure()
+#     plt.plot(time, value)
+#     plt.title(key)
+# plt.show()
+
+#---[Apply filtering
+# # Lean rate
 # mvavg_Dphi = filt.mov_average(extraction["lean_rate"],    7    )
 # runavg_Dphi = filt.runnig_average(extraction["lean_rate"],    0.5    )
 # lowpass1st_Dphi = filt.first_order_lp(  5  , extraction["lean_rate"], fs=1/TIME_STEP)
@@ -69,22 +102,11 @@ time = np.linspace(0,TIME_STEP*(len(extraction["lean_rate"])-1),len(extraction["
 # plt.show()
 
 
-#=====PLOTTING=====#
-#---[Quick plot
-# for key,value in extraction.items():
-#     plt.figure()
-#     plt.plot(time, value)
-#     plt.title(key)
-# plt.show()
 
-plt.figure()
-plt.title("title", fontsize=24)
-plt.xlabel("Time [s]",fontsize=16)
-plt.ylabel("Y",fontsize=16)
-plt.plot(time,extraction["m_lean_torque"],'',label="Force transducer")
-plt.legend(fontsize=16)
-plt.grid()
-plt.show()
+
+#=================================================================================================================#
+#                                                Old plot functions                                               #
+#=================================================================================================================#
 
 #---[Nice Plots for steer torque callibration
 # plt.figure()
@@ -109,6 +131,7 @@ plt.show()
 # plt.grid()
 # plt.show()
 
+
 #---[Nice plots for sil drift investigation
 # plt.figure()
 # plt.title("title", fontsize=24)
@@ -127,6 +150,7 @@ plt.show()
 # plt.grid()
 # plt.show()
 
+
 #---[Nice plots for friction compensation calibration
 # plt.figure()
 # plt.title("Unequal fork rotation for equal command", fontsize = 24)
@@ -141,11 +165,6 @@ plt.show()
 # plt.legend(fontsize = 16)
 # plt.show()
 
-#---[Nice plots for lat_force_cal.log
-# "lat_force_cal.log" --> pulled with wheigth sensor from 4 to 8 to 12 to 2. Callibration succesfull
-# plt.figure()
-# plt.plot(time,extraction["m_lean_torque"])
-# plt.show()
 
 #---[Nice plots for pilot_test3_working speed
 # fig,ax1 = plt.subplots()
@@ -184,7 +203,6 @@ plt.show()
 
 # fig.tight_layout()
 # plt.show()
-
 
 # fig2, ax3 = plt.subplots()
 # ax3.set_title("State response", fontsize=24)
