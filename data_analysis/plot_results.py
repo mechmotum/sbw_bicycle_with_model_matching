@@ -7,26 +7,37 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "force_transducer_zero_load.log"
+FILENAME = "device-monitor-240209-165132.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
 }
 extraction = {
-    "speed": [],
-    "m_lean_angle": [],
-    "lean_rate": [],
-    "enc_counts_fork": [],
-    "enc_counts_hand": [],
-    "m_fork_angle": [],
-    "m_hand_angle": [],
-    "steer_rate": [],
-    "m_lean_torque": [],
     "sil_command": [],
-    "post_fork_pwm": [],
-    "command_hand":[],
-    "voltage_mtr_driver":[],
-    "m_hand_torque":[]
+    "speed": [],
+    "lean_angle": [],
+    "lean_rate": [],
+    "hand_angle": [],
+    "fork_angle": [],
+    "fork_rate": [],
+    "lean_torque": [],
+    "hand_torque": [],
+    "command_fork": [],
+    "command_hand": [],
+    # "speed": [],
+    # "m_lean_angle": [],
+    # "lean_rate": [],
+    # "enc_counts_fork": [],
+    # "enc_counts_hand": [],
+    # "m_fork_angle": [],
+    # "m_hand_angle": [],
+    # "steer_rate": [],
+    # "m_lean_torque": [],
+    # "sil_command": [],
+    # "post_fork_pwm": [],
+    # "command_hand":[],
+    # "voltage_mtr_driver":[],
+    # "m_hand_torque":[]
 }
 
 
@@ -34,38 +45,12 @@ extraction = {
 extraction = logfile2array(PATH,FILENAME,extraction)
 time = np.linspace(0,TIME_STEP*(len(extraction["lean_rate"])-1),len(extraction["lean_rate"]))
 
-#---[Nice Plots for Calibrating the force transducer
-print(f"Average read-out value at 0   kg:\t{np.average(extraction['m_lean_torque'][1301:])}")
-# print(f"Average read-out value at 1   kg:\t{np.average(extraction['m_lean_torque'][4291:6590])}")
-# print(f"Average read-out value at 2   kg:\t{np.average(extraction['m_lean_torque'][8475:8879])}")
-# print(f"Average read-out value at 4   kg:\t{np.average(extraction['m_lean_torque'][10411:12437])}")
-# print(f"Average read-out value at 6   kg:\t{np.average(extraction['m_lean_torque'][14237:16724])}")
-# print(f"Average read-out value at 8   kg:\t{np.average(extraction['m_lean_torque'][18155:21637])}")
-# print(f"Average read-out value at 10  kg:\t{np.average(extraction['m_lean_torque'][22967:23713])}")
-
-
-plt.figure()
-plt.title("Force transducer measured value", fontsize=24)
-plt.xlabel("Time [s]",fontsize=16)
-plt.ylabel("Voltage read by teensy [0-1023]",fontsize=16)
-plt.plot(time,extraction["m_lean_torque"],'',label="Force transducer")
-plt.axhline(np.average(extraction['m_lean_torque'][1301:]))
-# plt.axhline(np.average(extraction['m_lean_torque'][4291:6590]))
-# plt.axhline(np.average(extraction['m_lean_torque'][8475:8879]))
-# plt.axhline(np.average(extraction['m_lean_torque'][10411:12437]))
-# plt.axhline(np.average(extraction['m_lean_torque'][14237:16724]))
-# plt.axhline(np.average(extraction['m_lean_torque'][18155:21637]))
-# plt.axhline(np.average(extraction['m_lean_torque'][22967:23713]))
-plt.grid()
-plt.show()
-
-
 #---[Quick plot
-# for key,value in extraction.items():
-#     plt.figure()
-#     plt.plot(time, value)
-#     plt.title(key)
-# plt.show()
+for key,value in extraction.items():
+    plt.figure()
+    plt.plot(time, value)
+    plt.title(key)
+plt.show()
 
 #---[Apply filtering
 # # Lean rate
@@ -107,6 +92,31 @@ plt.show()
 #=================================================================================================================#
 #                                                Old plot functions                                               #
 #=================================================================================================================#
+#---[Nice Plots for Calibrating the force transducer
+# print(f"Average read-out value at 0   kg:\t{np.average(extraction['m_lean_torque'][1301:])}")
+# print(f"Average read-out value at 1   kg:\t{np.average(extraction['m_lean_torque'][4291:6590])}")
+# print(f"Average read-out value at 2   kg:\t{np.average(extraction['m_lean_torque'][8475:8879])}")
+# print(f"Average read-out value at 4   kg:\t{np.average(extraction['m_lean_torque'][10411:12437])}")
+# print(f"Average read-out value at 6   kg:\t{np.average(extraction['m_lean_torque'][14237:16724])}")
+# print(f"Average read-out value at 8   kg:\t{np.average(extraction['m_lean_torque'][18155:21637])}")
+# print(f"Average read-out value at 10  kg:\t{np.average(extraction['m_lean_torque'][22967:23713])}")
+
+
+plt.figure()
+plt.title("Force transducer measured value", fontsize=24)
+plt.xlabel("Time [s]",fontsize=16)
+plt.ylabel("Voltage read by teensy [0-1023]",fontsize=16)
+plt.plot(time,extraction["m_lean_torque"],'',label="Force transducer")
+plt.axhline(np.average(extraction['m_lean_torque'][1301:]))
+# plt.axhline(np.average(extraction['m_lean_torque'][4291:6590]))
+# plt.axhline(np.average(extraction['m_lean_torque'][8475:8879]))
+# plt.axhline(np.average(extraction['m_lean_torque'][10411:12437]))
+# plt.axhline(np.average(extraction['m_lean_torque'][14237:16724]))
+# plt.axhline(np.average(extraction['m_lean_torque'][18155:21637]))
+# plt.axhline(np.average(extraction['m_lean_torque'][22967:23713]))
+plt.grid()
+plt.show()
+
 
 #---[Nice Plots for steer torque callibration
 # plt.figure()

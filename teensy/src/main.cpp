@@ -522,8 +522,6 @@ void loop(){
     if(!isSwitchControl){
       calc_pd_errors(sbw_bike, error, derror_dt);
       calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
-      Serial.print(",");
-      // Serial.print(",,,,,,,,");
     } else {
       calc_sil_control(sbw_bike, command_fork, command_hand);
       relay_measured_hand_torque(sbw_bike,command_hand);
@@ -531,12 +529,6 @@ void loop(){
     }
     apply_friction_compensation(command_fork);
     actuate_steer_motors(command_fork, command_hand);
-
-    Serial.print(",");
-    Serial.print(command_fork);
-    Serial.print(",");
-    Serial.print(command_hand);
-    Serial.print('\n');
 
     //------[Increase counters
     control_iteration_counter++;
@@ -546,7 +538,7 @@ void loop(){
     print_to_bt(sbw_bike,command_fork,command_hand);
     #endif
     #if SERIAL_DEBUG
-    // print_to_serial(sbw_bike,command_fork,command_hand);
+    print_to_serial(sbw_bike,command_fork,command_hand);
     #endif
     #if USE_SD
     print_to_SD(sbw_bike,command_fork,command_hand);
@@ -597,15 +589,6 @@ void BikeMeasurements::measure_steer_angles(){
   this limits, the motor folds back.
   */
   m_hand_angle = constrain(m_hand_angle, -SOFTWARE_LIMIT, SOFTWARE_LIMIT); //K: This may cause the oscillations
-
-  Serial.print(enc_counts_hand);
-  Serial.print(",");
-  Serial.print(enc_counts_fork);
-  Serial.print(",");
-  Serial.print(m_hand_angle,5);
-  Serial.print(",");
-  Serial.print(m_fork_angle,5);
-  Serial.print(",");
 }
 
 
@@ -635,7 +618,7 @@ void BikeMeasurements::measure_lat_perturbation(){
   int lat_force_readout = analogRead(transducer_pin);
   if(control_iteration_counter > CTRL_STARTUP_ITTERATIONS){// Wait untill the led light is off
     if(haveSampledBias){ //check if already taken a measurement of the bias
-      m_lean_torque = max(0,lat_force_readout-force_bias)*TRANSDUCER_MEAS2FORCE*FORCE2LEAN_TORQUE; //'max()' since the force transducer can only sense pulling forces
+      m_lean_torque = (lat_force_readout-force_bias)*TRANSDUCER_MEAS2FORCE*FORCE2LEAN_TORQUE; //'max()' since the force transducer can only sense pulling forces
     }
     else{ //perform bias measurement
       force_bias += lat_force_readout;
@@ -645,8 +628,8 @@ void BikeMeasurements::measure_lat_perturbation(){
       }
     }
   }
-  Serial.print(lat_force_readout);
-  Serial.print(",");
+  // Serial.print(lat_force_readout);
+  // Serial.print(",");
   #endif
 }
 
@@ -658,9 +641,6 @@ void BikeMeasurements::calculate_fork_rate(){
   so direct numerical derivation gives good results.
   */
   m_fork_rate = calc_bckwrd_derivative(m_fork_angle, m_fork_angle_prev, m_dt_steer_meas);
-  
-  Serial.print(m_fork_rate,5);
-  Serial.print(",");
   return;
 }
 
@@ -700,20 +680,12 @@ void BikeMeasurements::calculate_roll_states(){
   // store current roll rate for next itteration
   m_omega_x_old = omega_vec(0,0); // [rad/s] You need u_k-1 to calculate x_k. There is one step difference
 
-  Serial.print(omega_vec(0,0));
-  Serial.print(",");
-  Serial.print(omega_vec(1,0));
-  Serial.print(",");
-  Serial.print(omega_vec(2,0));
-  Serial.print(",");
-  Serial.print(m_lean_angle_meas);
-  Serial.print(",");
-  Serial.print(m_lean_angle,5);
-  Serial.print(",");
-  Serial.print(gyro_kalman.bias());
-  Serial.print(",");
-  Serial.print(m_lean_rate,5);
-  Serial.print(",");
+  // Serial.print(omega_vec(0,0));
+  // Serial.print(",");
+  // Serial.print(omega_vec(1,0));
+  // Serial.print(",");
+  // Serial.print(omega_vec(2,0));
+  // Serial.print(",");
 }
 
 void BikeMeasurements::calc_lean_angle_meas(float omega_x, float omega_y, float omega_z){
@@ -783,11 +755,6 @@ void BikeMeasurements::calculate_bike_speed(){
     end_of_array_storage = wheel_counter.read();
     wheel_counter.write(0);
   }
-
-  Serial.print(current_wheel_count);
-  Serial.print(",");
-  Serial.print(m_bike_speed);
-  Serial.print(",");
   return;
 } 
 
@@ -924,7 +891,6 @@ void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& comm
   // command_hand -= sil_command * FORK_TRQ_REDUCTION_RATIO; 
 
   Serial.print(sil_command);
-  Serial.print(",");
   return;
 }
 
@@ -973,23 +939,6 @@ void calc_mm_sil_control(BikeMeasurements& bike, double& command_fork, double& c
   }
 
   // command_hand = -sil_command * FORK_TRQ_REDUCTION_RATIO; //Different signs as the motor shafts are facing opposite directions, but are controlled the same.
-
-  Serial.print(k_phi);
-  Serial.print(",");
-  Serial.print(k_delta);
-  Serial.print(",");
-  Serial.print(k_dphi);
-  Serial.print(",");
-  Serial.print(k_ddelta);
-  Serial.print(",");
-  Serial.print(k_tphi);
-  Serial.print(",");
-  Serial.print(k_tdelta);
-  Serial.print(",");
-  Serial.print(command_fork);
-  Serial.print(",");
-  Serial.print(sil_command);
-  Serial.print(",");
   return;
 }
 
@@ -1029,10 +978,6 @@ void actuate_steer_motors(double command_fork, double command_hand){
   //------[Send motor command
   analogWrite(pwm_pin_hand, pwm_command_hand);
   analogWrite(pwm_pin_fork, pwm_command_fork);
-
-  Serial.print(pwm_command_fork);
-  Serial.print(',');
-  Serial.print(pwm_command_hand);
   return;
 }
 
@@ -1099,67 +1044,48 @@ void print_to_bt(BikeMeasurements& bike, double command_fork, double command_han
 //========================== [initialize Serial] ==========================//
 void serial_setup(){
   //Print header for log file
-  Serial.print("speed_ticks,");
-  Serial.print("speed,");
-  Serial.print("Kalman_gain,");
-  Serial.print("posterior_x_phi,");
-  Serial.print("omega_x,");
-  Serial.print("omega_y,");
-  Serial.print("omega_z,");
-  Serial.print("m_lean_angle_meas,");
-  Serial.print("m_lean_angle,");
-  Serial.print("bias,");
-  Serial.print("lean_rate,");
-  Serial.print("enc_counts_hand,");
-  Serial.print("enc_counts_fork,");
-  Serial.print("m_hand_angle,");
-  Serial.print("m_fork_angle,");
-  Serial.print("steer_rate,");
-  Serial.print("voltage_mtr_driver,");
-  Serial.print("m_hand_torque,");
-  Serial.print("m_lean_torque,");
-  // Serial.print("k_phi,");
-  // Serial.print("k_delta,");
-  // Serial.print("k_dphi,");
-  // Serial.print("k_ddelta,");
-  // Serial.print("k_tphi,");
-  // Serial.print("k_tdelta,");
-  // Serial.print("command_fork,");
+  // Serial.print("omega_x,");
+  // Serial.print("omega_y,");
+  // Serial.print("omega_z,");
   Serial.print("sil_command,");
-  // Serial.print("fork_com,");
-  // Serial.print("hand_com,");
-  // Serial.print("fork_com_rate,");
-  // Serial.print("hand_com_rate,");
-  // Serial.print("post_fork_com,");
-  // Serial.print("post_hand_com,");
-  // Serial.print("fork_pwm,");
-  // Serial.print("hand_pwm,");
-  Serial.print("post_fork_pwm,");
-  Serial.print("post_hand_pwm");
-  Serial.print(",command_fork");
-  Serial.print(",command_hand");
+  Serial.print("speed,");
+  Serial.print("lean_angle,");
+  Serial.print("lean_rate,");
+  Serial.print("hand_angle,");
+  Serial.print("fork_angle,");
+  Serial.print("fork_rate,");
+  Serial.print("lean_torque,");
+  Serial.print("hand_torque,");
+  Serial.print("command_fork,");
+  Serial.print("command_hand");
   Serial.print("\n");
 }
 
 
 //=========================== [Print to serial] ===========================//
 void print_to_serial(BikeMeasurements& bike, double command_fork, double command_hand){
-  // Serial.print(bike.get_lean_angle());
-  // Serial.print(",");
-  // Serial.print(bike.get_fork_angle());
-  // Serial.print(",");
-  // Serial.print(bike.get_lean_rate());
-  // Serial.print(",");
-  // Serial.print(bike.get_fork_rate());
-  // Serial.print(",");
-  // Serial.print(bike.get_hand_torque());
-  // Serial.print(",");
-  // Serial.print(command_fork);
-  // Serial.print(",");
-  // Serial.print(command_hand);
-  // Serial.print(",");
-  // Serial.print(bike.get_bike_speed());
-  // Serial.print("\n");
+  // Serial.print(sil_command);
+  Serial.print(",");
+  Serial.print(bike.get_bike_speed(),5);
+  Serial.print(",");
+  Serial.print(bike.get_lean_angle(),5);
+  Serial.print(",");
+  Serial.print(bike.get_lean_rate(),5);
+  Serial.print(",");
+  Serial.print(bike.get_hand_angle(),5);
+  Serial.print(",");
+  Serial.print(bike.get_fork_angle(),5);
+  Serial.print(",");
+  Serial.print(bike.get_fork_rate(),5);
+  Serial.print(",");
+  Serial.print(bike.get_lean_torque(),5);
+  Serial.print(",");
+  Serial.print(bike.get_hand_torque(),5);
+  Serial.print(",");
+  Serial.print(command_fork,5);
+  Serial.print(",");
+  Serial.print(command_hand,5);
+  Serial.print("\n");
 }
 #endif //SERIAL_DEBUG
 
