@@ -618,7 +618,7 @@ void BikeMeasurements::measure_lat_perturbation(){
   int lat_force_readout = analogRead(transducer_pin);
   if(control_iteration_counter > CTRL_STARTUP_ITTERATIONS){// Wait untill the led light is off
     if(haveSampledBias){ //check if already taken a measurement of the bias
-      m_lean_torque = (lat_force_readout-force_bias)*TRANSDUCER_MEAS2FORCE*FORCE2LEAN_TORQUE; //'max()' since the force transducer can only sense pulling forces
+      m_lean_torque = (lat_force_readout-force_bias)*TRANSDUCER_MEAS2FORCE*FORCE2LEAN_TORQUE;
     }
     else{ //perform bias measurement
       force_bias += lat_force_readout;

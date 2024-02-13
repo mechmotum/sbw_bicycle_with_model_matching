@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from data_parsing import logfile2array
 import simulated_runtime_filter as filt
 
-def find_sinosoid_peaks(sig,start,stop):
+def find_sinosoid_peaks(sig,start,stop,mean_band):
     sig_mean = np.average(sig[start:stop])
     wasPeak = False
     wasRising = False
@@ -14,7 +14,7 @@ def find_sinosoid_peaks(sig,start,stop):
     for i in range(1,len(sig)-1):
         if(sig[i] > sig[i+1]                # If next step is lower
         and sig[i] > sig[i-1]               #   and previous step was lower
-        and sig[i] > sig_mean):             #   and is it above the sinus center line.
+        and sig[i] > sig_mean + mean_band): #   and is it above the sinus center line + mean_band (to counter noise just around the center line)
                 if(wasPeak):                # If the previous extremum was a peak                    
                     if(sig[tmp]<sig[i]):    #   and the current is higher
                         tmp = i             #   overwrite the previous peak with the current
@@ -24,7 +24,7 @@ def find_sinosoid_peaks(sig,start,stop):
                     tmp = i                 #   keep the index value of the peak
         elif(sig[i] < sig[i+1]              
             and sig[i] < sig[i-1]           
-            and sig[i] < sig_mean):         
+            and sig[i] < sig_mean - mean_band):         
                 if(wasPeak):
                     peaks.append(tmp)
                     wasPeak = False
@@ -83,7 +83,7 @@ def find_freq_and_amp(time,sig,peaks,vallies):
     sig_amplitude = np.average(np.abs(amplitudes))
     return sig_frequency,sig_amplitude
 
-def get_single_bode_point(filename,bode_points,vars2extract, start, stop):
+def get_single_bode_point(filename,bode_points,vars2extract, start, stop, mean_band):
     #---[Decide on and extract variable from log file
     extraction = logfile2array(PATH,filename,vars2extract)
 
@@ -106,18 +106,19 @@ def get_single_bode_point(filename,bode_points,vars2extract, start, stop):
 
         #---[Get sinusoid hight, and frequency
         # Make use of the knowledge you are looking for sinusoids
-        peaks,vallies = find_sinosoid_peaks(signal,start,stop)
+        peaks,vallies = find_sinosoid_peaks(signal,start,stop,mean_band[key])
         sinus_pars[key]["freq"], sinus_pars[key]["amp"] = find_freq_and_amp(time,signal,peaks,vallies)
 
         #---[Visually check if you got all of em
         plt.figure()
-        plt.title("Title",fontsize=24)
-        plt.xlabel("X", fontsize=16)
-        plt.ylabel("Y", fontsize=16)
-        plt.plot(time, value,'-',label="lateral force")
-        plt.plot(time, val_butter,'--',label="Filtered lateral force")
+        plt.title(f"Measurement of {key}",fontsize=24)
+        plt.xlabel("Time", fontsize=16)
+        plt.ylabel(f"{key} [Nm] or [rad/s] or [rad]", fontsize=16)
+        plt.plot(time, value,'-',label="Raw")
+        plt.plot(time, val_butter,'--',label="Filtered")
         plt.plot(time[peaks], signal[peaks],'o',label="peak")
         plt.plot(time[vallies], signal[vallies],'o',label="vally")
+        plt.axhline(np.average(value[start:stop]))
         plt.grid()
         plt.legend(fontsize=14)
         # plt.show()
@@ -137,18 +138,18 @@ TO_ANALYSE = "raw" # "raw" or "filtered"
 BUTTER_ORDER = 2
 BUTTER_CUT_OFF = 20
 TIME_STEP = 0.01
-OUTPUT = ["lean_rate"] #["m_fork_angle", "lean_rate"]
-INPUT = "m_lean_torque"
+OUTPUT = ["fork_angle", "lean_rate"] #["lean_rate"]
+INPUT = "lean_torque"
 
 #---[variable to invastigate and list of single experiments
 extraction = {
         "lean_rate": [],
-        # "m_fork_angle": [],
-        "m_lean_torque": [],
+        "fork_angle": [],
+        "lean_torque": [],
     }
 experiments = [
-    ("force_transducer_sinus_test.log", (1790,2190)),
-    ("force_transducer_sinus_test.log", (2190,2450)),
+    ("force_transducer_treadmill_test_data.log", (4150,4670), {"lean_rate":0,"fork_angle":0,"lean_torque":0.9}),
+    ("force_transducer_treadmill_test_data.log", (5420,6210), {"lean_rate":0,"fork_angle":0,"lean_torque":0.3}),
 ]
 
 #---[Get the bodepoints from the measured data of the experiments
@@ -157,17 +158,18 @@ for key in OUTPUT:
     bode_points[key] = []
 
 for single_exitation in experiments:
-    file, start0_stop1 = single_exitation
-    get_single_bode_point(file, bode_points, extraction, start0_stop1[0], start0_stop1[1])
+    file, start0_stop1, mean_band = single_exitation
+    get_single_bode_point(file, bode_points, extraction, start0_stop1[0], start0_stop1[1], mean_band)
 
 for key in OUTPUT:
     bode_points[key] = np.array(bode_points[key])
     #---[plot the bode
     plt.figure()
     plt.title(f"Torque to {key}",fontsize=24)
-    plt.xlabel("Frequency [hz]", fontsize=16)
-    plt.ylabel("Gain [-]", fontsize=16)
-    plt.plot(bode_points[key][:,0], bode_points[key][:,1],'o', label="Gain")
+    plt.xlabel("Frequency [Hz]", fontsize=16)
+    plt.ylabel("Gain [dB]", fontsize=16)
+    plt.xscale('log')
+    plt.plot(bode_points[key][:,0], 20*np.log10(bode_points[key][:,1]),'o', label="Gain")
     plt.grid()
     # plt.legend(fontsize=14)
-    plt.show()
+plt.show()
