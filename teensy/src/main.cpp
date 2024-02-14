@@ -27,8 +27,8 @@ hand_switch = 28; // Switch installed on the handlebars
 #define USE_SD 0
 #define USE_PEDAL_CADANCE 0
 #define SERIAL_DEBUG 1
-#define TRANSDUCER_ON_STEER 0
-#define TRANSDUCER_ON_SADLE 1
+#define TRANSDUCER_ON_STEER 1
+#define TRANSDUCER_ON_SADLE 0
 
 
 
@@ -247,6 +247,7 @@ const float SOFTWARE_LIMIT = 42.0 * DEG_TO_RAD;
 
 // Lateral force
 float FORCE2LEAN_TORQUE = 0.95; // Height of the force sensor attachment point, measured from the ground in meters. (wheels at 4bar)
+float FORCE2STEER_TORQUE = -0.32; // [m] Negative as the push is positive in the coordinate system, while pull is measured as positive. Arm on the handlebar. Line perpendicular to the line of application and the steer pin.
 float TRANSDUCER_MEAS2FORCE = (1/29.689376936164084)*9.81; // [kg/-]*[N/kg]calibration has been done in [kg](independend) vs [-](dependend){no unit as it is a mapping from 0-3,3V to 0-1023}
 uint8_t FORCE_BIAS_AVGING_WINDOW = 200; //Transducer seems to have a different offset every new code start. So take a sample of FORCE_BIAS_AVGING_WINDOW long, to figure out the offset.
 
@@ -524,7 +525,7 @@ void loop(){
       calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
     } else {
       calc_sil_control(sbw_bike, command_fork, command_hand);
-      relay_measured_hand_torque(sbw_bike,command_hand);
+      relay_measured_hand_torque(sbw_bike,command_fork);
       // calc_mm_sil_control(sbw_bike, command_fork, command_hand);
     }
     apply_friction_compensation(command_fork);
