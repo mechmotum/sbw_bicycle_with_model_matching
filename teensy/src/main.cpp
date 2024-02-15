@@ -1,6 +1,8 @@
 //================================= Headers ==================================//
 // Note: include the "eigen.h" library first, otherewise there will be compile errors.
 #include "eigen.h" //https://github.com/bolderflight/eigen
+#include <Filters.h>
+#include <Filters/Butterworth.hpp>
 #include "simpleKalman.h"
 #include <Arduino.h>
 #include <SPI.h>
@@ -281,6 +283,12 @@ const float FRIC_COMPENSATION_BIAS = 0.2;
 const Eigen::Matrix<float,2,1> X0 {0,0}; //initial state vector
 const double T0 = 0; //initial time
 
+//---[Butterworth Filtering
+const float SAMPLING_FREQ = 1/MIN_LOOP_LENGTH_S; //[Hz]
+const float BUTTER_CUT_OFF = 10; //[Hz]
+const float BUTTER_NATURAL_FREQ = 2 * BUTTER_CUT_OFF/SAMPLING_FREQ;
+const uint8_t BUTTER_ORDER = 2;
+
 // roll angle measurement estimation
 float PHI_METHOD_WEIGHT = 0.05;
 
@@ -401,6 +409,9 @@ Eigen::Matrix<float,1,1> R {0.1};
 Eigen::Matrix<float,2,2> P_post {{0,0},{0,0}};
 
 SimpleKalman gyro_kalman(F, B, H, Q, R, P_post);
+
+//------------------------- Butterworth filtering -----------------------------//
+auto butter_filt = butter<BUTTER_ORDER>(BUTTER_NATURAL_FREQ);
 
 //------------------------------ Loop timing ----------------------------------//
 // elapsedMicros looptime = 0;
@@ -600,6 +611,7 @@ void BikeMeasurements::measure_hand_torque(){
   if(control_iteration_counter > CTRL_STARTUP_ITTERATIONS){// Wait untill the led light is off
     if(haveSampledBias){ //check if already taken a measurement of the bias
       m_hand_torque = (transducer_readout-force_bias)*TRANSDUCER_MEAS2FORCE*FORCE2STEER_TORQUE;
+      m_hand_torque = butter_filt(m_hand_torque);
     }
     else{ //perform bias measurement
       force_bias += transducer_readout;
@@ -1048,6 +1060,7 @@ void serial_setup(){
   // Serial.print("omega_x,");
   // Serial.print("omega_y,");
   // Serial.print("omega_z,");
+  Serial.print("raw_hand_torque,");
   Serial.print("sil_command,");
   Serial.print("speed,");
   Serial.print("lean_angle,");
