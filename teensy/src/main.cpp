@@ -251,7 +251,7 @@ const float SOFTWARE_LIMIT = 42.0 * DEG_TO_RAD;
 float FORCE2LEAN_TORQUE = 0.95; // Height of the force sensor attachment point, measured from the ground in meters. (wheels at 4bar)
 float FORCE2STEER_TORQUE = -0.32; // [m] Negative as the push is positive in the coordinate system, while pull is measured as positive. Arm on the handlebar. Line perpendicular to the line of application and the steer pin.
 float TRANSDUCER_MEAS2FORCE = (1/29.689376936164084)*9.81; // [kg/-]*[N/kg]calibration has been done in [kg](independend) vs [-](dependend){no unit as it is a mapping from 0-3,3V to 0-1023}
-uint8_t FORCE_BIAS_AVGING_WINDOW = 200; //Transducer seems to have a different offset every new code start. So take a sample of FORCE_BIAS_AVGING_WINDOW long, to figure out the offset.
+uint16_t FORCE_BIAS_AVGING_WINDOW = 500; //Transducer seems to have a different offset every new code start. So take a sample of FORCE_BIAS_AVGING_WINDOW long, to figure out the offset.
 
 // Pedal and wheel encoders
 /*NOTE: A WHEEL_COUNTS_LENGTH of 500 gives an approximate 45 counts per calculation 
@@ -275,6 +275,7 @@ const uint16_t MIN_LOOP_LENGTH_MU = 10000; // target minimum loop length in micr
 const float MIN_LOOP_LENGTH_S = MIN_LOOP_LENGTH_MU*MICRO_TO_UNIT; //
 const float LOOP_TIME_SCALING = 1000.0F/(float)MIN_LOOP_LENGTH_MU; // The old code was written for startup time of 13 seconds having a loop time of 1 milisec. When changing the loop time, the number of itterations needed for 13 sec also has to scale appropriately
 const uint16_t CTRL_STARTUP_ITTERATIONS = 13000*LOOP_TIME_SCALING; // itterations in which the steer torques are slowly scaled to unity.
+uint64_t wait_itterations = CTRL_STARTUP_ITTERATIONS; //amount of itterations the code waits until measureing the bias on the force transducer. initially set to CTRL_STARTUP_ITTERATIONS, as the led messes up the sensor reading.
 
 //---[Fork friction compensation
 const float FRIC_COMPENSATION_BIAS = 0.2;
@@ -285,7 +286,7 @@ const double T0 = 0; //initial time
 
 //---[Butterworth Filtering
 const float SAMPLING_FREQ = 1/MIN_LOOP_LENGTH_S; //[Hz]
-const float BUTTER_CUT_OFF = 10; //[Hz]
+const float BUTTER_CUT_OFF = 5; //[Hz]
 const float BUTTER_NATURAL_FREQ = 2 * BUTTER_CUT_OFF/SAMPLING_FREQ;
 const uint8_t BUTTER_ORDER = 2;
 
@@ -505,6 +506,7 @@ void loop(){
   if (since_last_loop >= MIN_LOOP_LENGTH_MU){ //K: Sort of have a max freq? (cause that is not garanteed in this way)
     if(Serial.available()){ //check if user inputted a character in the serial
       isSwitchControl = true; //if true, switch controller
+      Serial.read(); //such that you only go in here once
     }
     // #if SERIAL_DEBUG
     // Serial.print(since_last_loop);
@@ -608,19 +610,26 @@ void BikeMeasurements::measure_steer_angles(){
 void BikeMeasurements::measure_hand_torque(){
   #if TRANSDUCER_ON_STEER
   int transducer_readout = analogRead(transducer_pin); //int as it is used in calculation later on, where it can get negative. 
-  if(control_iteration_counter > CTRL_STARTUP_ITTERATIONS){// Wait untill the led light is off
+  if(control_iteration_counter > wait_itterations){// Wait untill the led light is off
     if(haveSampledBias){ //check if already taken a measurement of the bias
       m_hand_torque = (transducer_readout-force_bias)*TRANSDUCER_MEAS2FORCE*FORCE2STEER_TORQUE;
+      // Serial.print(m_hand_torque);
+      // Serial.print(",");
       m_hand_torque = butter_filt(m_hand_torque);
     }
     else{ //perform bias measurement
       force_bias += transducer_readout;
-      if(control_iteration_counter >= (uint16_t)(CTRL_STARTUP_ITTERATIONS + FORCE_BIAS_AVGING_WINDOW)){
-        force_bias /= (control_iteration_counter - CTRL_STARTUP_ITTERATIONS);
+      if(control_iteration_counter >= (uint16_t)(wait_itterations + FORCE_BIAS_AVGING_WINDOW)){
+        force_bias /= (control_iteration_counter - wait_itterations);
         haveSampledBias = true;
       }
+      // Serial.print(",");
     }
+  }else{
+    // Serial.print(",");
   }
+  // Serial.print(transducer_readout);
+  // Serial.print(",");
   #endif
 }
 
@@ -629,14 +638,14 @@ void BikeMeasurements::measure_hand_torque(){
 void BikeMeasurements::measure_lat_perturbation(){
   #if TRANSDUCER_ON_SADLE
   int lat_force_readout = analogRead(transducer_pin);
-  if(control_iteration_counter > CTRL_STARTUP_ITTERATIONS){// Wait untill the led light is off
+  if(control_iteration_counter > wait_itterations){// Wait untill the led light is off
     if(haveSampledBias){ //check if already taken a measurement of the bias
       m_lean_torque = (lat_force_readout-force_bias)*TRANSDUCER_MEAS2FORCE*FORCE2LEAN_TORQUE;
     }
     else{ //perform bias measurement
       force_bias += lat_force_readout;
-      if(control_iteration_counter >= (uint16_t)(CTRL_STARTUP_ITTERATIONS + FORCE_BIAS_AVGING_WINDOW)){ //
-        force_bias /= (control_iteration_counter - CTRL_STARTUP_ITTERATIONS);
+      if(control_iteration_counter >= (uint16_t)(wait_itterations + FORCE_BIAS_AVGING_WINDOW)){ //
+        force_bias /= (control_iteration_counter - wait_itterations);
         haveSampledBias = true;
       }
     }
@@ -903,7 +912,7 @@ void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& comm
   command_fork += sil_command; //Different signs as the motor shafts are facing opposite directions, but are controlled the same.
   // command_hand -= sil_command * FORK_TRQ_REDUCTION_RATIO; 
 
-  Serial.print(sil_command);
+  Serial.print(sil_command,5);
   return;
 }
 
@@ -1060,7 +1069,8 @@ void serial_setup(){
   // Serial.print("omega_x,");
   // Serial.print("omega_y,");
   // Serial.print("omega_z,");
-  Serial.print("raw_hand_torque,");
+  // Serial.print("raw_hand_torque,");
+  // Serial.print("transducer_byte,");
   Serial.print("sil_command,");
   Serial.print("speed,");
   Serial.print("lean_angle,");
@@ -1350,6 +1360,19 @@ float return_scaling(uint64_t iteration){
 \*==================================================================================*/
 // These are old functions no longer used, but might be used ones or twice in the 
 // future.
+
+//============================ [Reset force transducer bias] ============================//
+/*
+Function enabling the resampling of the force transducer bias
+//reset (and afterwards remeasure) the bias of the force transducer.
+void reset_force_bias(uint64_t current_itteration){
+  force_bias = 0;
+  haveSampledBias = false;
+  wait_itterations = current_itteration;
+  return;  
+}
+*/
+
 
 //========================== [Moving Average calculation] ==========================//
 /*

@@ -7,12 +7,13 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "Eigenval_test1.log"
+FILENAME = "device-monitor-240215-161326.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
 }
 extraction = {
+    "transducer_byte": [],
     "sil_command": [],
     "speed": [],
     "lean_angle": [],
@@ -53,16 +54,24 @@ time = np.linspace(0,TIME_STEP*(len(extraction["lean_rate"])-1),len(extraction["
 # plt.show()
 
 #---[Nice plots for steer torque sensor filtering
-hand_trq_2butter = filt.butter_running(  2  ,  5  , extraction["hand_torque"], fs=1/TIME_STEP)
-hand_trq_4butter = filt.butter_running(  2  ,  10  , extraction["hand_torque"], fs=1/TIME_STEP)
-plt.title("Title", fontsize=24)
+hand_trq_butter = filt.butter_running(  2  ,  5  , extraction["hand_torque"], fs=1/TIME_STEP)
+transducer_butter = filt.butter_running(  2  ,  5  , extraction["transducer_byte"], fs=1/TIME_STEP)
+plt.figure()
+plt.title("Transducer value at teensy [0-1023]", fontsize=24)
 plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("Values",fontsize=16)
-# plt.plot(time,extraction["speed"],'-',label="speed")
-plt.plot(time,extraction["sil_command"],'-',label="sil command")
-# plt.plot(time,extraction["hand_torque"],'-',label="steer sensor torque")
-# plt.plot(time,hand_trq_2butter,'--',label="5Hz 2nd order butter steer torque")
-plt.plot(time,hand_trq_4butter,'--',label="10Hz 2nd order butter steer torque")
+plt.plot(time,extraction["transducer_byte"],'-',label="raw")
+plt.plot(time,transducer_butter,'-',label="filtered")
+plt.legend(fontsize=14)
+plt.grid()
+
+plt.figure()
+plt.title("steer sensor torque", fontsize=24)
+plt.xlabel("Time [s]",fontsize=16)
+plt.ylabel("Values",fontsize=16)
+# plt.plot(time,extraction["hand_torque"],'-',label="raw")
+plt.plot(time,hand_trq_butter,'--',label="filtered")
+# plt.plot(time,(transducer_butter-np.average(extraction["transducer_byte"][1300:2300]))*(1/29.689376936164084)*9.81*-0.32,'--')
 plt.legend(fontsize=14)
 plt.grid()
 plt.show()
