@@ -7,7 +7,7 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "device-monitor-240209-165132.log"
+FILENAME = "Eigenval_test1.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
@@ -46,11 +46,36 @@ extraction = logfile2array(PATH,FILENAME,extraction)
 time = np.linspace(0,TIME_STEP*(len(extraction["lean_rate"])-1),len(extraction["lean_rate"]))
 
 #---[Quick plot
-for key,value in extraction.items():
-    plt.figure()
-    plt.plot(time, value)
-    plt.title(key)
+# for key,value in extraction.items():
+#     plt.figure()
+#     plt.plot(time, value)
+#     plt.title(key)
+# plt.show()
+
+#---[Nice plots for steer torque sensor filtering
+hand_trq_2butter = filt.butter_running(  2  ,  5  , extraction["hand_torque"], fs=1/TIME_STEP)
+hand_trq_4butter = filt.butter_running(  2  ,  10  , extraction["hand_torque"], fs=1/TIME_STEP)
+plt.title("Title", fontsize=24)
+plt.xlabel("Time [s]",fontsize=16)
+plt.ylabel("Values",fontsize=16)
+# plt.plot(time,extraction["speed"],'-',label="speed")
+plt.plot(time,extraction["sil_command"],'-',label="sil command")
+# plt.plot(time,extraction["hand_torque"],'-',label="steer sensor torque")
+# plt.plot(time,hand_trq_2butter,'--',label="5Hz 2nd order butter steer torque")
+plt.plot(time,hand_trq_4butter,'--',label="10Hz 2nd order butter steer torque")
+plt.legend(fontsize=14)
+plt.grid()
 plt.show()
+
+# investigate bias (is there drift?) --> does not seem to be
+# print(np.mean(extraction["hand_torque"][:-1500]))
+# print(np.mean(extraction["hand_torque"][1300:11300]))
+# print(np.mean(extraction["hand_torque"][11300:21300]))
+# print(np.mean(extraction["hand_torque"][21300:31300]))
+# print(np.mean(extraction["hand_torque"][31300:41300]))
+# print(np.mean(extraction["hand_torque"][41300:51300]))
+# print(np.mean(extraction["hand_torque"][51300:61300]))
+# print(np.mean(extraction["hand_torque"][61300:71300]))
 
 #---[Apply filtering
 # # Lean rate
@@ -102,20 +127,20 @@ plt.show()
 # print(f"Average read-out value at 10  kg:\t{np.average(extraction['m_lean_torque'][22967:23713])}")
 
 
-plt.figure()
-plt.title("Force transducer measured value", fontsize=24)
-plt.xlabel("Time [s]",fontsize=16)
-plt.ylabel("Voltage read by teensy [0-1023]",fontsize=16)
-plt.plot(time,extraction["m_lean_torque"],'',label="Force transducer")
-plt.axhline(np.average(extraction['m_lean_torque'][1301:]))
-# plt.axhline(np.average(extraction['m_lean_torque'][4291:6590]))
-# plt.axhline(np.average(extraction['m_lean_torque'][8475:8879]))
-# plt.axhline(np.average(extraction['m_lean_torque'][10411:12437]))
-# plt.axhline(np.average(extraction['m_lean_torque'][14237:16724]))
-# plt.axhline(np.average(extraction['m_lean_torque'][18155:21637]))
-# plt.axhline(np.average(extraction['m_lean_torque'][22967:23713]))
-plt.grid()
-plt.show()
+# plt.figure()
+# plt.title("Force transducer measured value", fontsize=24)
+# plt.xlabel("Time [s]",fontsize=16)
+# plt.ylabel("Voltage read by teensy [0-1023]",fontsize=16)
+# plt.plot(time,extraction["m_lean_torque"],'',label="Force transducer")
+# plt.axhline(np.average(extraction['m_lean_torque'][1301:]))
+# # plt.axhline(np.average(extraction['m_lean_torque'][4291:6590]))
+# # plt.axhline(np.average(extraction['m_lean_torque'][8475:8879]))
+# # plt.axhline(np.average(extraction['m_lean_torque'][10411:12437]))
+# # plt.axhline(np.average(extraction['m_lean_torque'][14237:16724]))
+# # plt.axhline(np.average(extraction['m_lean_torque'][18155:21637]))
+# # plt.axhline(np.average(extraction['m_lean_torque'][22967:23713]))
+# plt.grid()
+# plt.show()
 
 
 #---[Nice Plots for steer torque callibration

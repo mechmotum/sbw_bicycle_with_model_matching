@@ -23,7 +23,7 @@ def fit_kooijman(time,data,par0):
 
     return p_opt[0], p_opt[1], r_squared
 
-def get_eigenvalues(time,data,par0,speed):
+def extract_eigenvals(time,data,par0,speed):
     sigma_vec = np.empty((len(data.keys()),))
     omega_vec = np.empty((len(data.keys()),))
     for i,value in enumerate(data.values()):
@@ -106,7 +106,7 @@ if(PHASE == "calculate_eig"):
     for i, one_disturb in enumerate(experiments):
         file, speeds[i], start_stop, par0  = one_disturb
         time, extraction = extract_data(PATH+file,start_stop[0],start_stop[1],TIME_STEP,vars2extract)
-        sigmas[i], omegas[i] = get_eigenvalues(time,extraction,par0,speeds[i])
+        sigmas[i], omegas[i] = extract_eigenvals(time,extraction,par0,speeds[i])
 
     plot_emperical_eigenvals(speeds,sigmas,omegas)
 elif(PHASE == "cut_data"):
