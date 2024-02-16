@@ -148,7 +148,7 @@ void calc_mm_gains(float& k_phi, float& k_delta, float& k_dphi, float& k_ddelta,
 
 //--[Control Helper functions
 void calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt);
-void relay_measured_hand_torque(BikeMeasurements& bike, double& command_fork);
+float relay_measured_hand_torque(float meas_force);
 void apply_friction_compensation(double& fork_command);
 
 //--[Calculation Helper functions
@@ -538,7 +538,7 @@ void loop(){
       calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
     } else {
       calc_sil_control(sbw_bike, command_fork, command_hand);
-      relay_measured_hand_torque(sbw_bike,command_fork);
+      command_fork += relay_measured_hand_torque(sbw_bike.get_hand_torque());
       // calc_mm_sil_control(sbw_bike, command_fork, command_hand);
     }
     apply_friction_compensation(command_fork);
@@ -615,7 +615,7 @@ void BikeMeasurements::measure_hand_torque(){
       m_hand_torque = (transducer_readout-force_bias)*TRANSDUCER_MEAS2FORCE*FORCE2STEER_TORQUE;
       // Serial.print(m_hand_torque);
       // Serial.print(",");
-      m_hand_torque = butter_filt(m_hand_torque);
+      // m_hand_torque = butter_filt(m_hand_torque);
     }
     else{ //perform bias measurement
       force_bias += transducer_readout;
@@ -890,13 +890,54 @@ void calc_pd_control(float error, float derror_dt, double& command_fork, double&
 
 //===================== [Calculate friction compensation] ======================//
 void apply_friction_compensation(double& fork_command){
-  fork_command += sgmd(fork_command)*FRIC_COMPENSATION_BIAS;
+  static uint8_t pos_cntr = 0;
+  static uint8_t neg_cntr = 0;
+  static int8_t force_dir = 0;
+
+  if(sgmd(fork_command) >= 0){
+    if(pos_cntr > 10){
+      force_dir = 1;
+      neg_cntr = 0;
+    }else{
+      force_dir = -1;
+      pos_cntr++;
+    }
+  }else{
+    if(neg_cntr > 10){
+      force_dir = -1;
+      pos_cntr = 0;
+    }else{
+      force_dir = 1;
+      neg_cntr++;
+    }
+  }
+
+  fork_command += force_dir*FRIC_COMPENSATION_BIAS;
 }
 
 
 //======================== [Relay measured hand torque] ========================//
-void relay_measured_hand_torque(BikeMeasurements& bike, double& command_fork){
-  command_fork += bike.get_hand_torque();
+float relay_measured_hand_torque(float meas_force){
+  float force_relayed = 0;
+  static uint8_t in_bounds_cntr = 0;
+  static uint8_t out_bounds_cntr = 5; //start out of bounds
+
+  if(-0.8<meas_force && meas_force<0.8){      // If in bounds
+    if(in_bounds_cntr >= 50){                 //   for at least 50 loop cycles
+      out_bounds_cntr = 0;                    //     then ignore the measured hand torque --> most likely noise
+    }else{
+      in_bounds_cntr++;
+      force_relayed = meas_force;             // else, relay the measured torque --> most likely a passing through bounds
+    }
+  }else{                                      // If out of bounds
+    if(out_bounds_cntr >= 5){                 //   for longer than 5 cycles (aka not a spike of noise that became out of bounds)
+      force_relayed = meas_force;             //      relay the measured torque
+      in_bounds_cntr = 0;
+    }else{
+      out_bounds_cntr++;                      // else, ignore measured hand torque --> most likely still noise.
+    }
+  }
+  return force_relayed;
 }
 
 

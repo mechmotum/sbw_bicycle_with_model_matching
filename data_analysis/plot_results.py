@@ -7,13 +7,13 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "device-monitor-240215-161326.log"
+FILENAME = "device-monitor-240216-100618.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
 }
 extraction = {
-    "transducer_byte": [],
+    # "transducer_byte": [],
     "sil_command": [],
     "speed": [],
     "lean_angle": [],
@@ -54,27 +54,27 @@ time = np.linspace(0,TIME_STEP*(len(extraction["lean_rate"])-1),len(extraction["
 # plt.show()
 
 #---[Nice plots for steer torque sensor filtering
-hand_trq_butter = filt.butter_running(  2  ,  5  , extraction["hand_torque"], fs=1/TIME_STEP)
-transducer_butter = filt.butter_running(  2  ,  5  , extraction["transducer_byte"], fs=1/TIME_STEP)
 plt.figure()
-plt.title("Transducer value at teensy [0-1023]", fontsize=24)
+plt.title("steer sensor investigation", fontsize=24)
 plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("Values",fontsize=16)
-plt.plot(time,extraction["transducer_byte"],'-',label="raw")
-plt.plot(time,transducer_butter,'-',label="filtered")
-plt.legend(fontsize=14)
-plt.grid()
-
-plt.figure()
-plt.title("steer sensor torque", fontsize=24)
-plt.xlabel("Time [s]",fontsize=16)
-plt.ylabel("Values",fontsize=16)
-# plt.plot(time,extraction["hand_torque"],'-',label="raw")
-plt.plot(time,hand_trq_butter,'--',label="filtered")
-# plt.plot(time,(transducer_butter-np.average(extraction["transducer_byte"][1300:2300]))*(1/29.689376936164084)*9.81*-0.32,'--')
+plt.plot(time,extraction["command_fork"]-extraction["sil_command"],label="fork command - sil")
+plt.plot(time,extraction["hand_torque"],label="hand torque")
+plt.plot(time,extraction["sil_command"],label="sil")
 plt.legend(fontsize=14)
 plt.grid()
 plt.show()
+
+# transducer_butter = filt.butter_running(  2  ,  5  , extraction["transducer_byte"], fs=1/TIME_STEP)
+# plt.figure()
+# plt.title("Transducer value at teensy [0-1023]", fontsize=24)
+# plt.xlabel("Time [s]",fontsize=16)
+# plt.ylabel("Values",fontsize=16)
+# plt.plot(time,extraction["transducer_byte"],'-',label="raw")
+# plt.plot(time,transducer_butter,'-',label="filtered")
+# plt.legend(fontsize=14)
+# plt.grid()
+
 
 # investigate bias (is there drift?) --> does not seem to be
 # print(np.mean(extraction["hand_torque"][:-1500]))
