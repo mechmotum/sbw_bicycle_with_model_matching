@@ -7,7 +7,7 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "device-monitor-240216-100618.log"
+FILENAME = "device-monitor-240216-172812.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
@@ -54,13 +54,15 @@ time = np.linspace(0,TIME_STEP*(len(extraction["lean_rate"])-1),len(extraction["
 # plt.show()
 
 #---[Nice plots for steer torque sensor filtering
+hand_trq_butter = filt.butter_running(  2  ,  5  , extraction["hand_torque"], fs=1/TIME_STEP)
 plt.figure()
 plt.title("steer sensor investigation", fontsize=24)
 plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("Values",fontsize=16)
-plt.plot(time,extraction["command_fork"]-extraction["sil_command"],label="fork command - sil")
 plt.plot(time,extraction["hand_torque"],label="hand torque")
-plt.plot(time,extraction["sil_command"],label="sil")
+plt.plot(time,extraction["command_fork"]-extraction["sil_command"],label="fork command - sil")
+# plt.plot(time,extraction["sil_command"],'--',label="sil")
+# plt.plot(time,hand_trq_butter,label="filtered hand")
 plt.legend(fontsize=14)
 plt.grid()
 plt.show()

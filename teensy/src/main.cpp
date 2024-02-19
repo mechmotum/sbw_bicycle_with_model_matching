@@ -149,6 +149,7 @@ void calc_mm_gains(float& k_phi, float& k_delta, float& k_dphi, float& k_ddelta,
 //--[Control Helper functions
 void calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt);
 float relay_measured_hand_torque(float meas_force);
+void reset_force_bias(uint64_t current_itteration);
 void apply_friction_compensation(double& fork_command);
 
 //--[Calculation Helper functions
@@ -309,7 +310,7 @@ const float KP_H = 0.5*0.9f * RAD_TO_DEG; // Handlebar
 const float KD_H = 0.012f * RAD_TO_DEG; // Handlebar
 
 // Steer into lean gains (see 'Some recent developments in bicycle dynamics and control', A. L. Schwab et al., 2008)
-const uint8_t K_SIL1 = 2; // [Ns^2/rad] gain for the steer into lean controller when below stable speed range
+const uint8_t K_SIL1 = 4; // [Ns^2/rad] gain for the steer into lean controller when below stable speed range
 const float K_SIL2 = 0.7; // [Ns/rad] gain for the steer into lean controller when above stable speed range
 const float V_AVERAGE = 5.5; // [m/s] value somewhere in the stable speed range. (take the average of min and max stable speed)
 const float FORK_TRQ_REDUCTION_RATIO = 0.3; //The fork is free to rotate -> no friction. So it will rotate much harder.
@@ -507,6 +508,7 @@ void loop(){
     if(Serial.available()){ //check if user inputted a character in the serial
       isSwitchControl = true; //if true, switch controller
       Serial.read(); //such that you only go in here once
+      reset_force_bias(control_iteration_counter);
     }
     // #if SERIAL_DEBUG
     // Serial.print(since_last_loop);
@@ -541,7 +543,7 @@ void loop(){
       command_fork += relay_measured_hand_torque(sbw_bike.get_hand_torque());
       // calc_mm_sil_control(sbw_bike, command_fork, command_hand);
     }
-    apply_friction_compensation(command_fork);
+    // apply_friction_compensation(command_fork);
     actuate_steer_motors(command_fork, command_hand);
 
     //------[Increase counters
@@ -615,7 +617,7 @@ void BikeMeasurements::measure_hand_torque(){
       m_hand_torque = (transducer_readout-force_bias)*TRANSDUCER_MEAS2FORCE*FORCE2STEER_TORQUE;
       // Serial.print(m_hand_torque);
       // Serial.print(",");
-      // m_hand_torque = butter_filt(m_hand_torque);
+      m_hand_torque = butter_filt(m_hand_torque);
     }
     else{ //perform bias measurement
       force_bias += transducer_readout;
@@ -895,7 +897,7 @@ void apply_friction_compensation(double& fork_command){
   static int8_t force_dir = 0;
 
   if(sgmd(fork_command) >= 0){
-    if(pos_cntr > 10){
+    if(pos_cntr > 5){
       force_dir = 1;
       neg_cntr = 0;
     }else{
@@ -903,7 +905,7 @@ void apply_friction_compensation(double& fork_command){
       pos_cntr++;
     }
   }else{
-    if(neg_cntr > 10){
+    if(neg_cntr > 5){
       force_dir = -1;
       pos_cntr = 0;
     }else{
@@ -922,8 +924,8 @@ float relay_measured_hand_torque(float meas_force){
   static uint8_t in_bounds_cntr = 0;
   static uint8_t out_bounds_cntr = 5; //start out of bounds
 
-  if(-0.8<meas_force && meas_force<0.8){      // If in bounds
-    if(in_bounds_cntr >= 50){                 //   for at least 50 loop cycles
+  if(-1<meas_force && meas_force<1){      // If in bounds
+    if(in_bounds_cntr >= 40){                 //   for at least 50 loop cycles
       out_bounds_cntr = 0;                    //     then ignore the measured hand torque --> most likely noise
     }else{
       in_bounds_cntr++;
@@ -1406,13 +1408,13 @@ float return_scaling(uint64_t iteration){
 /*
 Function enabling the resampling of the force transducer bias
 //reset (and afterwards remeasure) the bias of the force transducer.
+*/
 void reset_force_bias(uint64_t current_itteration){
   force_bias = 0;
   haveSampledBias = false;
   wait_itterations = current_itteration;
   return;  
 }
-*/
 
 
 //========================== [Moving Average calculation] ==========================//
