@@ -7,7 +7,7 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "device-monitor-240216-172812.log"
+FILENAME = "Transducer_noise_test_no_filters_UNpowered_laptop.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
@@ -62,7 +62,7 @@ plt.ylabel("Values",fontsize=16)
 plt.plot(time,extraction["hand_torque"],label="hand torque")
 plt.plot(time,extraction["command_fork"]-extraction["sil_command"],label="fork command - sil")
 # plt.plot(time,extraction["sil_command"],'--',label="sil")
-# plt.plot(time,hand_trq_butter,label="filtered hand")
+plt.plot(time,hand_trq_butter,'--',label="filtered hand")
 plt.legend(fontsize=14)
 plt.grid()
 plt.show()

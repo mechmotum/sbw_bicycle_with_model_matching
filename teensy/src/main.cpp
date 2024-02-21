@@ -443,6 +443,9 @@ void setup(){
   serial_setup();
   #endif
   
+  //------[Setup INPUT pins
+  pinMode(transducer_pin, INPUT);
+
   //------[Setup OUTPUT pins
   pinMode(enable_motor_enc, OUTPUT);
   pinMode(hand_led,         OUTPUT);
@@ -924,8 +927,8 @@ float relay_measured_hand_torque(float meas_force){
   static uint8_t in_bounds_cntr = 0;
   static uint8_t out_bounds_cntr = 5; //start out of bounds
 
-  if(-1<meas_force && meas_force<1){      // If in bounds
-    if(in_bounds_cntr >= 40){                 //   for at least 50 loop cycles
+  if(-0.5<meas_force && meas_force<0.5){      // If in bounds
+    if(in_bounds_cntr >= 50){                 //   for at least 50 loop cycles
       out_bounds_cntr = 0;                    //     then ignore the measured hand torque --> most likely noise
     }else{
       in_bounds_cntr++;
@@ -1439,7 +1442,7 @@ float moving_avg(float new_value){
 
 //============================== [Switch debouncing] ===============================//
 /*
-pinMode(hand_switch,      INPUT);
+pinMode(hand_switch,      INPUT); //For this to work electrically (circuit wise) the LED has to be turned on!
 
 uint8_t hand_switch_value = 0;
 uint8_t hand_switch_array[10] = {0};
