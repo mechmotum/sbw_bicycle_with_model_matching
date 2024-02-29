@@ -16,10 +16,16 @@ def fit_kooijman(time,data,par0):
     ss_tot = np.sum((data - np.mean(data)) ** 2)
     r_squared = (1 - (ss_res / ss_tot))
 
-    # plt.figure()
-    # plt.plot(time,kooijman_func(time, *p_opt))
-    # plt.plot(time,data)
-    # plt.show()
+    if(VISUAL_CHECK_FIT):
+        plt.figure()
+        plt.title("Kooijman eigenvalue fit on experimental data",fontsize=24)
+        plt.ylabel("State [?]",fontsize=16)
+        plt.xlabel("Duration [s]",fontsize=16)
+        plt.plot(time,kooijman_func(time, *p_opt), label="Kooijman fit")
+        plt.plot(time,data,label="Experimental data")
+        plt.grid()
+        plt.legend(fontsize=14)
+        plt.show()
 
     return p_opt[0], p_opt[1], r_squared
 
@@ -81,6 +87,7 @@ BUTTER_ORDER = 2
 BUTTER_CUT_OFF = 20
 TIME_STEP = 0.01
 PHASE = "calculate_eig" # "cut_data" or "calculate_eig"
+VISUAL_CHECK_FIT = True # If true, show graph for visually checking the kooijman function fit
 MAX_FUN_EVAL = 5000
 
 #---[variable to invastigate and list of single experiments
@@ -92,10 +99,12 @@ vars2extract = {
         # "speed": [],
     }
 log_files = [
-    ("Eigenval_test1.log", (9644,9818))
+    ("pilot_test_28-02.log", (7370,7570)),
+    ("pilot_test_28-02.log", (9475,9660)),
 ]
-experiments = [
-    ("Eigenval_test1.log", 6, (9644,9818), (-1.0, 3.0, -1.0, 1.0, 1.0))
+experiments = [ #file,speed[km/h],start&end in file, initial values)
+    ("pilot_test_28-02.log", 10, (7370,7570), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+    ("pilot_test_28-02.log", 10, (9475,9660), (-1.0, 3.0, -1.0, 1.0, 1.0))
 ]
 
 
@@ -107,8 +116,8 @@ if(PHASE == "calculate_eig"):
         file, speeds[i], start_stop, par0  = one_disturb
         time, extraction = extract_data(PATH+file,start_stop[0],start_stop[1],TIME_STEP,vars2extract)
         sigmas[i], omegas[i] = extract_eigenvals(time,extraction,par0,speeds[i])
-
     plot_emperical_eigenvals(speeds,sigmas,omegas)
+
 elif(PHASE == "cut_data"):
     for foo in log_files:
         log, start_stop = foo
