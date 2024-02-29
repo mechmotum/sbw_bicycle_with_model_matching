@@ -7,7 +7,7 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "pilot_test_28-02.log"
+FILENAME = "transducer_static_bias_identification.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
@@ -54,16 +54,15 @@ time = np.linspace(0,TIME_STEP*(len(extraction["lean_rate"])-1),len(extraction["
 # plt.show()
 
 #---[Nice plots for steer torque sensor filtering
-hand_trq_butter = filt.butter_running(  2  ,  5  , extraction["hand_torque"], fs=1/TIME_STEP)
+hand_trq_hp = filt.first_order_hp(0.01, extraction["hand_torque"], fs=1/TIME_STEP, showCoefs=True)
 plt.figure()
 plt.title("Force transducer measurement calculated to steer torque", fontsize=24)
 plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("Steer torque [Nm]",fontsize=16)
-# plt.plot(time,extraction["hand_torque"],label="butterworth filter",linewidth=2)
+plt.plot(time,extraction["hand_torque"],label="butterworth filter",linewidth=2)
 # plt.plot(time,extraction["command_fork"]-extraction["sil_command"],'--',label="butterworth + logic filter",linewidth=2)
-plt.plot(time,extraction["speed"],'--',label="speed")
-# plt.plot(time,extraction["sil_command"],'--',label="sil")
-# plt.plot(time,hand_trq_butter,'--',label="filtered hand")
+plt.plot(time,hand_trq_hp,label="high pass filtered",linewidth=2)
+# plt.plot(time,extraction["speed"],'--',label="speed")
 plt.legend(fontsize=14)
 plt.grid()
 plt.show()

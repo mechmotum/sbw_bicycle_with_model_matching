@@ -43,6 +43,25 @@ def first_order_lp(w_c,data,fs):
         out[i] = (tmp_b - tmp_a)/a[0]
     return out
 
+#Runtime 1st order highpass filter
+# G(s) = s/(s+Wc) --> a = [1 Wc], b = [1 0]
+def first_order_hp(w_c,data,fs,showCoefs=False):
+    a_c = [1, 2*np.pi*w_c]
+    b_c = [1, 0]
+    out = np.zeros_like(data)
+    b,a = signal.bilinear(b_c, a_c, fs=fs)
+    if(showCoefs):
+        print(f"b_coefficients:\t{b}\na_coefficients:\t{a}")
+
+    for i in range(max(len(a),len(b)),len(data)):
+        tmp_a = 0
+        tmp_b = 0
+        for l in range(1,len(a)):
+            tmp_a = tmp_a + a[l]*out[i-l]
+        for k in range(len(b)):
+            tmp_b = tmp_b + b[k]*data[i-k]
+        out[i] = (tmp_b - tmp_a)/a[0]
+    return out
 
 #2nd order Buttersworth filter
 def butter_static(order,w_c,data,fs):

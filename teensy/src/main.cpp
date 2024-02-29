@@ -511,7 +511,6 @@ void loop(){
     if(Serial.available()){ //check if user inputted a character in the serial
       isSwitchControl = true; //if true, switch controller
       Serial.read(); //such that you only go in here once
-      reset_force_bias(control_iteration_counter);
     }
     // #if SERIAL_DEBUG
     // Serial.print(since_last_loop);
@@ -1411,14 +1410,14 @@ float return_scaling(uint64_t iteration){
 /*
 Function enabling the resampling of the force transducer bias
 //reset (and afterwards remeasure) the bias of the force transducer.
-*/
+
 void reset_force_bias(uint64_t current_itteration){
   force_bias = 0;
   haveSampledBias = false;
   wait_itterations = current_itteration;
   return;  
 }
-
+*/
 
 //========================== [Moving Average calculation] ==========================//
 /*
