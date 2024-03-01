@@ -124,12 +124,24 @@ def get_single_bode_point(filename,bode_points,vars2extract, start, stop, mean_b
         # plt.show()
 
     for output in OUTPUT:
-        print(f"---{output}---\nfrequency input:\t{sinus_pars[INPUT]['freq']}\nfrequency output:\t{sinus_pars[output]['freq']}")
+        print(f"---{output}---\nfrequency input:\t{sinus_pars[INPUT]['freq']}\nfrequency output:\t{sinus_pars[output]['freq']}\n")
         bode_points[output].append([0.5*(sinus_pars[output]["freq"] + sinus_pars[INPUT]["freq"]),\
                             sinus_pars[output]["amp"]/sinus_pars[INPUT]["amp"]])
         
     return
 
+def plot_uncut_data(path,file,vars2extract):
+    extraction = logfile2array(path,file,vars2extract)
+
+    fig, ax = plt.subplots()
+    ax.set_title("Output measurements of "+file, fontsize=24)
+    ax.set_ylabel("states [rad] or [rad/s]", fontsize=16)
+    ax.set_xlabel("index number [-]", fontsize=16)
+    for key, value in extraction.items():
+        ax.plot(value,label=key)
+    ax.grid()
+    ax.legend(fontsize=14)
+    return ax
 
 #=====START=====#
 #---[Constants
@@ -139,37 +151,59 @@ BUTTER_ORDER = 2
 BUTTER_CUT_OFF = 20
 TIME_STEP = 0.01
 OUTPUT = ["fork_angle", "lean_rate"] #["lean_rate"]
-INPUT = "lean_torque"
+INPUT = "hand_torque" #"lean_torque"
+PHASE = "cut_data" #"cut_data" OR "calculate_bode" the first to investigate the uncut plot, the later to calculate the bode plot of the different samples
+
+#TODO: make changing input, also change vars2extract ---> aka, if I now change input from hand_torque to lean_torque:
+# I have to change it at 'INPUT', at 'vars2extract' and at the third input of 'experiment'
+#TODO: At some points the output tends to oscilate (above the 'high' frequency induced oscilation) around its mean, 
+# causing some periods of the 'high' frequency oscilation to happen above or below the sample mean. 
+# As a result the code misses some peaks and valies. --> do some kind of short time mean determination. 
+#TODO: git commit this shit
 
 #---[variable to invastigate and list of single experiments
-extraction = {
+vars2extract = {
         "lean_rate": [],
         "fork_angle": [],
-        "lean_torque": [],
+        # "lean_torque": [],
+        "hand_torque": []
     }
+log_files = [
+    ("pilot_test_28-02.log", (14730,15625)),
+    ("pilot_test_28-02.log", (15682,16125)),
+]
 experiments = [
-    ("force_transducer_treadmill_test_data.log", (4150,4670), {"lean_rate":0,"fork_angle":0,"lean_torque":0.9}),
-    ("force_transducer_treadmill_test_data.log", (5420,6210), {"lean_rate":0,"fork_angle":0,"lean_torque":0.3}),
+    ("pilot_test_28-02.log", (14730,15625), {"lean_rate":0.05,"fork_angle":0,"hand_torque":0}),
+    ("pilot_test_28-02.log", (15682,16125), {"lean_rate":0.04,"fork_angle":0,"hand_torque":0}),
 ]
 
 #---[Get the bodepoints from the measured data of the experiments
-bode_points = {}
-for key in OUTPUT:
-    bode_points[key] = []
+if(PHASE=="calculate_bode"):
+    bode_points = {}
+    for key in OUTPUT:
+        bode_points[key] = []
 
-for single_exitation in experiments:
-    file, start0_stop1, mean_band = single_exitation
-    get_single_bode_point(file, bode_points, extraction, start0_stop1[0], start0_stop1[1], mean_band)
+    for single_exitation in experiments:
+        file, start0_stop1, mean_band = single_exitation
+        get_single_bode_point(file, bode_points, vars2extract, start0_stop1[0], start0_stop1[1], mean_band)
 
-for key in OUTPUT:
-    bode_points[key] = np.array(bode_points[key])
-    #---[plot the bode
-    plt.figure()
-    plt.title(f"Torque to {key}",fontsize=24)
-    plt.xlabel("Frequency [Hz]", fontsize=16)
-    plt.ylabel("Gain [dB]", fontsize=16)
-    plt.xscale('log')
-    plt.plot(bode_points[key][:,0], 20*np.log10(bode_points[key][:,1]),'o', label="Gain")
-    plt.grid()
-    # plt.legend(fontsize=14)
-plt.show()
+    for key in OUTPUT:
+        bode_points[key] = np.array(bode_points[key])
+        #---[plot the bode
+        plt.figure()
+        plt.title(f"Torque to {key}",fontsize=24)
+        plt.xlabel("Frequency [Hz]", fontsize=16)
+        plt.ylabel("Gain [dB]", fontsize=16)
+        plt.xscale('log')
+        plt.plot(bode_points[key][:,0], 20*np.log10(bode_points[key][:,1]),'o', label="Gain")
+        plt.grid()
+        # plt.legend(fontsize=14)
+    plt.show()
+
+elif(PHASE == "cut_data"):
+    for foo in log_files:
+        log, start_stop = foo
+        ax = plot_uncut_data(PATH,log,vars2extract)
+        ax.axvline(start_stop[0])
+        ax.axvline(start_stop[1])
+        plt.show()
