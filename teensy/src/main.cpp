@@ -3,6 +3,7 @@
 #include "eigen.h" //https://github.com/bolderflight/eigen
 #include <Filters.h>
 #include <Filters/Butterworth.hpp>
+#include <Filters/IIRFilter.hpp>
 #include "simpleKalman.h"
 #include <Arduino.h>
 #include <SPI.h>
@@ -412,8 +413,13 @@ Eigen::Matrix<float,2,2> P_post {{0,0},{0,0}};
 
 SimpleKalman gyro_kalman(F, B, H, Q, R, P_post);
 
-//------------------------- Butterworth filtering -----------------------------//
+//------------------------------- Filtering -----------------------------------//
+//Butterworth
 auto butter_filt = butter<BUTTER_ORDER>(BUTTER_NATURAL_FREQ);
+//Highpass (first order, cutoff at 0.1Hz)
+AH::Array<float, 2> b_coefs {0.99968594, -0.99968594};
+AH::Array<float, 2> a_coefs {1.        , -0.99937188};
+auto high_pass_filt = IIRFilter<2,2,float>(b_coefs,a_coefs);
 
 //------------------------------ Loop timing ----------------------------------//
 // elapsedMicros looptime = 0;
@@ -617,9 +623,10 @@ void BikeMeasurements::measure_hand_torque(){
   if(control_iteration_counter > wait_itterations){// Wait untill the led light is off
     if(haveSampledBias){ //check if already taken a measurement of the bias
       m_hand_torque = (transducer_readout-force_bias)*TRANSDUCER_MEAS2FORCE*FORCE2STEER_TORQUE;
-      // Serial.print(m_hand_torque);
+      // Serial.print(m_hand_torque,5);
       // Serial.print(",");
       m_hand_torque = butter_filt(m_hand_torque);
+      m_hand_torque = high_pass_filt(m_hand_torque);
     }
     else{ //perform bias measurement
       force_bias += transducer_readout;

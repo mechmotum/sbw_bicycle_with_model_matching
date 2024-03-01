@@ -7,12 +7,13 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "transducer_static_bias_identification.log"
+FILENAME = "high_pass_filter_test.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
 }
 extraction = {
+    # "raw_hand_torque":[],
     # "transducer_byte": [],
     "sil_command": [],
     "speed": [],

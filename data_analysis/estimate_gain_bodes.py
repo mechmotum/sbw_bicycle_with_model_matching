@@ -165,10 +165,6 @@ OUTPUT = ["fork_angle", "lean_rate"] #["lean_rate"]
 INPUT = "hand_torque" #"lean_torque"
 PHASE = "calculate_bode" #"cut_data" OR "calculate_bode" the first to investigate the uncut plot, the later to calculate the bode plot of the different samples
 
-#TODO: At some points the output tends to oscilate (above the 'high' frequency induced oscilation) around its mean, 
-# causing some periods of the 'high' frequency oscilation to happen above or below the sample mean. 
-# As a result the code misses some peaks and valies. --> do some kind of short time mean determination. 
-
 #---[variable to invastigate and list of single experiments
 vars2extract = {
         "lean_rate": [],
