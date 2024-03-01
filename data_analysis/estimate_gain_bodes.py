@@ -165,16 +165,15 @@ PHASE = "cut_data" #"cut_data" OR "calculate_bode" the first to investigate the 
 vars2extract = {
         "lean_rate": [],
         "fork_angle": [],
-        # "lean_torque": [],
-        "hand_torque": []
+        INPUT: []
     }
 log_files = [
     ("pilot_test_28-02.log", (14730,15625)),
     ("pilot_test_28-02.log", (15682,16125)),
 ]
 experiments = [
-    ("pilot_test_28-02.log", (14730,15625), {"lean_rate":0.05,"fork_angle":0,"hand_torque":0}),
-    ("pilot_test_28-02.log", (15682,16125), {"lean_rate":0.04,"fork_angle":0,"hand_torque":0}),
+    ("pilot_test_28-02.log", (14730,15625), {"lean_rate":0.05,"fork_angle":0,INPUT:0}),
+    ("pilot_test_28-02.log", (15682,16125), {"lean_rate":0.04,"fork_angle":0,INPUT:0}),
 ]
 
 #---[Get the bodepoints from the measured data of the experiments
