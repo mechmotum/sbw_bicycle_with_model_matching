@@ -3,8 +3,9 @@ import matplotlib.pyplot as plt
 from data_parsing import logfile2array
 import simulated_runtime_filter as filt
 
-def find_sinosoid_peaks(sig,start,stop,mean_band):
-    sig_mean = np.average(sig[start:stop])
+def find_sinosoid_peaks(sig,start,stop,tune):
+    peak_height = np.max((sig[start:stop]))
+    vally_height = np.min((sig[start:stop]))
     wasPeak = False
     wasRising = False
     tmp = 0
@@ -12,54 +13,63 @@ def find_sinosoid_peaks(sig,start,stop,mean_band):
     vallies = []
     peaks = []
     for i in range(1,len(sig)-1):
-        if(sig[i] > sig[i+1]                # If next step is lower
-        and sig[i] > sig[i-1]               #   and previous step was lower
-        and sig[i] > sig_mean + mean_band): #   and is it above the sinus center line + mean_band (to counter noise just around the center line)
-                if(wasPeak):                # If the previous extremum was a peak                    
-                    if(sig[tmp]<sig[i]):    #   and the current is higher
-                        tmp = i             #   overwrite the previous peak with the current
-                else:                       # else
-                    vallies.append(tmp)     #   Store the index value of previous extremum (being a vally)
-                    wasPeak = True          #   characterise the type of extremum
-                    tmp = i                 #   keep the index value of the peak
-        elif(sig[i] < sig[i+1]              
-            and sig[i] < sig[i-1]           
-            and sig[i] < sig_mean - mean_band):         
-                if(wasPeak):
-                    peaks.append(tmp)
-                    wasPeak = False
-                    tmp = i
-                else:
-                    if(sig[tmp]>sig[i]):
+        if(i>=start):
+            if(sig[i] > sig[i+1]                                         # If next step is lower
+            and sig[i] > sig[i-1]                                        #   and previous step was lower
+            and sig[i] > peak_height - tune*(peak_height-vally_height)): #   and it is a certain amount above the previous vally --> you have yourself a possible peak
+                    if(wasPeak):                                         # If the previous extremum was a peak                    
+                        if(sig[tmp]<sig[i]):                             #   and the current is higher
+                            tmp = i                                      #   overwrite the previous peak with the current
+                            peak_height = sig[tmp]                       #   and set new peak height
+                    else:                                                # else
+                        vallies.append(tmp)                              #   Store the index value of previous extremum (being a vally)
+                        wasPeak = True                                   #   characterise the type of extremum
+                        tmp = i                                          #   keep the index value of the peak
+                        peak_height = sig[tmp]                           #   and set new peak height
+            elif(sig[i] < sig[i+1]              
+                and sig[i] < sig[i-1]           
+                and sig[i] < vally_height + tune*(peak_height-vally_height)):         
+                    if(wasPeak):
+                        peaks.append(tmp)
+                        wasPeak = False
                         tmp = i
+                        vally_height = sig[tmp]
+                    else:
+                        if(sig[tmp]>sig[i]):
+                            tmp = i
+                            vally_height = sig[tmp]
 
-        if(sig[i] == sig[i+1]               # If two consecutive values are equal
-        or sig[i] == sig[i-1]):             #
-            if(sig[i] < sig[i-1]):          #   And before that it was lower
-                wasRising = False           #     you were faling
-            elif(sig[i] > sig[i-1]):        #   And before that it was lower
-                wasRising = True            #     you were rising
-            
-            if(sig[i] > sig[i+1]            #   If now, after being equal, the next is lower
-            and wasRising                   #   and you were rising
-            and sig[i] > sig_mean):         #   and you are above the mean ---> You have yourself a peak
-                if(wasPeak):                  
-                    if(sig[tmp]<sig[i]):
+            if(sig[i] == sig[i+1]               # If two consecutive values are equal
+            or sig[i] == sig[i-1]):             #
+                if(sig[i] < sig[i-1]):          #   And before that it was lower
+                    wasRising = False           #     you were faling
+                elif(sig[i] > sig[i-1]):        #   And before that it was lower
+                    wasRising = True            #     you were rising
+                
+                if(sig[i] > sig[i+1]            #   If now, after being equal, the next is lower
+                and wasRising                   #   and you were rising
+                and sig[i] > peak_height - tune*(peak_height-vally_height)): #   and it is a certain amount above the previous vally --> you have yourself a possible peak
+                    if(wasPeak):                  
+                        if(sig[tmp]<sig[i]):
+                            tmp = i
+                            peak_height = sig[tmp]
+                    else:
+                        vallies.append(tmp)
+                        wasPeak = True
                         tmp = i
-                else:
-                    vallies.append(tmp)
-                    wasPeak = True
-                    tmp = i
-            elif(sig[i] < sig[i+1]
-                and not wasRising
-                and sig[i] < sig_mean):
-                if(wasPeak):
-                    peaks.append(tmp)
-                    wasPeak = False
-                    tmp = i
-                else:
-                    if(sig[tmp]>sig[i]):
+                        peak_height = sig[tmp]
+                elif(sig[i] < sig[i+1]
+                    and not wasRising
+                    and sig[i] < vally_height + tune*(peak_height-vally_height)):
+                    if(wasPeak):
+                        peaks.append(tmp)
+                        wasPeak = False
                         tmp = i
+                        vally_height = sig[tmp]
+                    else:
+                        if(sig[tmp]>sig[i]):
+                            tmp = i
+                            vally_height = sig[tmp]
     peaks_used = [i for i in peaks if(i>=start and i<=stop)]
     vallies_used = [i for i in vallies if(i>=start and i<=stop)]
     return peaks_used,vallies_used
@@ -118,10 +128,11 @@ def get_single_bode_point(filename,bode_points,vars2extract, start, stop, mean_b
         plt.plot(time, val_butter,'--',label="Filtered")
         plt.plot(time[peaks], signal[peaks],'o',label="peak")
         plt.plot(time[vallies], signal[vallies],'o',label="vally")
-        plt.axhline(np.average(value[start:stop]))
+        plt.axvline(time[start])
+        plt.axvline(time[stop])
         plt.grid()
         plt.legend(fontsize=14)
-        # plt.show()
+    plt.show()
 
     for output in OUTPUT:
         print(f"---{output}---\nfrequency input:\t{sinus_pars[INPUT]['freq']}\nfrequency output:\t{sinus_pars[output]['freq']}\n")
@@ -152,14 +163,11 @@ BUTTER_CUT_OFF = 20
 TIME_STEP = 0.01
 OUTPUT = ["fork_angle", "lean_rate"] #["lean_rate"]
 INPUT = "hand_torque" #"lean_torque"
-PHASE = "cut_data" #"cut_data" OR "calculate_bode" the first to investigate the uncut plot, the later to calculate the bode plot of the different samples
+PHASE = "calculate_bode" #"cut_data" OR "calculate_bode" the first to investigate the uncut plot, the later to calculate the bode plot of the different samples
 
-#TODO: make changing input, also change vars2extract ---> aka, if I now change input from hand_torque to lean_torque:
-# I have to change it at 'INPUT', at 'vars2extract' and at the third input of 'experiment'
 #TODO: At some points the output tends to oscilate (above the 'high' frequency induced oscilation) around its mean, 
 # causing some periods of the 'high' frequency oscilation to happen above or below the sample mean. 
 # As a result the code misses some peaks and valies. --> do some kind of short time mean determination. 
-#TODO: git commit this shit
 
 #---[variable to invastigate and list of single experiments
 vars2extract = {
@@ -167,13 +175,27 @@ vars2extract = {
         "fork_angle": [],
         INPUT: []
     }
+# log_files is a list of tuples containing (filename, data investigation start-and-stop)
 log_files = [
     ("pilot_test_28-02.log", (14730,15625)),
     ("pilot_test_28-02.log", (15682,16125)),
 ]
+# A list of tuples containing (file, data investigation start-and-stop, tuning parameter).
+'''NOTE: The tuning parameter is a parameter used in the method to filter away noise:
+A new peak or vally has to be a certain distance from the previous vally or peak, respectively.
+This is done by the following rule:
+    new_peak > prev_peak  - tuning_par * (prev_peak - prev_vally)
+ OR 
+    new_vally < prev_vally + tuning_par * (prev_peak - prev_vally) 
+The tuning parameter decides how far away the next extremum has to be from 
+the previous extremum. For example:
+If the tune_par is 1, then the new_peak has to be larger than the previous vally
+If the tune_par is 0, then the new_peak has to be larger than the previous peak
+The lower the tune_par the closer the next peak is allowed to be to the previous vally.
+ ''' 
 experiments = [
-    ("pilot_test_28-02.log", (14730,15625), {"lean_rate":0.05,"fork_angle":0,INPUT:0}),
-    ("pilot_test_28-02.log", (15682,16125), {"lean_rate":0.04,"fork_angle":0,INPUT:0}),
+    ("pilot_test_28-02.log", (14730,15625), {"lean_rate":0.5,"fork_angle":0.5, INPUT:0.5}), 
+    ("pilot_test_28-02.log", (15682,16125), {"lean_rate":0.55,"fork_angle":0.8, INPUT:0.5}),
 ]
 
 #---[Get the bodepoints from the measured data of the experiments
