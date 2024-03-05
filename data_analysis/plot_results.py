@@ -7,14 +7,14 @@ import simulated_runtime_filter as filt
 
 #=====START=====#
 PATH = "..\\teensy\\logs\\"
-FILENAME = "transducer_bias_over_runs_test9.log"
+FILENAME = "device-monitor-240301-172721.log"
 TIME_STEP = 0.01
 EXP_PARS = {
     "h": 0.001
 }
 extraction = {
     # "raw_hand_torque":[],
-    "transducer_byte": [],
+    # "transducer_byte": [],
     "sil_command": [],
     "speed": [],
     "lean_angle": [],
@@ -66,11 +66,10 @@ plt.figure()
 plt.title("Force transducer measurement calculated to steer torque", fontsize=24)
 plt.xlabel("Time [s]",fontsize=16)
 plt.ylabel("Steer torque [Nm]",fontsize=16)
-plt.plot(time,extraction["transducer_byte"],label="force transducer analog input",linewidth=2)
-# plt.plot(time,extraction["hand_torque"],label="butterworth filter",linewidth=2)
-# plt.plot(time,extraction["command_fork"]-extraction["sil_command"],'--',label="butterworth + logic filter",linewidth=2)
+plt.plot(time,extraction["hand_torque"],label="butterworth filter",linewidth=2)
+plt.plot(time,extraction["command_fork"]-extraction["sil_command"],'--',label="butterworth + logic filter",linewidth=2)
 # plt.plot(time,hand_trq_hp,label="high pass filtered",linewidth=2)
-# plt.plot(time,extraction["speed"],'--',label="speed")
+plt.plot(time,extraction["speed"],'--',label="speed")
 plt.legend(fontsize=14)
 plt.grid()
 plt.show()
