@@ -42,7 +42,6 @@ class VariableStateSpaceSystem:
             self.mat["D"] = np.zeros((self.mat["C"].shape[0], self.mat["B"].shape[1]))       
 
 
-
 def get_eigen_vs_speed(bike_plant_file,plant_type,start,stop,step):
     '''
     bike_plant_file:    (String) File that contains the speed depended A,B,C and D matrix of the plant and reference bicycle
@@ -52,7 +51,7 @@ def get_eigen_vs_speed(bike_plant_file,plant_type,start,stop,step):
     step:               stepsize [m/s]
     '''
     #Input sanitation
-    if(plant_type != "plant" or plant_type != "reference"):
+    if(plant_type != "plant" and plant_type != "reference"):
         print('input variable plant_type must either be "plant" or "reference"')
         return
     
@@ -78,16 +77,4 @@ def get_eigen_vs_speed(bike_plant_file,plant_type,start,stop,step):
 
     # have a speedrange collumn for each eigenvalue in eigenvals[X]
     speed_axis = np.array([speedrange], ndmin=2).T @ np.ones((1,eigenvals["real"].shape[1]))
-    # return (speed_axis, eigenvals)
-
-    # Plot
-    plt.figure()    
-    plt.title("Speed eigenvalue plot of Plant", fontsize = 24)
-    plt.xlabel("Speed [m/s]", fontsize = 16)
-    plt.ylabel("Eigenvalue [-]", fontsize = 16)
-    plt.scatter(speed_axis, eigenvals["real"],s=1, label="real")
-    plt.scatter(speed_axis, eigenvals["imag"],s=1, label="imaginary")
-    plt.axis((0,10,-10,10))
-    plt.legend(fontsize = 16)
-    plt.show()
-    return
+    return (speed_axis, eigenvals)

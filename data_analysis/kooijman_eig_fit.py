@@ -3,6 +3,7 @@ import scipy.optimize as spo
 import matplotlib.pyplot as plt
 import simulated_runtime_filter as filt
 from data_parsing import logfile2array
+from theoretical_speed_eigenvalue import get_eigen_vs_speed
 
 def kooijman_func(t, sigma, omega, c1, c2, c3):
     return c1 + np.exp(sigma * t) * (c2 * np.cos(omega * t) + c3 * np.sin(omega * t))
@@ -55,15 +56,24 @@ def extract_data(full_path,start,stop,time_step,vars2extract):
     
     return time, extraction
 
-def plot_emperical_eigenvals(speed,sigma,omega):
+def plot_eigenvals(speed_emp,sigma,omega,plant_file,plant_type,start,stop,step):
     plt.figure()
-    plt.title("Emperically measured bicycle eigenvalues vs speed", fontsize=24)
+    plt.title("Bicycle eigenvalues vs speed", fontsize=24)
     plt.ylabel("Eigenvalue [-]", fontsize=16)
     plt.xlabel("Speed [m/s]", fontsize=16)
-    plt.plot(speed/3.6,sigma,'o',label="Real")
-    plt.plot(speed/3.6,omega,'o',label="Imaginary")
+
+    #Theoretical
+    speed_ax, eig_theory = get_eigen_vs_speed(plant_file,plant_type,start,stop,step)
+    plt.scatter(speed_ax, eig_theory["real"],s=1, label="Theoretical Real")
+    plt.scatter(speed_ax, eig_theory["imag"],s=1, label="Theoretical Imag")
+
+    #Emperical
+    plt.plot(speed_emp/3.6,sigma,'o',label="Emperical Real")
+    plt.plot(speed_emp/3.6,omega,'o',label="Emperical Imag")
+    
     plt.legend(fontsize=14)
     plt.grid()
+    plt.axis((start,stop,-10,10))
     plt.show()
 
 def plot_uncut_data(path,file,vars2extract):
@@ -89,6 +99,13 @@ TIME_STEP = 0.01
 PHASE = "calculate_eig" # "cut_data" or "calculate_eig"
 VISUAL_CHECK_FIT = True # If true, show graph for visually checking the kooijman function fit
 MAX_FUN_EVAL = 5000
+
+#Theoretical model parameters
+PLANT_TYPE = "plant" #"plant" or "reference"
+SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices"
+SPEED_START = 0
+SPEED_STOP = 10
+SPEED_STEP = 0.01
 
 #---[variable to invastigate and list of single experiments
 vars2extract = {
@@ -116,7 +133,7 @@ if(PHASE == "calculate_eig"):
         file, speeds[i], start_stop, par0  = one_disturb
         time, extraction = extract_data(PATH+file,start_stop[0],start_stop[1],TIME_STEP,vars2extract)
         sigmas[i], omegas[i] = extract_eigenvals(time,extraction,par0,speeds[i])
-    plot_emperical_eigenvals(speeds,sigmas,omegas)
+    plot_eigenvals(speeds,sigmas,omegas,SPEED_DEP_MODEL_FILE,PLANT_TYPE,SPEED_START,SPEED_STOP,SPEED_STEP)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:
