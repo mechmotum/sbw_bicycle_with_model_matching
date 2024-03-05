@@ -212,9 +212,9 @@ if(PHASE=="calculate_bode"):
         plt.xlabel("Frequency [Hz]", fontsize=16)
         plt.ylabel("Gain [dB]", fontsize=16)
         plt.xscale('log')
-        plt.plot(bode_points[key][:,0], 20*np.log10(bode_points[key][:,1]),'o', label="Gain")
+        plt.plot(bode_points[key][:,0], 20*np.log10(bode_points[key][:,1]),'o', label="Emperical Gain")
         plt.grid()
-        # plt.legend(fontsize=14)
+        plt.legend(fontsize=14)
     plt.show()
 
 elif(PHASE == "cut_data"):

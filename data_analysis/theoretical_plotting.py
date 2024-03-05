@@ -133,3 +133,6 @@ def get_eigen_vs_speed(bike_plant_file,plant_type,start,stop,step):
     # have a speedrange collumn for each eigenvalue in eigenvals[X]
     speed_axis = np.array([speedrange], ndmin=2).T @ np.ones((1,eigenvals["real"].shape[1]))
     return (speed_axis, eigenvals)
+
+def get_bode(bike_plant_file,plant_type,log_start,log_stop,log_step):
+    pass

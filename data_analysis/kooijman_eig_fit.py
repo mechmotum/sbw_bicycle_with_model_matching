@@ -3,7 +3,7 @@ import scipy.optimize as spo
 import matplotlib.pyplot as plt
 import simulated_runtime_filter as filt
 from data_parsing import logfile2array
-from theoretical_speed_eigenvalue import get_eigen_vs_speed
+from theoretical_plotting import get_eigen_vs_speed
 
 def kooijman_func(t, sigma, omega, c1, c2, c3):
     return c1 + np.exp(sigma * t) * (c2 * np.cos(omega * t) + c3 * np.sin(omega * t))

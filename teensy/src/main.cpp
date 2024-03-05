@@ -523,7 +523,7 @@ void loop(){
     // Serial.print("\n");
     // #endif
     // looptime = 0;
-    since_last_loop = since_last_loop - MIN_LOOP_LENGTH_MU; //reset counter
+    since_last_loop = since_last_loop - MIN_LOOP_LENGTH_MU; //'reset' counter
 
     if (control_iteration_counter >= CTRL_STARTUP_ITTERATIONS) // Turn off LED when bike is ready (does effecet the transducer value)
       digitalWrite(hand_led, LOW);
