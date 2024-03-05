@@ -120,15 +120,6 @@ plt.show()
 # plt.legend(fontsize=16)
 # plt.show()
 
-#---[Calculate frf
-# # with open("tempy","rb") as inf:
-# #     theory_freq,theory_bode = pkl.load(inf)
-# # plt.plot(np.logspace(-3,3,len(theory_bode)),theory_bode)
-# comp_frf(EXP_PARS,extraction["m_lat_torque"],extraction["lean_rate"])
-# comp_frf(EXP_PARS,running_butter_torque,lowpass1st_Dphi)
-# plt.legend(fontsize=16)
-# plt.show()
-
 
 
 
