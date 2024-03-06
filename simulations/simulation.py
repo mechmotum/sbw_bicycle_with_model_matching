@@ -37,14 +37,12 @@ STEER_T_POS = 1 #position in the input vector that corresponds to the steer torq
 
 # Steer into lean conroller
 SIL_AVG_SPEED = 5.5
-K_SIL_L = -2
-K_SIL_H = -0.7
+K_SIL_L = 2
+K_SIL_H = 0.7
 
 # heading angle control parameters
-K_P_HEADING = -2 #P control on the heading
-K_I_HEADING = -0.1 #I control on the heading
-
-NEG_CTRLRS = "sil"
+K_P_HEADING = 2 #P control on the heading
+K_I_HEADING = 0.1 #I control on the heading
 
 ## Define simulation parameters
 # Eigenvalue and bode simulation
@@ -280,7 +278,7 @@ def sgn(x):
     return ((int)(x >= 0) - (int)(x < 0))
 
 def make_heading_plant(plant,par):
-    '''Introduce a dummy variable for integrating phi.
+    '''Introduce d_psi and a dummy variable for integrating psi.
     To accomplish this, alter the A, B and C matrices
     accordingly'''
 
@@ -288,9 +286,9 @@ def make_heading_plant(plant,par):
         A = plant["A"](speed)
         plant_A = np.zeros((A.shape[0] + 2, A.shape[1] + 2))
         plant_A[:A.shape[0],:A.shape[1]] = A
-        plant_A[4,1] = (speed*np.cos(par["steer_tilt"]))/par["wheelbase"]
+        plant_A[4,1] = (speed*np.cos(par["steer_tilt"]))/par["wheelbase"]           # row 5: psi dot
         plant_A[4,3] = (par["trail"]*np.cos(par["steer_tilt"]))/par["wheelbase"]
-        plant_A[5,4] = 1
+        plant_A[5,4] = 1                                                            # row 6: dummy variable
         return plant_A
     def plantB():
         B = plant["B"]()
@@ -441,7 +439,7 @@ def pp_theory_gain_G_fun():
 def mm_sil_gain_F_fun(speed):
     mm_ctrl_theory.calc_gain(speed)
     sil_ctrl_theory.calc_gain(speed)
-    return mm_ctrl_theory.gain["F"] - mm_ctrl_theory.gain["G"]@sil_ctrl_theory.gain["F"]
+    return mm_ctrl_theory.gain["F"] + mm_ctrl_theory.gain["G"]@sil_ctrl_theory.gain["F"]
 
 def mm_sil_sim_gain_G_fun(speed):
     mm_ctrl_sim.calc_gain(speed)
@@ -477,10 +475,10 @@ def sim_eigen_vs_speed(bike_plant, bike_ref, pp_ctrl, mm_ctrl, sil_ctrl):
         eigenvals["ref"][idx] = np.linalg.eigvals(bike_ref.mat["A"]) # ref -> dx = A_bar x + B_bar u_bar
         eigenvals["plant+pp"][idx] = np.linalg.eigvals((bike_plant.mat["A"] - bike_plant.mat["B"]@pp_ctrl.gain["F"]))
         eigenvals["plant+mm"][idx] = np.linalg.eigvals((bike_plant.mat["A"] + bike_plant.mat["B"]@mm_ctrl.gain["F"])) # plant + mm_controll -> dx = (A + BF)x + BGu_ext
-        eigenvals["plant+sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] - bike_plant.mat["B"]@sil_ctrl.gain["F"])) # plant + sil_controll -> dx = (A - BF)x, minus because here u = -Fx
-        eigenvals["plant+pp+sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] - bike_plant.mat["B"]@(pp_ctrl.gain["F"] + sil_ctrl.gain["F"])))
-        eigenvals["ref+sil"][idx] = np.linalg.eigvals((bike_ref.mat["A"] - bike_ref.mat["B"]@sil_ctrl.gain["F"])) # ref + sil_controll -> dx = (A - BFsil)x
-        eigenvals["plant+mm+sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] + bike_plant.mat["B"]@(mm_ctrl.gain["F"] - mm_ctrl.gain["G"]@sil_ctrl.gain["F"]))) # mm + sil_controll -> dx = ((Aref+Bref*Fmm) - (Bref*Gmm)*Fsil)x = (A-B*Fsil)x
+        eigenvals["plant+sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] + bike_plant.mat["B"]@sil_ctrl.gain["F"])) # plant + sil_controll -> dx = (A + BF)x
+        eigenvals["plant+pp+sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] - bike_plant.mat["B"]@(pp_ctrl.gain["F"] - sil_ctrl.gain["F"])))
+        eigenvals["ref+sil"][idx] = np.linalg.eigvals((bike_ref.mat["A"] + bike_ref.mat["B"]@sil_ctrl.gain["F"])) # ref + sil_controll -> dx = (A + BFsil)x
+        eigenvals["plant+mm+sil"][idx] = np.linalg.eigvals((bike_plant.mat["A"] + bike_plant.mat["B"]@(mm_ctrl.gain["F"] + mm_ctrl.gain["G"]@sil_ctrl.gain["F"]))) # mm + sil_controll -> dx = ((Aref+Bref*Fmm) + (Bref*Gmm)*Fsil)x = (A+B*Fsil)x
 
     # Reorganize results for plotting
     for key in eigenvals.keys():
@@ -616,9 +614,9 @@ def sim_bode(bike_plant, bike_ref, mm_ctrl, sil_ctrl, pp_ctrl):
 
         plant_bodes["plant+sil"][:,:,:,i] = calc_bode_mag(\
             par,\
-            bike_plant.mat["A"] - bike_plant.mat["B"]@sil_ctrl.gain["F"],\
+            bike_plant.mat["A"] + bike_plant.mat["B"]@sil_ctrl.gain["F"],\
             bike_plant.mat["B"]@sil_ctrl.gain["G"],\
-            bike_plant.mat["C"] - bike_plant.mat["D"]@sil_ctrl.gain["F"],\
+            bike_plant.mat["C"] + bike_plant.mat["D"]@sil_ctrl.gain["F"],\
             bike_plant.mat["D"]@sil_ctrl.gain["G"],
         )
 
@@ -667,7 +665,7 @@ def sim_setup(par,system,ctrl):
     if len(ctrl.keys()) == 1:
         for name in ctrl.keys():
             ctrl[name].calc_gain(par["vel"])
-            F = ctrl[name].gain["F"] * ((np.int8)(name != NEG_CTRLRS) - (np.int8)(name == NEG_CTRLRS)) #While u_mm = +F*x, u_sil = -F*x
+            F = ctrl[name].gain["F"]
             G = ctrl[name].gain["G"]
     else: 
         F = np.zeros((par["m"],par["n"])) # u = F*x
@@ -1223,7 +1221,7 @@ def comp_bode_frf(par,system,ctrl,meas_IO): #TODO: is it better to predefine m a
                 G = np.eye((par["m"]))
             else:
                 ctrl[name].calc_gain(par["vel"])
-                F = ctrl[name].gain["F"] * ((np.int8)(name != NEG_CTRLRS) - (np.int8)(name == NEG_CTRLRS)) #While u_mm = +F*x, u_sil = -F*x
+                F = ctrl[name].gain["F"]
                 G = ctrl[name].gain["G"]
     else: 
         F = np.zeros((par["m"],par["n"])) # u = F*x
@@ -1347,6 +1345,9 @@ controller = {
     # "mm+sil" : mm_sil_ctrl_sim
     # "zero" : zero_ctrl
 }
+theory_controller = {
+    "sil" : sil_ctrl_theory
+    }
 
 controller_ref = {
     # "mm": mm_ctrl_sim
@@ -1375,13 +1376,13 @@ phi_kalman_alt = KalmanSanjurjo( #TODO: initialize initial states inside the fun
     SIM_PAR_PLANT["vel"],
     SIM_PAR_PLANT["dt"])
 
-# time, output, states, calc_states, tot_input, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
-# comp_bode_frf(SIM_PAR_PLANT,bike_plant,controller,{"input": ext_input[:,:2],"output": output})
-
 #So if the impuls is not dt long, the lengt the controller gives an impuls and the length external impuls lasts is not equal --> leading to separate ...
-#Furtermore, for some reason, taking the steer torque input with control will lead to the wrong FRF... why? --> mm control is part of the system. It is not the external input (u_bar)
+#Furtermore, for some reason, taking the steer torque input with mm control will lead to the wrong FRF... why? --> mm control is part of the system. It is not the external input (u_bar)
+# time, output, states, calc_states, tot_input, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
+# comp_bode_frf(SIM_PAR_PLANT,bike_plant,theory_controller,{"input": ext_input[:,:2],"output": output})
+
 # time_ref, output_ref, states_ref, calc_states_ref, tot_input_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman_ref)
-# comp_bode_frf(SIM_PAR_REF,bike_ref,{"input": ext_input_ref(???)[:,:2],"output": output})
+
 
 # altered sil control (including integral action)
 time_alt, output_alt, states_alt, calc_states_alt, tot_input_alt, ext_input_alt = simulate(SIM_PAR_ALT,bike_plant_alt,controller_alt,u_ext_fun,phi_kalman_alt)
