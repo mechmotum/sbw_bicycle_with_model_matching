@@ -63,7 +63,9 @@ def plot_eigenvals(speed_emp,sigma,omega,plant_file,plant_type,start,stop,step):
     plt.xlabel("Speed [m/s]", fontsize=16)
 
     #Theoretical
-    speed_ax, eig_theory = get_eigen_vs_speed(plant_file,plant_type,start,stop,step)
+    speedrange = np.linspace(start , stop , num=int(1 + (stop-start)/step))
+    
+    speed_ax, eig_theory = get_eigen_vs_speed(plant_file,plant_type,speedrange)
     plt.scatter(speed_ax, eig_theory["real"],s=1, label="Theoretical Real")
     plt.scatter(speed_ax, eig_theory["imag"],s=1, label="Theoretical Imag")
 

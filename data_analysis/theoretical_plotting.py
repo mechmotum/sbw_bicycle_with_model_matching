@@ -1,12 +1,20 @@
 import numpy as np
 import inspect
 import dill
+import scipy.signal as sign
 
 # Steer into lean conroller
 SIL_AVG_SPEED = 5.5
 K_SIL_L = 2
 K_SIL_H = 0.7
 
+# Plant sensors
+C_MATRIX_BIKE = np.array([[0,1,0,0],[0,0,1,0]])
+
+# Turning near 0 poles and zeros to 0. For numerical accuracy
+EPS = 1e-6 
+
+#---[ Create plant and controller object
 class VariableStateSpaceSystem:
     '''
     init:
@@ -63,6 +71,25 @@ class VariableController:
             else:
                 self.gain[key] = val()
 
+def sensor_matrix_bike():
+    return C_MATRIX_BIKE
+
+def get_plant_n_ctrl(bike_plant_file,plant_type):
+    #Input sanitation
+    if(plant_type != "plant" and plant_type != "reference"):
+        print('input variable plant_type must either be "plant" or "reference"')
+        return
+    
+    #load in the plant of which the eigenvalues will be calculated
+    with open(bike_plant_file,"rb") as inf:
+        sys_mtrx = dill.load(inf)
+    sys_mtrx[plant_type]["C"] = sensor_matrix_bike
+    plant = VariableStateSpaceSystem(sys_mtrx[plant_type])
+
+    # Create SiL controller
+    ctrl = VariableController({"F": sil_gain_F_fun, "G": sil_gain_G_fun})
+    return plant, ctrl
+
 def sil_gain_F_fun(speed):
     '''
     Feedback part of the SiL controller.
@@ -93,7 +120,9 @@ def sil_gain_G_fun():
     '''
     return np.eye(2)
 
-def get_eigen_vs_speed(bike_plant_file,plant_type,start,stop,step):
+
+#---[ Get the theoretical speed-eigenvalue plot
+def get_eigen_vs_speed(bike_plant_file,plant_type,speedrange):
     '''
     bike_plant_file:    (String) File that contains the speed depended A,B,C and D matrix of the plant and reference bicycle
     plant_type:         (String) "plant" or "reference"
@@ -101,28 +130,16 @@ def get_eigen_vs_speed(bike_plant_file,plant_type,start,stop,step):
     stop:               highest calculated speed [m/s]
     step:               stepsize [m/s]
     '''
-    #Input sanitation
-    if(plant_type != "plant" and plant_type != "reference"):
-        print('input variable plant_type must either be "plant" or "reference"')
-        return
-    
-    #load in the plant of which the eigenvalues will be calculated
-    with open(bike_plant_file,"rb") as inf:
-        sys_mtrx = dill.load(inf)
-    plant = VariableStateSpaceSystem(sys_mtrx[plant_type])
+    # initialize plant and controller
+    plant, ctrl = get_plant_n_ctrl(bike_plant_file,plant_type)
 
-    # Create SiL controller
-    sil_ctrl = VariableController({"F": sil_gain_F_fun, "G": sil_gain_G_fun})
-
-    speedrange = np.linspace(start , stop , num=int(1 + (stop-start)/step))
     eigenvals = [None for k in range(len(speedrange))]
-
     for idx, speed in enumerate(speedrange):
         # calculate speed depenend matrices
         plant.calc_mtrx(speed)
-        sil_ctrl.calc_gain(speed)
+        ctrl.calc_gain(speed)
         # calculate eigenvalues
-        eigenvals[idx] = np.linalg.eigvals(plant.mat["A"] + plant.mat["B"]@sil_ctrl.gain["F"]) # plant-> dx = Ax + Bu
+        eigenvals[idx] = np.linalg.eigvals(plant.mat["A"] + plant.mat["B"]@ctrl.gain["F"]) # plant-> dx = Ax + Bu
 
     # Reorganize results for plotting
     eigenvals = {
@@ -134,5 +151,53 @@ def get_eigen_vs_speed(bike_plant_file,plant_type,start,stop,step):
     speed_axis = np.array([speedrange], ndmin=2).T @ np.ones((1,eigenvals["real"].shape[1]))
     return (speed_axis, eigenvals)
 
-def get_bode(bike_plant_file,plant_type,log_start,log_stop,log_step):
-    pass
+
+#---[ Get the theoretical bode magnitude plot
+def filter_bad_coefs(coefs):
+    '''
+    Filter out the coeficients close to zero, as these might cause numerical errors
+    see https://github.com/scipy/scipy/issues/2382
+    '''
+    bla = False
+    l = []
+    for c in coefs:
+        if (abs(c)>EPS):
+            l.append(c)
+            bla = True
+        elif(bla):
+            l.append(0)
+    return l
+
+def calc_bode_mag(A,B,C,D,freq_range):
+    p = C.shape[0] #Number of inputs
+    m = B.shape[1] #Number of outputs
+    plant_bodes = np.empty((p, m, len(freq_range)))
+    for nbr_out in range(p):
+            for nbr_in in range(m):
+                num, den = sign.ss2tf(A, B[:,[nbr_in]], C[[nbr_out],:], D[[nbr_out],[nbr_in]])
+                num  = filter_bad_coefs(num[0])
+                den = filter_bad_coefs(den)
+                tmp, mag, tmp = sign.bode((num,den), w=freq_range) # w in rad/s, mag in dB
+                plant_bodes[nbr_in,nbr_out,:] = mag
+    return plant_bodes
+
+def get_bode(bike_plant_file,plant_type,speed,freq_range):
+    '''
+    start_frq,stop_frq are in rad/s
+    '''
+     #--[Initialize plant and controller
+    plant, ctrl = get_plant_n_ctrl(bike_plant_file,plant_type)
+    
+    #--[Calculating bode magnitudes for all input to output combos
+    # Initialize objects at correct speed
+    plant.calc_mtrx(speed)
+    ctrl.calc_gain(speed)
+
+    bode_mags = calc_bode_mag(
+        plant.mat["A"] + plant.mat["B"]@ctrl.gain["F"],
+        plant.mat["B"]@ctrl.gain["G"],
+        plant.mat["C"] + plant.mat["D"]@ctrl.gain["F"],
+        plant.mat["D"]@ctrl.gain["G"],
+        freq_range
+    )
+    return bode_mags

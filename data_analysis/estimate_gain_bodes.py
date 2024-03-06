@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from data_parsing import logfile2array
 import simulated_runtime_filter as filt
+from theoretical_plotting import get_bode
 
 def find_sinosoid_peaks(sig,start,stop,tune):
     peak_height = np.max((sig[start:stop]))
@@ -75,6 +76,11 @@ def find_sinosoid_peaks(sig,start,stop,tune):
     return peaks_used,vallies_used
 
 def find_freq_and_amp(time,sig,peaks,vallies):
+    '''
+    returns amplitude and frequence of the measured sinosiod 
+    input signal. 
+    Frequency is in Herz
+    '''
     if(len(peaks) <= len(vallies)):
         nbr_of_periods = len(peaks)
     else:
@@ -89,20 +95,20 @@ def find_freq_and_amp(time,sig,peaks,vallies):
         amplitudes[k] = sig[peaks[k]] - sig[vallies[k]]
     amplitudes[-1] = sig[peaks[nbr_of_periods-1]] - sig[vallies[nbr_of_periods-1]]
 
-    sig_frequency = 1/(0.5*(np.average(peak_period) + np.average(vally_period)))
+    sig_frequency = 1/(0.5*(np.average(peak_period) + np.average(vally_period))) #[Hz]
     sig_amplitude = np.average(np.abs(amplitudes))
     return sig_frequency,sig_amplitude
 
-def get_single_bode_point(filename,bode_points,vars2extract, start, stop, mean_band):
+def get_single_bode_point(filename,vars2extract, start, stop, tune_par):
     #---[Decide on and extract variable from log file
     extraction = logfile2array(PATH,filename,vars2extract)
-
-    #---[Create time vector
-    time = np.linspace(0,TIME_STEP*(len(extraction[INPUT])-1),len(extraction[INPUT]))
 
     sinus_pars = {}
     #---[run loop for all measured values
     for key,value in extraction.items():
+        #---[create time vector
+        time = np.linspace(0,TIME_STEP*(len(value)-1),len(value))
+
         #---[create dict for storage
         sinus_pars[key] = {}
         #---[Filter force sensor
@@ -116,7 +122,7 @@ def get_single_bode_point(filename,bode_points,vars2extract, start, stop, mean_b
 
         #---[Get sinusoid hight, and frequency
         # Make use of the knowledge you are looking for sinusoids
-        peaks,vallies = find_sinosoid_peaks(signal,start,stop,mean_band[key])
+        peaks,vallies = find_sinosoid_peaks(signal,start,stop,tune_par[key])
         sinus_pars[key]["freq"], sinus_pars[key]["amp"] = find_freq_and_amp(time,signal,peaks,vallies)
 
         #---[Visually check if you got all of em
@@ -134,12 +140,18 @@ def get_single_bode_point(filename,bode_points,vars2extract, start, stop, mean_b
         plt.legend(fontsize=14)
     plt.show()
 
-    for output in OUTPUT:
-        print(f"---{output}---\nfrequency input:\t{sinus_pars[INPUT]['freq']}\nfrequency output:\t{sinus_pars[output]['freq']}\n")
-        bode_points[output].append([0.5*(sinus_pars[output]["freq"] + sinus_pars[INPUT]["freq"]),\
-                            sinus_pars[output]["amp"]/sinus_pars[INPUT]["amp"]])
-        
-    return
+    
+    # Create container to hold the calculated bode magnitude points for the input to output combinations
+    for sys_input in INPUT.keys():
+        for sys_output in OUTPUT.keys():
+            print(f"---{sys_input} to {sys_output}---\nfrequency input:\t{sinus_pars[sys_input]['freq']}\nfrequency sys_output:\t{sinus_pars[sys_output]['freq']}\n")
+            
+            bode_points[sys_input][sys_output].append(
+                [0.5*(sinus_pars[sys_output]["freq"] + sinus_pars[sys_input]["freq"]),
+                sinus_pars[sys_output]["amp"]/sinus_pars[sys_input]["amp"]]
+                )
+
+    return bode_points
 
 def plot_uncut_data(path,file,vars2extract):
     extraction = logfile2array(path,file,vars2extract)
@@ -161,16 +173,22 @@ TO_ANALYSE = "raw" # "raw" or "filtered"
 BUTTER_ORDER = 2
 BUTTER_CUT_OFF = 20
 TIME_STEP = 0.01
-OUTPUT = ["fork_angle", "lean_rate"] #["lean_rate"]
-INPUT = "hand_torque" #"lean_torque"
+OUTPUT = {"fork_angle": 0,"lean_rate": 1}
+INPUT = {"hand_torque": 1} #"lean_torque": 0,
 PHASE = "calculate_bode" #"cut_data" OR "calculate_bode" the first to investigate the uncut plot, the later to calculate the bode plot of the different samples
+EXPERIMENT_SPEED = 10/3.6 #[m/s]
+
+#Theoretical model parameters
+PLANT_TYPE = "plant" #"plant" or "reference"
+SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices"
+FREQ_RANGE = np.logspace(-3,3,1000) # [rad/s]
 
 #---[variable to invastigate and list of single experiments
 vars2extract = {
-        "lean_rate": [],
-        "fork_angle": [],
-        INPUT: []
-    }
+    "lean_rate": [],
+    "fork_angle": [],
+    "hand_torque": []
+}
 # log_files is a list of tuples containing (filename, data investigation start-and-stop)
 log_files = [
     ("pilot_test_28-02.log", (14730,15625)),
@@ -190,31 +208,41 @@ If the tune_par is 0, then the new_peak has to be larger than the previous peak
 The lower the tune_par the closer the next peak is allowed to be to the previous vally.
  ''' 
 experiments = [
-    ("pilot_test_28-02.log", (14730,15625), {"lean_rate":0.5,"fork_angle":0.5, INPUT:0.5}), 
-    ("pilot_test_28-02.log", (15682,16125), {"lean_rate":0.55,"fork_angle":0.8, INPUT:0.5}),
+    ("pilot_test_28-02.log", (14730,15625), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}), 
+    ("pilot_test_28-02.log", (15682,16125), {"lean_rate":0.55,"fork_angle":0.8, "hand_torque":0.5}),
 ]
 
 #---[Get the bodepoints from the measured data of the experiments
 if(PHASE=="calculate_bode"):
     bode_points = {}
-    for key in OUTPUT:
-        bode_points[key] = []
+    for in_key in INPUT.keys():
+        bode_points[in_key] = {}
+        for out_key in OUTPUT.keys():
+            bode_points[in_key][out_key] = []
 
     for single_exitation in experiments:
-        file, start0_stop1, mean_band = single_exitation
-        get_single_bode_point(file, bode_points, vars2extract, start0_stop1[0], start0_stop1[1], mean_band)
+        file, start0_stop1, tune_par = single_exitation
+        bode_points = get_single_bode_point(file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par) # frequency in Hz, magnitude in [-]
 
-    for key in OUTPUT:
-        bode_points[key] = np.array(bode_points[key])
-        #---[plot the bode
-        plt.figure()
-        plt.title(f"Torque to {key}",fontsize=24)
-        plt.xlabel("Frequency [Hz]", fontsize=16)
-        plt.ylabel("Gain [dB]", fontsize=16)
-        plt.xscale('log')
-        plt.plot(bode_points[key][:,0], 20*np.log10(bode_points[key][:,1]),'o', label="Emperical Gain")
-        plt.grid()
-        plt.legend(fontsize=14)
+    for in_key, in_value in INPUT.items():
+        for out_key, out_value in OUTPUT.items():
+            bode_points[in_key][out_key] = np.array(bode_points[in_key][out_key])
+            
+            plt.figure()
+            plt.title(f"{in_key} to {out_key}",fontsize=24)
+            plt.xlabel("Frequency [Hz]", fontsize=16)
+            plt.ylabel("Gain [dB]", fontsize=16)
+            plt.xscale('log')
+
+            #---[plot the theoretic bode
+            bode_mags = get_bode(SPEED_DEP_MODEL_FILE,PLANT_TYPE,EXPERIMENT_SPEED,FREQ_RANGE) # frequency in rad/s, magnitude in dB
+            plt.plot(FREQ_RANGE/(2*np.pi),bode_mags[in_value,out_value,:], label="Theoretical Gain")
+
+            #---[plot the empirical bode
+            plt.plot(bode_points[in_key][out_key][:,0], 20*np.log10(bode_points[in_key][out_key][:,1]),'o', label="Emperical Gain")
+            
+            plt.grid()
+            plt.legend(fontsize=14)
     plt.show()
 
 elif(PHASE == "cut_data"):
