@@ -126,19 +126,21 @@ def get_single_bode_point(filename,vars2extract, start, stop, tune_par):
         sinus_pars[key]["freq"], sinus_pars[key]["amp"] = find_freq_and_amp(time,signal,peaks,vallies)
 
         #---[Visually check if you got all of em
-        plt.figure()
-        plt.title(f"Measurement of {key}",fontsize=24)
-        plt.xlabel("Time", fontsize=16)
-        plt.ylabel(f"{key} [Nm] or [rad/s] or [rad]", fontsize=16)
-        plt.plot(time, value,'-',label="Raw")
-        plt.plot(time, val_butter,'--',label="Filtered")
-        plt.plot(time[peaks], signal[peaks],'o',label="peak")
-        plt.plot(time[vallies], signal[vallies],'o',label="vally")
-        plt.axvline(time[start])
-        plt.axvline(time[stop])
-        plt.grid()
-        plt.legend(fontsize=14)
-    plt.show()
+        if(CHECK_VISUALLY):
+            plt.figure(figsize=(16,5))
+            plt.title(f"Measurement of {key}",fontsize=24)
+            plt.xlabel("Time [s]", fontsize=16)
+            plt.ylabel(f"{key} [Nm] or [rad/s] or [rad]", fontsize=16)
+            plt.plot(time[start-50:stop+50], value[start-50:stop+50],'-',label="Raw")
+            plt.plot(time[start-50:stop+50], val_butter[start-50:stop+50],'--',label="Filtered")
+            plt.plot(time[peaks], signal[peaks],'o',label="peak")
+            plt.plot(time[vallies], signal[vallies],'o',label="vally")
+            plt.axvline(time[start])
+            plt.axvline(time[stop])
+            plt.grid()
+            plt.legend(fontsize=14)
+    if(CHECK_VISUALLY):
+        plt.show()
 
     
     # Create container to hold the calculated bode magnitude points for the input to output combinations
@@ -176,7 +178,8 @@ TIME_STEP = 0.01
 OUTPUT = {"fork_angle": 0,"lean_rate": 1}
 INPUT = {"hand_torque": 1} #"lean_torque": 0,
 PHASE = "calculate_bode" #"cut_data" OR "calculate_bode" the first to investigate the uncut plot, the later to calculate the bode plot of the different samples
-EXPERIMENT_SPEED = 10/3.6 #[m/s]
+EXPERIMENT_SPEED = 8/3.6 #[m/s]
+CHECK_VISUALLY = False
 
 #Theoretical model parameters
 PLANT_TYPE = "plant" #"plant" or "reference"
@@ -191,8 +194,7 @@ vars2extract = {
 }
 # log_files is a list of tuples containing (filename, data investigation start-and-stop)
 log_files = [
-    ("pilot_test_28-02.log", (14730,15625)),
-    ("pilot_test_28-02.log", (15682,16125)),
+    ("oscilation_22bpm_8kph_error_in_sil.log", (13210,14310))
 ]
 # A list of tuples containing (file, data investigation start-and-stop, tuning parameter).
 '''NOTE: The tuning parameter is a parameter used in the method to filter away noise:
@@ -208,8 +210,16 @@ If the tune_par is 0, then the new_peak has to be larger than the previous peak
 The lower the tune_par the closer the next peak is allowed to be to the previous vally.
  ''' 
 experiments = [
-    ("pilot_test_28-02.log", (14730,15625), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}), 
-    ("pilot_test_28-02.log", (15682,16125), {"lean_rate":0.55,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("oscilation_18bpm_8kph_error_in_sil.log", (3600,4133), {"lean_rate":0.3,"fork_angle":0.8, "hand_torque":0.5}), #Questionalble
+    ("oscilation_22bpm_8kph_error_in_sil.log", (13220,14310), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("oscilation_30bpm_8kph_last_set_error_in_sil.log", (18385,18775), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("oscilation_60bpm_8kph_2_error_in_sil.log", (7356,7845), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("oscilation_90bpm_8kph_error_in_sil.log", (6615,6928), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("oscilation_120bpm_8kph_error_in_sil.log", (9394,9716), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("oscilation_120bpm_8kph_error_in_sil.log", (12060,12296), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("oscillation_240bpm_8kph_error_in_sil.log", (4535,4683), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("oscillation_240bpm_8kph_error_in_sil.log", (7794,8051), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("oscillation_fast_as_possible_error_in_sil.log", (3744,3891), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
 ]
 
 #---[Get the bodepoints from the measured data of the experiments
@@ -252,3 +262,8 @@ elif(PHASE == "cut_data"):
         ax.axvline(start_stop[0])
         ax.axvline(start_stop[1])
         plt.show()
+
+
+
+# ("pilot_test_28-02.log", (14730,15625), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}), 
+# ("pilot_test_28-02.log", (15682,16125), {"lean_rate":0.55,"fork_angle":0.8, "hand_torque":0.5}),

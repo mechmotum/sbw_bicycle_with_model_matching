@@ -99,7 +99,7 @@ BUTTER_ORDER = 2
 BUTTER_CUT_OFF = 20
 TIME_STEP = 0.01
 PHASE = "calculate_eig" # "cut_data" or "calculate_eig"
-VISUAL_CHECK_FIT = True # If true, show graph for visually checking the kooijman function fit
+VISUAL_CHECK_FIT = False # If true, show graph for visually checking the kooijman function fit
 MAX_FUN_EVAL = 5000
 
 #Theoretical model parameters
@@ -118,9 +118,29 @@ vars2extract = {
         # "speed": [],
     }
 log_files = [
-    ("eigenvaltest_16kph_6bar_errorneous_sil.log", (0,0)),
+    ("eigenvaltest_16kph_6bar_error_in_sil.log", (0,0)),
 ]
 experiments = [ #file,speed[km/h],start&end in file, initial values)
+    # ("eigenvaltest_08kph_6bar_error_in_sil.log", 8, (4527,4626), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
+    # ("eigenvaltest_08kph_6bar_error_in_sil.log", 8, (5431,5533), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
+    ("eigenvaltest_08kph_6bar_error_in_sil.log", 8, (6373,6485), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+    ("eigenvaltest_10kph_6bar_error_in_sil.log", 10, (3958,4060), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+    ("eigenvaltest_10kph_6bar_error_in_sil.log", 10, (4906,4995), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+    # ("eigenvaltest_10kph_6bar_error_in_sil.log", 10, (5957,6240), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
+    ("eigenvaltest_12kph_6bar_error_in_sil.log", 12, (3971,4080), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+    ("eigenvaltest_12kph_6bar_error_in_sil.log", 12, (4755,4885), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+    # ("eigenvaltest_12kph_6bar_error_in_sil.log", 12, (5671,5895), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
+    ("eigenvaltest_14kph_6bar_error_in_sil.log", 14, (4355,4441), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+    ("eigenvaltest_14kph_6bar_error_in_sil.log", 14, (5226,5347), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+    # ("eigenvaltest_14kph_6bar_error_in_sil.log", 14, (6038,6274), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
+    # ("eigenvaltest_16kph_6bar_error_in_sil.log", 16, (4087,4277), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+    # ("eigenvaltest_16kph_6bar_error_in_sil.log", 16, (4911,5174), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
+    ("eigenvaltest_16kph_6bar_error_in_sil.log", 16, (5976,6073), (-1.0, 3.0, -1.0, 1.0, 1.0)), 
+    ("eigenvaltest_16kph_6bar_error_in_sil.log", 16, (7002,7097), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+    ("eigenvaltest_18kph_6bar_error_in_sil.log", 18, (6707,6866), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+    ("eigenvaltest_18kph_6bar_error_in_sil.log", 18, (7756,7902), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+    # ("eigenvaltest_18kph_6bar_error_in_sil.log", 18, (8753,8982), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
+    ("eigenvaltest_18kph_6bar_error_in_sil.log", 18, (9749,10013), (-1.0, 3.0, -1.0, 1.0, 1.0))
 ]
 
 
@@ -144,23 +164,23 @@ elif(PHASE == "cut_data"):
 
 
 # -- [ Frist real test (but with false sil controller)
-# ("eigenvaltest_08kph_6bar_errorneous_sil.log", 8, (4527,4626), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_08kph_6bar_errorneous_sil.log", 8, (5431,5533), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_08kph_6bar_errorneous_sil.log", 8, (6373,6485), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_10kph_6bar_errorneous_sil.log", 10, (3958,4060), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_10kph_6bar_errorneous_sil.log", 10, (4906,4995), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# # ("eigenvaltest_10kph_6bar_errorneous_sil.log", 10, (5957,6240), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# ("eigenvaltest_12kph_6bar_errorneous_sil.log", 12, (3971,4080), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_12kph_6bar_errorneous_sil.log", 12, (4755,4885), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# # ("eigenvaltest_12kph_6bar_errorneous_sil.log", 12, (5671,5895), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# ("eigenvaltest_14kph_6bar_errorneous_sil.log", 14, (4355,4441), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_14kph_6bar_errorneous_sil.log", 14, (5226,5347), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# # ("eigenvaltest_14kph_6bar_errorneous_sil.log", 14, (6038,6274), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# # ("eigenvaltest_16kph_6bar_errorneous_sil.log", 16, (4087,4277), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# # ("eigenvaltest_16kph_6bar_errorneous_sil.log", 16, (4911,5174), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# ("eigenvaltest_16kph_6bar_errorneous_sil.log", 16, (5976,6073), (-1.0, 3.0, -1.0, 1.0, 1.0)), 
-# ("eigenvaltest_16kph_6bar_errorneous_sil.log", 16, (7002,7097), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_18kph_6bar_errorneous_sil.log", 18, (6707,6866), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_18kph_6bar_errorneous_sil.log", 18, (7756,7902), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# # ("eigenvaltest_18kph_6bar_errorneous_sil.log", 18, (8753,8982), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# ("eigenvaltest_18kph_6bar_errorneous_sil.log", 18, (9749,10013), (-1.0, 3.0, -1.0, 1.0, 1.0))
+# ("eigenvaltest_08kph_6bar_error_in_sil.log", 8, (4527,4626), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+# ("eigenvaltest_08kph_6bar_error_in_sil.log", 8, (5431,5533), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+# ("eigenvaltest_08kph_6bar_error_in_sil.log", 8, (6373,6485), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+# ("eigenvaltest_10kph_6bar_error_in_sil.log", 10, (3958,4060), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+# ("eigenvaltest_10kph_6bar_error_in_sil.log", 10, (4906,4995), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+# # ("eigenvaltest_10kph_6bar_error_in_sil.log", 10, (5957,6240), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
+# ("eigenvaltest_12kph_6bar_error_in_sil.log", 12, (3971,4080), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+# ("eigenvaltest_12kph_6bar_error_in_sil.log", 12, (4755,4885), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+# # ("eigenvaltest_12kph_6bar_error_in_sil.log", 12, (5671,5895), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
+# ("eigenvaltest_14kph_6bar_error_in_sil.log", 14, (4355,4441), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+# ("eigenvaltest_14kph_6bar_error_in_sil.log", 14, (5226,5347), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+# # ("eigenvaltest_14kph_6bar_error_in_sil.log", 14, (6038,6274), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
+# # ("eigenvaltest_16kph_6bar_error_in_sil.log", 16, (4087,4277), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+# # ("eigenvaltest_16kph_6bar_error_in_sil.log", 16, (4911,5174), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
+# ("eigenvaltest_16kph_6bar_error_in_sil.log", 16, (5976,6073), (-1.0, 3.0, -1.0, 1.0, 1.0)), 
+# ("eigenvaltest_16kph_6bar_error_in_sil.log", 16, (7002,7097), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+# ("eigenvaltest_18kph_6bar_error_in_sil.log", 18, (6707,6866), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+# ("eigenvaltest_18kph_6bar_error_in_sil.log", 18, (7756,7902), (-1.0, 3.0, -1.0, 1.0, 1.0)),
+# # ("eigenvaltest_18kph_6bar_error_in_sil.log", 18, (8753,8982), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
+# ("eigenvaltest_18kph_6bar_error_in_sil.log", 18, (9749,10013), (-1.0, 3.0, -1.0, 1.0, 1.0))
