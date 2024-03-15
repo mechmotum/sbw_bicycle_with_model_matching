@@ -1,5 +1,8 @@
 import numpy as np
+import sympy as sm
 
+#---[Create static FF and FB gains 
+# Steer into lean controller
 def get_sil_gain_F_fun(avg_speed,K_L,K_H):
     def sil_gain_F_fun(speed):
         '''
@@ -30,9 +33,56 @@ def sil_gain_G_fun():
     '''
     return np.eye(2)
 
+# Model matching controller
+def create_mm_gains(plant_num,ref_num):
+    v = sm.symbols('v')
+
+    gain_val_full = {}
+    for idx, state in enumerate(["phi", "delta", "dphi", "ddelta"]):
+        gain_val_full["K_"+ state] = (ref_num['A'][2,idx] - plant_num['A'][2,idx]) / plant_num['B'][2,1]
+
+    gain_val_full["K_Tphi"] = (ref_num['B'][2,0] - plant_num['B'][2,0]) / plant_num['B'][2,1]
+
+    gain_val_full["K_Tdelta"] = ref_num['B'][2,1] / plant_num['B'][2,1]
+
+    # Rewrite model matching gains in simulation format
+    F = sm.Matrix([[0,0,0,0],[gain_val_full[key] for key in ["K_phi", "K_delta", "K_dphi", "K_ddelta"]]])
+    G = sm.Matrix([[1,0],[gain_val_full[key] for key in ["K_Tphi", "K_Tdelta"]]])
+
+    mm_gains = {
+        "F": sm.lambdify(v, F, 'numpy'),
+        "G": sm.lambdify((), G, 'numpy')
+    }
+    return mm_gains
+
+# Model matching controller after Steer into Lean has been applied
+def get_mm_sil_gain_F_fun(avg_speed,K_L,K_H,mm_ctrl):
+    def mm_sil_gain_F_fun(speed):
+        return mm_ctrl['F'](speed) + mm_ctrl['G']()@(get_sil_gain_F_fun(avg_speed,K_L,K_H)(speed))
+    return mm_sil_gain_F_fun
+
+def get_mm_sil_gain_G_fun(mm_ctrl):
+    def mm_sil_gain_G_fun():
+        return mm_ctrl['G']()@sil_gain_G_fun()
+    return mm_sil_gain_G_fun
+
+
+#---[Create dictionaries containing the controller gains
 def get_sil_ctrl(avg_speed,K_L,K_H):
     ctrl = {
         'F':get_sil_gain_F_fun(avg_speed,K_L,K_H),
         'G':sil_gain_G_fun 
+    }
+    return ctrl
+
+def get_mm_ctrl(plant_num,ref_num):
+    ctrl = create_mm_gains(plant_num,ref_num)
+    return ctrl
+
+def get_sil_mm_ctrl(avg_speed_sil,K_L_sil,K_H_sil,plant_num,ref_num):
+    mm_ctrl = create_mm_gains(plant_num,ref_num)
+    ctrl = {
+        "F" : get_mm_sil_gain_F_fun(avg_speed_sil,K_L_sil,K_H_sil,mm_ctrl),
+        "G" : get_mm_sil_gain_G_fun(mm_ctrl)
     }
     return ctrl

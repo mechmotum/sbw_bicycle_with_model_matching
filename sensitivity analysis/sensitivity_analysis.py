@@ -2,10 +2,10 @@ import matplotlib.pyplot as plt
 import pickle
 import numpy as np
 import system2simulation as s2s
+import controllers as ctrls
 from create_system_matrices import *
 from create_variable_ctrls import VariableController
 from np_matrices2variable_ss import numpy2variable_ss
-from controllers import get_sil_ctrl
 
 # Bicycle Parameters
 repl_primal2num_plant = {
@@ -82,22 +82,6 @@ BODE_SPEED = 8 #[m/s]
 BODE_OUTPUT = {"fork_angle": 0,"lean_rate": 1}
 BODE_INPUT = {"hand_torque": 1} #"lean_torque": 0,
 
-# Helper functions
-def analysis_matrix_setup(mm_sol_file, repl_primal2num_plant, repl_primal2num_ref, precision):
-    #Load in repl_mm_sol_primal
-    with open(mm_sol_file, "rb") as inf:
-        repl_mm_sol_primal = pickle.load(inf)
-    
-    #Get symbolic plant and reference
-    plant_sym,ref_sym = create_primal_matrices(repl_mm_sol_primal)
-
-    #Get numerical reference
-    ref_eval = eval_ref_matrix(ref_sym,repl_primal2num_plant,repl_primal2num_ref,precision)
-    ref_num = matrices_sympy2numpy(ref_eval)
-
-    #return unevaluated symbolic plant, and numerical numpy reference.
-    return plant_sym, ref_num
-
 def create_system(np_matrices,C_matrix,ctrl_fun_dict:dict):
     system = {
         'plant': numpy2variable_ss(np_matrices,C_matrix),
@@ -105,18 +89,21 @@ def create_system(np_matrices,C_matrix,ctrl_fun_dict:dict):
     }
     return system
 
-
 # Main
-ctrl_ref = get_sil_ctrl(SIL_AVG_SPEED,K_SIL_L,K_SIL_H)
-plant_sym, ref_num = analysis_matrix_setup(MM_SOLUTION_FILE, repl_primal2num_plant, repl_primal2num_ref, MAT_EVAL_PRECISION)
+with open(MM_SOLUTION_FILE, "rb") as inf:
+        repl_mm_sol_primal = pickle.load(inf)
+plant_sym,ref_sym = create_primal_matrices(repl_mm_sol_primal)
+
+ref_eval = eval_ref_matrix(ref_sym,repl_primal2num_plant, repl_primal2num_ref, MAT_EVAL_PRECISION)
+ref_num = matrices_sympy2numpy(ref_eval)
+ctrl_ref = ctrls.get_sil_ctrl(SIL_AVG_SPEED,K_SIL_L,K_SIL_H)
 system_ref = create_system(ref_num,C_MATRIX_BIKE,ctrl_ref)
 speed_axis_ref, eigenvals_ref = s2s.get_eigen_vs_speed(system_ref,SPEED_EIGEN_SPEEDRANGE)
 bode_mags_ref = s2s.get_bode(system_ref,BODE_SPEED,FREQ_RANGE,EPS)
 
-ctrl_plant = get_sil_ctrl(SIL_AVG_SPEED,K_SIL_L,K_SIL_H)
-plant_num = matrices_sympy2numpy(
-    eval_plant_matrix(plant_sym,repl_primal2num_plant, MAT_EVAL_PRECISION)
-)
+plant_eval = eval_plant_matrix(plant_sym,repl_primal2num_plant, MAT_EVAL_PRECISION)
+plant_num = matrices_sympy2numpy(plant_eval)
+ctrl_plant = ctrls.get_sil_mm_ctrl(SIL_AVG_SPEED,K_SIL_L,K_SIL_H,plant_eval,ref_eval)
 system_plant = create_system(plant_num,C_MATRIX_BIKE,ctrl_plant)
 speed_axis_plant, eigenvals_plant = s2s.get_eigen_vs_speed(system_plant,SPEED_EIGEN_SPEEDRANGE)
 bode_mags_plant = s2s.get_bode(system_plant,BODE_SPEED,FREQ_RANGE,EPS)
