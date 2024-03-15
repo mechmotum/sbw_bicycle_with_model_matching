@@ -4,6 +4,7 @@ import numpy as np
 import system2simulation as s2s
 import controllers as ctrls
 from create_system_matrices import *
+from calc_ouput_error import *
 from create_variable_ctrls import VariableController
 from np_matrices2variable_ss import numpy2variable_ss
 
@@ -89,7 +90,7 @@ def create_system(np_matrices,C_matrix,ctrl_fun_dict:dict):
     }
     return system
 
-# Main
+# PIPELINE!
 with open(MM_SOLUTION_FILE, "rb") as inf:
         repl_mm_sol_primal = pickle.load(inf)
 plant_sym,ref_sym = create_primal_matrices(repl_mm_sol_primal)
@@ -108,34 +109,38 @@ system_plant = create_system(plant_num,C_MATRIX_BIKE,ctrl_plant)
 speed_axis_plant, eigenvals_plant = s2s.get_eigen_vs_speed(system_plant,SPEED_EIGEN_SPEEDRANGE)
 bode_mags_plant = s2s.get_bode(system_plant,BODE_SPEED,FREQ_RANGE,EPS)
 
+eig_error = output_error_eig(eigenvals_plant, eigenvals_ref)
+bode_error = output_error_bode(bode_mags_plant, bode_mags_ref)
 
 
 
 
+# plt.figure()
+# plt.title("Bicycle eigenvalues vs speed", fontsize=24)
+# plt.ylabel("Eigenvalue [-]", fontsize=16)
+# plt.xlabel("Speed [m/s]", fontsize=16)
+# plt.plot(speed_axis_plant, eigenvals_plant["real"],'r', label="Real plant")
+# plt.plot(speed_axis_plant, eigenvals_plant["imag"],'b', label="Imag plant")
+# plt.plot(speed_axis_ref, eigenvals_ref["real"],'g--', label="Real ref")
+# plt.plot(speed_axis_ref, eigenvals_ref["imag"],'y--', label="Imag ref")
+# # plt.scatter(speed_axis_plant, eigenvals_plant["real"],s=1, label="Real plant")
+# # plt.scatter(speed_axis_plant, eigenvals_plant["imag"],s=1, label="Imag plant")
+# # plt.scatter(speed_axis_ref, eigenvals_ref["real"],s=1, label="Real ref")
+# # plt.scatter(speed_axis_ref, eigenvals_ref["imag"],s=1, label="Imag ref")
+# plt.legend(fontsize=14)
+# plt.grid()
+# plt.axis((0,10,-12,12))
+# plt.show()
 
-
-plt.figure()
-plt.title("Bicycle eigenvalues vs speed", fontsize=24)
-plt.ylabel("Eigenvalue [-]", fontsize=16)
-plt.xlabel("Speed [m/s]", fontsize=16)
-plt.scatter(speed_axis_plant, eigenvals_plant["real"],s=1, label="Real plant")
-plt.scatter(speed_axis_plant, eigenvals_plant["imag"],s=1, label="Imag plant")
-plt.scatter(speed_axis_ref, eigenvals_ref["real"],s=1, label="Real ref")
-plt.scatter(speed_axis_ref, eigenvals_ref["imag"],s=1, label="Imag ref")
-plt.legend(fontsize=14)
-plt.grid()
-plt.axis((0,10,-12,12))
-plt.show()
-
-for in_key, in_value in BODE_INPUT.items():
-        for out_key, out_value in BODE_OUTPUT.items():
-            plt.figure()
-            plt.title(f"{in_key} to {out_key} - Plant",fontsize=24)
-            plt.xlabel("Frequency [Hz]", fontsize=16)
-            plt.ylabel("Gain [dB]", fontsize=16)
-            plt.xscale('log')
-            plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:], label="Plant")
-            plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:], '--', label="Reference")
-            plt.legend(fontsize=14)
-            plt.grid()
-plt.show()
+# for in_key, in_value in BODE_INPUT.items():
+#         for out_key, out_value in BODE_OUTPUT.items():
+#             plt.figure()
+#             plt.title(f"{in_key} to {out_key} - Plant",fontsize=24)
+#             plt.xlabel("Frequency [Hz]", fontsize=16)
+#             plt.ylabel("Gain [dB]", fontsize=16)
+#             plt.xscale('log')
+#             plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:], label="Plant")
+#             plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:], '--', label="Reference")
+#             plt.legend(fontsize=14)
+#             plt.grid()
+# plt.show()

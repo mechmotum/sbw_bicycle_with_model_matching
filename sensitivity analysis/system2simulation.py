@@ -17,8 +17,8 @@ def get_eigen_vs_speed(system,speedrange):
 
     # Reorganize results for plotting
     eigenvals = {
-        "real": np.real(np.array(eigenvals)),
-        "imag": np.imag(np.array(eigenvals))
+        "real": np.sort(np.real(np.array(eigenvals))),
+        "imag": np.sort(np.imag(np.array(eigenvals)))
     }
 
     # have a speedrange collumn for each eigenvalue in eigenvals[X]
