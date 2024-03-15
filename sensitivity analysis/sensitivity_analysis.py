@@ -1,5 +1,6 @@
-import matplotlib.pyplot as plt
 import pickle
+import copy
+import matplotlib.pyplot as plt
 import numpy as np
 import system2simulation as s2s
 import controllers as ctrls
@@ -81,7 +82,9 @@ FREQ_RANGE = np.logspace(-3,3,1000)
 EPS = 1e-6 # Turning near 0 poles and zeros to 0. For numerical accuracy
 BODE_SPEED = 8 #[m/s]
 BODE_OUTPUT = {"fork_angle": 0,"lean_rate": 1}
-BODE_INPUT = {"hand_torque": 1} #"lean_torque": 0,
+BODE_INPUT = {"lean_torque": 0, "hand_torque": 1}
+VISUALIZE = False
+
 
 def create_system(np_matrices,C_matrix,ctrl_fun_dict:dict):
     system = {
@@ -90,7 +93,8 @@ def create_system(np_matrices,C_matrix,ctrl_fun_dict:dict):
     }
     return system
 
-# PIPELINE!
+
+
 with open(MM_SOLUTION_FILE, "rb") as inf:
         repl_mm_sol_primal = pickle.load(inf)
 plant_sym,ref_sym = create_primal_matrices(repl_mm_sol_primal)
@@ -103,44 +107,59 @@ speed_axis_ref, eigenvals_ref = s2s.get_eigen_vs_speed(system_ref,SPEED_EIGEN_SP
 bode_mags_ref = s2s.get_bode(system_ref,BODE_SPEED,FREQ_RANGE,EPS)
 
 plant_eval = eval_plant_matrix(plant_sym,repl_primal2num_plant, MAT_EVAL_PRECISION)
-plant_num = matrices_sympy2numpy(plant_eval)
 ctrl_plant = ctrls.get_sil_mm_ctrl(SIL_AVG_SPEED,K_SIL_L,K_SIL_H,plant_eval,ref_eval)
-system_plant = create_system(plant_num,C_MATRIX_BIKE,ctrl_plant)
-speed_axis_plant, eigenvals_plant = s2s.get_eigen_vs_speed(system_plant,SPEED_EIGEN_SPEEDRANGE)
-bode_mags_plant = s2s.get_bode(system_plant,BODE_SPEED,FREQ_RANGE,EPS)
 
-eig_error = output_error_eig(eigenvals_plant, eigenvals_ref)
-bode_error = output_error_bode(bode_mags_plant, bode_mags_ref)
+eig_error = []
+bode_error = []
+for param,value in repl_primal2num_plant.items():
+    repl_primal2num_sensitivity = copy.deepcopy(repl_primal2num_plant)
+    repl_primal2num_sensitivity[param] = value*2
 
+    plant_num = matrices_sympy2numpy(
+        eval_plant_matrix(plant_sym,repl_primal2num_sensitivity, MAT_EVAL_PRECISION)
+    )
+    system_plant = create_system(plant_num,C_MATRIX_BIKE,ctrl_plant)
+    speed_axis_plant, eigenvals_plant = s2s.get_eigen_vs_speed(system_plant,SPEED_EIGEN_SPEEDRANGE)
+    bode_mags_plant = s2s.get_bode(system_plant,BODE_SPEED,FREQ_RANGE,EPS)
 
+    eig_error.append(output_error_eig(eigenvals_plant, eigenvals_ref))
+    bode_error.append(output_error_bode(bode_mags_plant, bode_mags_ref))
 
+    if(VISUALIZE):
+        plt.figure()
+        plt.title(f"Bicycle eigenvalues vs speed - {param}", fontsize=24)
+        plt.ylabel("Eigenvalue [-]", fontsize=16)
+        plt.xlabel("Speed [m/s]", fontsize=16)
+        plt.plot(speed_axis_plant, eigenvals_plant["real"],'r', label="Real plant")
+        plt.plot(speed_axis_plant, eigenvals_plant["imag"],'b', label="Imag plant")
+        plt.plot(speed_axis_ref, eigenvals_ref["real"],'g--', label="Real ref")
+        plt.plot(speed_axis_ref, eigenvals_ref["imag"],'y--', label="Imag ref")
+        # plt.scatter(speed_axis_plant, eigenvals_plant["real"],s=1, label="Real plant")
+        # plt.scatter(speed_axis_plant, eigenvals_plant["imag"],s=1, label="Imag plant")
+        # plt.scatter(speed_axis_ref, eigenvals_ref["real"],s=1, label="Real ref")
+        # plt.scatter(speed_axis_ref, eigenvals_ref["imag"],s=1, label="Imag ref")
+        plt.legend(fontsize=14)
+        plt.grid()
+        plt.axis((0,10,-12,12))
+        plt.show()
 
-# plt.figure()
-# plt.title("Bicycle eigenvalues vs speed", fontsize=24)
-# plt.ylabel("Eigenvalue [-]", fontsize=16)
-# plt.xlabel("Speed [m/s]", fontsize=16)
-# plt.plot(speed_axis_plant, eigenvals_plant["real"],'r', label="Real plant")
-# plt.plot(speed_axis_plant, eigenvals_plant["imag"],'b', label="Imag plant")
-# plt.plot(speed_axis_ref, eigenvals_ref["real"],'g--', label="Real ref")
-# plt.plot(speed_axis_ref, eigenvals_ref["imag"],'y--', label="Imag ref")
-# # plt.scatter(speed_axis_plant, eigenvals_plant["real"],s=1, label="Real plant")
-# # plt.scatter(speed_axis_plant, eigenvals_plant["imag"],s=1, label="Imag plant")
-# # plt.scatter(speed_axis_ref, eigenvals_ref["real"],s=1, label="Real ref")
-# # plt.scatter(speed_axis_ref, eigenvals_ref["imag"],s=1, label="Imag ref")
-# plt.legend(fontsize=14)
-# plt.grid()
-# plt.axis((0,10,-12,12))
-# plt.show()
+        for in_key, in_value in BODE_INPUT.items():
+                for out_key, out_value in BODE_OUTPUT.items():
+                    plt.figure()
+                    plt.title(f"{in_key} to {out_key} - {param}",fontsize=24)
+                    plt.xlabel("Frequency [Hz]", fontsize=16)
+                    plt.ylabel("Gain [dB]", fontsize=16)
+                    plt.xscale('log')
+                    plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:], label="Plant")
+                    plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:], '--', label="Reference")
+                    plt.legend(fontsize=14)
+                    plt.grid()
+        plt.show()
 
-# for in_key, in_value in BODE_INPUT.items():
-#         for out_key, out_value in BODE_OUTPUT.items():
-#             plt.figure()
-#             plt.title(f"{in_key} to {out_key} - Plant",fontsize=24)
-#             plt.xlabel("Frequency [Hz]", fontsize=16)
-#             plt.ylabel("Gain [dB]", fontsize=16)
-#             plt.xscale('log')
-#             plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:], label="Plant")
-#             plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:], '--', label="Reference")
-#             plt.legend(fontsize=14)
-#             plt.grid()
-# plt.show()
+plt.figure()
+plt.bar([str(symb) for symb in list(repl_primal2num_plant.keys())], eig_error)
+plt.show()
+
+plt.figure()
+plt.bar([str(symb) for symb in list(repl_primal2num_plant.keys())], bode_error)
+plt.show()
