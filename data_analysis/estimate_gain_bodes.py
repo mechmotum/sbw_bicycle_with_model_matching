@@ -99,7 +99,7 @@ def find_freq_and_amp(time,sig,peaks,vallies):
     sig_amplitude = np.average(np.abs(amplitudes))
     return sig_frequency,sig_amplitude
 
-def get_single_bode_point(filename,vars2extract, start, stop, tune_par):
+def get_single_bode_point_peaks(bode_points, filename,vars2extract, start, stop, tune_par):
     #---[Decide on and extract variable from log file
     extraction = logfile2array(PATH,filename,vars2extract)
 
@@ -111,7 +111,7 @@ def get_single_bode_point(filename,vars2extract, start, stop, tune_par):
 
         #---[create dict for storage
         sinus_pars[key] = {}
-        #---[Filter force sensor
+        #---[Filter signal
         val_butter = filt.butter_static(BUTTER_ORDER, BUTTER_CUT_OFF, value, fs=1/TIME_STEP)
 
         #---[Choose signal to analyse
@@ -146,12 +146,59 @@ def get_single_bode_point(filename,vars2extract, start, stop, tune_par):
     # Create container to hold the calculated bode magnitude points for the input to output combinations
     for sys_input in INPUT.keys():
         for sys_output in OUTPUT.keys():
-            print(f"---{sys_input} to {sys_output}---\nfrequency input:\t{sinus_pars[sys_input]['freq']}\nfrequency sys_output:\t{sinus_pars[sys_output]['freq']}\n")
+            print(f"---{sys_input} to {sys_output}---\nfrequency input:\t{sinus_pars[sys_input]['freq']:.3}\ndifference (in-out):\t{sinus_pars[sys_input]['freq']-sinus_pars[sys_output]['freq']}\n")
             
             bode_points[sys_input][sys_output].append(
                 [0.5*(sinus_pars[sys_output]["freq"] + sinus_pars[sys_input]["freq"]),
                 sinus_pars[sys_output]["amp"]/sinus_pars[sys_input]["amp"]]
                 )
+
+    return bode_points
+
+def get_single_bode_point_fft(bode_points, filename,vars2extract, start, stop, tune_par):
+    #---[Extract variable from log file
+    extraction = logfile2array(PATH,filename,vars2extract)
+
+    #---[Choose between filtered and raw signal
+    signals = {}
+    for key,value in extraction.items():
+        #---[Filter signal
+        val_butter = filt.butter_static(BUTTER_ORDER, BUTTER_CUT_OFF, value, fs=1/TIME_STEP)
+
+        #---[Choose signal to analyse
+        if(TO_ANALYSE == "raw"):
+            signals[key] = value
+        elif(TO_ANALYSE == "filtered"):
+            signals[key] = val_butter
+
+
+    for key_in in INPUT.keys():
+        for key_out in OUTPUT.keys():
+            input_frq = np.fft.rfft(signals[key_in][start:stop]) # magnitude [-]
+            output_frq = np.fft.rfft(signals[key_out][start:stop]) # magnitude [-]
+            freq_bins= np.fft.rfftfreq(len(signals[key_out][start:stop]),TIME_STEP) # [Hz]
+
+            magnitude_in = np.max(abs(input_frq))
+            magnitude_out = np.max(abs(output_frq))
+            freq_in = freq_bins[np.argmax(abs(input_frq))]
+            freq_out = freq_bins[np.argmax(abs(output_frq))]
+
+            print(f"---{key_in} to {key_out}---\nfrequency input:\t{freq_in:.3}\ndifference (in-out):\t{freq_in-freq_out}\n")
+            bode_points[key_in][key_out].append([freq_in,magnitude_out/magnitude_in])
+
+            if(CHECK_VISUALLY):
+                plt.figure()
+                plt.xscale('log')
+                plt.title(f"Bode plot of {key_in} to {key_out}", fontsize=24)
+                plt.xlabel("Frequencies [Hz]", fontsize=16)
+                plt.ylabel("Magnitude [dB]", fontsize=16)
+                plt.plot(freq_bins,abs(input_frq),label="input")
+                plt.plot(freq_bins,abs(output_frq),label="output")
+                plt.plot(freq_bins[freq_in],np.max(abs(input_frq)),'o',label="input max")
+                plt.plot(freq_bins[freq_out],np.max(abs(output_frq)),'o',label="output max")
+                plt.legend(fontsize=14)
+    if(CHECK_VISUALLY):
+        plt.show()
 
     return bode_points
 
@@ -178,6 +225,7 @@ TIME_STEP = 0.01
 OUTPUT = {"fork_angle": 0,"lean_rate": 1}
 INPUT = {"hand_torque": 1} #"lean_torque": 0,
 PHASE = "calculate_bode" #"cut_data" OR "calculate_bode" the first to investigate the uncut plot, the later to calculate the bode plot of the different samples
+METHOD = "FFT"
 EXPERIMENT_SPEED = 8/3.6 #[m/s]
 CHECK_VISUALLY = False
 
@@ -224,6 +272,11 @@ experiments = [
 
 #---[Get the bodepoints from the measured data of the experiments
 if(PHASE=="calculate_bode"):
+    if(METHOD=="peaks"):
+        get_single_bode_point = get_single_bode_point_peaks
+    elif(METHOD=="FFT"):
+        get_single_bode_point = get_single_bode_point_fft
+
     bode_points = {}
     for in_key in INPUT.keys():
         bode_points[in_key] = {}
@@ -232,7 +285,7 @@ if(PHASE=="calculate_bode"):
 
     for single_exitation in experiments:
         file, start0_stop1, tune_par = single_exitation
-        bode_points = get_single_bode_point(file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par) # frequency in Hz, magnitude in [-]
+        get_single_bode_point(bode_points, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par) # frequency in Hz, magnitude in [-]. Bode points is passed by reference
 
     for in_key, in_value in INPUT.items():
         for out_key, out_value in OUTPUT.items():
