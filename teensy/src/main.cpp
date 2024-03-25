@@ -265,7 +265,7 @@ for lower speeds. In short: Lower WHEEL_COUNTS_LENGTH means faster respons to sp
 change, but higher WHEEL_COUNTS_LENGTH means better resolution*/
 const uint16_t WHEEL_COUNTS_LENGTH = 500; 
 const uint8_t WHEEL_COUNTS_PER_REV = 192;
-const float WHEEL_RADIUS = 0.33f; //[m]
+const float WHEEL_RADIUS = 0.3498f; //[m]
 #if USE_PEDAL_CADANCE
 /*NOTE: there is currently no sensor to measure the encoder ticks*/
 const uint16_t PEDAL_COUNTS_LENGTH = 500;
