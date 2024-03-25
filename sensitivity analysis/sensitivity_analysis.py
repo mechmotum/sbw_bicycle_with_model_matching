@@ -83,7 +83,7 @@ EPS = 1e-6 # Turning near 0 poles and zeros to 0. For numerical accuracy
 BODE_SPEED = 8 #[m/s]
 BODE_OUTPUT = {"fork_angle": 0,"lean_rate": 1}
 BODE_INPUT = {"lean_torque": 0, "hand_torque": 1}
-VISUALIZE = False
+VISUALIZE = True
 
 
 def create_system(np_matrices,C_matrix,ctrl_fun_dict:dict):
@@ -130,10 +130,10 @@ for param,value in repl_primal2num_plant.items():
         plt.title(f"Bicycle eigenvalues vs speed - {param}", fontsize=24)
         plt.ylabel("Eigenvalue [-]", fontsize=16)
         plt.xlabel("Speed [m/s]", fontsize=16)
-        plt.plot(speed_axis_plant, eigenvals_plant["real"],'r', label="Real plant")
-        plt.plot(speed_axis_plant, eigenvals_plant["imag"],'b', label="Imag plant")
-        plt.plot(speed_axis_ref, eigenvals_ref["real"],'g--', label="Real ref")
-        plt.plot(speed_axis_ref, eigenvals_ref["imag"],'y--', label="Imag ref")
+        plt.plot(speed_axis_plant, eigenvals_plant["real"],'-b', label="Real perturbed")
+        plt.plot(speed_axis_plant, eigenvals_plant["imag"],'-r', label="Imag perturbed")
+        plt.plot(speed_axis_ref, eigenvals_ref["real"],'--k', label="Real ref")
+        plt.plot(speed_axis_ref, eigenvals_ref["imag"],'--g', label="Imag ref")
         # plt.scatter(speed_axis_plant, eigenvals_plant["real"],s=1, label="Real plant")
         # plt.scatter(speed_axis_plant, eigenvals_plant["imag"],s=1, label="Imag plant")
         # plt.scatter(speed_axis_ref, eigenvals_ref["real"],s=1, label="Real ref")
@@ -150,7 +150,7 @@ for param,value in repl_primal2num_plant.items():
                     plt.xlabel("Frequency [Hz]", fontsize=16)
                     plt.ylabel("Gain [dB]", fontsize=16)
                     plt.xscale('log')
-                    plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:], label="Plant")
+                    plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:], label="Perturbed")
                     plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:], '--', label="Reference")
                     plt.legend(fontsize=14)
                     plt.grid()
