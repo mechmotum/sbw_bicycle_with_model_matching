@@ -62,6 +62,10 @@ class BikeMeasurements{
     float m_lean_angle_meas; // [rad]
     float m_omega_x_old;     // [rad/s]
 
+    // Variables that will be used as data markers during testing
+    float m_accel_x;         // [m/s^2]
+    float m_accel_y;         // [m/s^2]
+
     // Variables needed for derivarion/intergration calculation
     uint32_t m_dt_bike_speed_meas; // [us] Time between two consecutive measurements of the bike speed in microseconds
     uint32_t m_dt_steer_meas; // [us] Time between two consecutive measurements of the steer angle in microseconds
@@ -90,6 +94,10 @@ class BikeMeasurements{
       m_lean_angle_meas = 0;
       m_omega_x_old = 0;
 
+      // Variables that will be used as data markers during testing
+      m_accel_x = 0;
+      m_accel_y = 0;
+
       // Variables needed for derivarion/intergration calculation
       m_dt_bike_speed_meas = 0;
       m_dt_IMU_meas = 0;
@@ -113,6 +121,9 @@ class BikeMeasurements{
     #if USE_PEDAL_CADANCE
     float get_pedal_cadance(){return m_pedal_cadance;}
     #endif
+    // Variables that will be used as data markers during testing
+    float get_accel_x(){return m_accel_x;}
+    float get_accel_y(){return m_accel_y;}
     // Variables needed for derivarion/intergration calculation
     uint32_t get_dt_steer_meas(){return m_dt_steer_meas;}
 
@@ -134,6 +145,8 @@ class BikeMeasurements{
     #if USE_PEDAL_CADANCE
     void calculate_pedal_cadance();
     #endif
+    // Variables that will be used as data markers during testing
+    void calculate_accelarations();
     // Sanjurjo kalman filter variables
     void calc_lean_angle_meas(float omega_x, float omega_y, float omega_z);
 };
@@ -173,7 +186,7 @@ void print_to_serial(BikeMeasurements& bike, double command_fork, double command
 #endif
 #if USE_IMU
 void imu_setup();
-void get_IMU_data(uint32_t& dt_IMU_meas);
+void update_IMU_data(uint32_t& dt_IMU_meas);
 #endif
 #if USE_SD
 void sd_setup();
@@ -539,6 +552,7 @@ void loop(){
     sbw_bike.calculate_roll_states();
     sbw_bike.measure_steer_angles();
     sbw_bike.calculate_fork_rate(); //also calculates moving average of fork angle and sets it
+    sbw_bike.calculate_accelarations();
     sbw_bike.measure_hand_torque();
     sbw_bike.measure_lat_perturbation();
 
@@ -683,7 +697,7 @@ void BikeMeasurements::calculate_roll_states(){
   //Get gyro measurements
   Eigen::Matrix<float,3,1> omega_vec;
   
-  get_IMU_data(m_dt_IMU_meas);
+  update_IMU_data(m_dt_IMU_meas);
   omega_vec(0,0) = IMU.gyro_x_radps();
   omega_vec(1,0) = IMU.gyro_y_radps();
   omega_vec(2,0) = IMU.gyro_z_radps();
@@ -821,6 +835,13 @@ void BikeMeasurements::calculate_pedal_cadance(){
 }
 #endif //USE_PEDAL_CADANCE
 
+void BikeMeasurements::calculate_accelarations(){
+  Vector3f IMU_acc = {IMU.accel_x_mps2(),IMU.accel_y_mps2(),IMU.accel_z_mps2()};
+  Vector3f bike_acc = B_ROT_IMU*IMU_acc;
+  m_accel_x = bike_acc(0);
+  m_accel_y = bike_acc(1);
+  
+}
 
 //=======================-========= [IMU setup] ================================//
 #if USE_IMU
@@ -1058,7 +1079,7 @@ void actuate_steer_motors(double command_fork, double command_hand){
 
 //=============================== [Read the IMU] ===============================//
 #if USE_IMU
-void get_IMU_data(uint32_t& dt_IMU_meas){
+void update_IMU_data(uint32_t& dt_IMU_meas){
   // TODO: error handling
   //------[Read out data via I2C
   if(!IMU.Read()){ //Calling IMU.Read() will update the measurements. (even if called inside an if statement)
@@ -1132,6 +1153,8 @@ void serial_setup(){
   Serial.print("fork_rate,");
   Serial.print("lean_torque,");
   Serial.print("hand_torque,");
+  Serial.print("x_acceleration,");
+  Serial.print("y_acceleration,");
   Serial.print("command_fork,");
   Serial.print("command_hand");
   Serial.print("\n");
@@ -1157,6 +1180,10 @@ void print_to_serial(BikeMeasurements& bike, double command_fork, double command
   Serial.print(bike.get_lean_torque(),5);
   Serial.print(",");
   Serial.print(bike.get_hand_torque(),5);
+  Serial.print(",");
+  Serial.print(bike.get_accel_x(),5);
+  Serial.print(",");
+  Serial.print(bike.get_accel_y(),5);
   Serial.print(",");
   Serial.print(command_fork,5);
   Serial.print(",");
