@@ -157,9 +157,15 @@ for param,value in repl_primal2num_plant.items():
         plt.show()
 
 plt.figure()
+plt.title("Sensitivity analysis of model matching controller - eigenvalues", fontsize=24)
+plt.ylabel("Squared error value [-]", fontsize=16)
 plt.bar([str(symb) for symb in list(repl_primal2num_plant.keys())], eig_error)
+plt.grid()
 plt.show()
 
 plt.figure()
+plt.title("Sensitivity analysis of model matching controller - bode magnitudes", fontsize=24)
+plt.ylabel("Absolute error value [-]", fontsize=16)
 plt.bar([str(symb) for symb in list(repl_primal2num_plant.keys())], bode_error)
+plt.grid()
 plt.show()
