@@ -34,7 +34,7 @@ repl_primal2num_plant = {
     m_H     : 0.6, # [kg]
     I_Hxx   : 0.01768, # 0.344, # [kg*(m**2)]
     I_Hzz   : 0.00446, # 0.1031, # [kg*(m**2)]
-    I_Hxz   : -0.00273, # -0.092, # [kg*(m**2)]
+    I_Hxz   : -0.0273, # -0.092, # [kg*(m**2)]
 
     r_F     : 0.3498, # [m]
     m_F     : 1.780, # [kg]
@@ -45,7 +45,7 @@ repl_primal2num_plant = {
 repl_primal2num_ref = {
     w_r       : 1.036, # [m]
     c_r       : 0.0803, # [m]
-    lamb_r    : (18.2)*(sm.pi/180), # [rad]
+    lamb_r    : (20.2)*(sm.pi/180), # [rad]
     g_r       : 9.81, # [m/(s**2)]
     v_r       : 5, # [m/s]
 
@@ -64,8 +64,8 @@ repl_primal2num_ref = {
     x_H_r     : 0.944, # [m]
     z_H_r     : -0.595, # [m]
     m_H_r     : 0.6, # [kg]
-    I_Hxx_r   : 0.1768, # 0.344, # [kg*(m**2)]
-    I_Hzz_r   : 0.0446, # 0.1031, # [kg*(m**2)]
+    I_Hxx_r   : 0.01768, # 0.344, # [kg*(m**2)]
+    I_Hzz_r   : 0.00446, # 0.1031, # [kg*(m**2)]
     I_Hxz_r   : -0.0273, # -0.092, # [kg*(m**2)]
 
     r_F_r     : 0.3498, # [m]
@@ -78,16 +78,15 @@ repl_primal2num_ref = {
 MM_SOLUTION_FILE = "10-primal_restriction_solution-Bxx-Bxz-Fyy-Ryy-z_B"
 MAT_EVAL_PRECISION = 12
 C_MATRIX_BIKE = np.array([[0,1,0,0],[0,0,1,0]])
-SIL_AVG_SPEED = 5.5
-K_SIL_L = 2
+SIL_AVG_SPEED = 4.4
+K_SIL_L = 2.2
 K_SIL_H = 0.7
 SPEED_EIGEN_SPEEDRANGE = np.linspace(0.01, 10 , num=int(1 + (10-0)/0.01))
 FREQ_RANGE = np.logspace(-3,3,1000)
 EPS = 1e-6 # Turning near 0 poles and zeros to 0. For numerical accuracy
-BODE_SPEED = 8 #[m/s]
+BODE_SPEED = 10 #[m/s]
 BODE_OUTPUT = {"fork_angle": 0,"lean_rate": 1}
 BODE_INPUT = {"lean_torque": 0, "hand_torque": 1}
-VISUALIZE = True
 
 
 def create_system(np_matrices,C_matrix,ctrl_fun_dict:dict):
@@ -105,14 +104,14 @@ plant_sym,ref_sym = create_primal_matrices(repl_mm_sol_primal)
 
 plant_eval = eval_plant_matrix(plant_sym,repl_primal2num_plant, MAT_EVAL_PRECISION)
 plant_num = matrices_sympy2numpy(plant_eval)
-ctrl_plant = ctrls.get_sil_ctrl(SIL_AVG_SPEED,K_SIL_L,K_SIL_H)
+ctrl_plant = ctrls.get_sil_ctrl(SIL_AVG_SPEED,K_SIL_L,K_SIL_H)#get_zero_ctrl()#
 system_plant = create_system(plant_num,C_MATRIX_BIKE,ctrl_plant)
 speed_axis_plant, eigenvals_plant = s2s.get_eigen_vs_speed(system_plant,SPEED_EIGEN_SPEEDRANGE)
 bode_mags_plant = s2s.get_bode(system_plant,BODE_SPEED,FREQ_RANGE,EPS)
 
 ref_eval = eval_ref_matrix(ref_sym,repl_primal2num_plant, repl_primal2num_ref, MAT_EVAL_PRECISION)
 ref_num = matrices_sympy2numpy(ref_eval)
-ctrl_ref = ctrls.get_sil_ctrl(SIL_AVG_SPEED,K_SIL_L,K_SIL_H)
+ctrl_ref = ctrls.get_sil_ctrl(SIL_AVG_SPEED,K_SIL_L,K_SIL_H)#get_zero_ctrl()#
 system_ref = create_system(ref_num,C_MATRIX_BIKE,ctrl_ref)
 speed_axis_ref, eigenvals_ref = s2s.get_eigen_vs_speed(system_ref,SPEED_EIGEN_SPEEDRANGE)
 bode_mags_ref = s2s.get_bode(system_ref,BODE_SPEED,FREQ_RANGE,EPS)
