@@ -2,6 +2,13 @@ import numpy as np
 import sympy as sm
 
 #---[Create static FF and FB gains 
+# Zero control
+def zero_gain_F_fun():
+    return np.zeros((2,4))
+
+def zero_gain_G_fun():
+    return np.eye(2)
+
 # Steer into lean controller
 def get_sil_gain_F_fun(avg_speed,K_L,K_H):
     def sil_gain_F_fun(speed):
@@ -68,6 +75,13 @@ def get_mm_sil_gain_G_fun(mm_ctrl):
 
 
 #---[Create dictionaries containing the controller gains
+def get_zero_ctrl():
+    ctrl = {
+        'F':zero_gain_F_fun,
+        'G':zero_gain_G_fun 
+    }
+    return ctrl
+
 def get_sil_ctrl(avg_speed,K_L,K_H):
     ctrl = {
         'F':get_sil_gain_F_fun(avg_speed,K_L,K_H),
