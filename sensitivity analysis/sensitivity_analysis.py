@@ -10,36 +10,36 @@ from create_variable_ctrls import VariableController
 from np_matrices2variable_ss import numpy2variable_ss
 
 # Bicycle Parameters
-repl_primal2num_ref = {
-    w_r       : 1.036, # [m]
-    c_r       : 0.0803, # [m]
-    lamb_r    : (18.2)*(sm.pi/180), # [rad]
-    g_r       : 9.81, # [m/(s**2)]
-    v_r       : 5, # [m/s]
+repl_primal2num_plant = {
+    w       : 1.036, # [m]
+    c       : 0.0803, # [m]
+    lamb    : (18.2)*(sm.pi/180), # [rad]
+    g       : 9.81, # [m/(s**2)]
+    v       : 5, # [m/s]
 
-    r_R_r     : 0.3498, # [m]
-    m_R_r     : 10.12, # [kg]
-    I_Rxx_r   : 0.1040, # [kg*(m**2)]
-    I_Ryy_r   : 0.1641, # [kg*(m**2)]
+    r_R     : 0.3498, # [m]
+    m_R     : 10.12, # [kg]
+    I_Rxx   : 0.1040, # [kg*(m**2)]
+    I_Ryy   : 0.1641, # [kg*(m**2)]
 
-    x_B_r     : 0.462, # [m]
-    z_B_r     : -0.698, # [m]
-    m_B_r     : 20.9, # [kg]
-    I_Bxx_r   : 2.64, #0.373, # [kg*(m**2)]
-    I_Bzz_r   : 1.94, #0.455, # [kg*(m**2)]
-    I_Bxz_r   : 0.654, #-0.0383, # [kg*(m**2)]
+    x_B     : 0.462, # [m]
+    z_B     : -0.698, # [m]
+    m_B     : 20.9, # [kg]
+    I_Bxx   : 2.64, #0.373, # [kg*(m**2)]
+    I_Bzz   : 1.94, #0.455, # [kg*(m**2)]
+    I_Bxz   : 0.654, #-0.0383, # [kg*(m**2)]
 
-    x_H_r     : 0.944, # [m]
-    z_H_r     : -0.595, # [m]
-    m_H_r     : 0.6, # [kg]
-    I_Hxx_r   : 0.1768, # 0.344, # [kg*(m**2)]
-    I_Hzz_r   : 0.0446, # 0.1031, # [kg*(m**2)]
-    I_Hxz_r   : -0.0273, # -0.092, # [kg*(m**2)]
+    x_H     : 0.944, # [m]
+    z_H     : -0.595, # [m]
+    m_H     : 0.6, # [kg]
+    I_Hxx   : 0.1768, # 0.344, # [kg*(m**2)]
+    I_Hzz   : 0.0446, # 0.1031, # [kg*(m**2)]
+    I_Hxz   : -0.0273, # -0.092, # [kg*(m**2)]
 
-    r_F_r     : 0.3498, # [m]
-    m_F_r     : 1.780, # [kg]
-    I_Fxx_r   : 0.0644, # [kg*(m**2)]
-    I_Fyy_r   : 0.1289, # [kg*(m**2)]
+    r_F     : 0.3498, # [m]
+    m_F     : 1.780, # [kg]
+    I_Fxx   : 0.0644, # [kg*(m**2)]
+    I_Fyy   : 0.1289, # [kg*(m**2)]
     }
 
 repl_primal2num_ref = {
@@ -74,6 +74,39 @@ repl_primal2num_ref = {
     I_Fyy_r   : 0.1289, # [kg*(m**2)]
     }
 
+# Expected errors in 
+param_expected_error = {
+    'w'       : 0.01, # [m]
+    'c'       : 0.01, # [m]
+    'lambda'  : 1*(np.pi/180), # [rad]
+    'g'       : 0.01, # [m/(s**2)]
+    'v'       : 0.01, # [m/s]
+
+    'r_R'     : 0.005, # [m]
+    'm_R'     : 0.1, # [kg]
+    'I_Rxx'   : 0.2* 0.1040, # [kg*(m**2)]
+    'I_Ryy'   : 0.2* 0.1641, # [kg*(m**2)]
+
+    'x_B'     : 0.05, # [m]
+    'z_B'     : -0.05, # [m]
+    'm_B'     : 0.1, # [kg]
+    'I_Bxx'   : 1* 2.64, #0.373, # [kg*(m**2)]
+    'I_Bzz'   : 1* 1.94, #0.455, # [kg*(m**2)]
+    'I_Bxz'   : 1* 0.654, #-0.0383, # [kg*(m**2)]
+
+    'x_H'     : 0.05, # [m]
+    'z_H'     : -0.05, # [m]
+    'm_H'     : 1* 0.6, # [kg]
+    'I_Hxx'   : 1* 0.1768, # 0.344, # [kg*(m**2)]
+    'I_Hzz'   : 1* 0.0446, # 0.1031, # [kg*(m**2)]
+    'I_Hxz'   : 1* -0.0273, # -0.092, # [kg*(m**2)]
+
+    'r_F'     : 0.005, # [m]
+    'm_F'     : 0.1, # [kg]
+    'I_Fxx'   : 0.2* 0.0644, # [kg*(m**2)]
+    'I_Fyy'   : 0.2* 0.1289, # [kg*(m**2)]
+}
+
 # Constants
 MM_SOLUTION_FILE = "10-primal_restriction_solution-Bxx-Bxz-Fyy-Ryy-z_B"
 MAT_EVAL_PRECISION = 12
@@ -87,8 +120,7 @@ EPS = 1e-6 # Turning near 0 poles and zeros to 0. For numerical accuracy
 BODE_SPEED = 8 #[m/s]
 BODE_OUTPUT = {"fork_angle": 0,"lean_rate": 1}
 BODE_INPUT = {"lean_torque": 0, "hand_torque": 1}
-VISUALIZE = True
-
+VISUALIZE = False
 
 def create_system(np_matrices,C_matrix,ctrl_fun_dict:dict):
     system = {
@@ -113,21 +145,28 @@ bode_mags_ref = s2s.get_bode(system_ref,BODE_SPEED,FREQ_RANGE,EPS)
 plant_eval = eval_plant_matrix(plant_sym,repl_primal2num_plant, MAT_EVAL_PRECISION)
 ctrl_plant = ctrls.get_sil_mm_ctrl(SIL_AVG_SPEED,K_SIL_L,K_SIL_H,plant_eval,ref_eval)
 
-eig_error = []
-bode_error = []
+max_eig_error = []
+max_bode_error = []
 for param,value in repl_primal2num_plant.items():
-    repl_primal2num_sensitivity = copy.deepcopy(repl_primal2num_plant)
-    repl_primal2num_sensitivity[param] = value*2
+    eig_error = []
+    bode_error = []
+    steps = np.arange(-param_expected_error[str(param)],+param_expected_error[str(param)],(2*param_expected_error[str(param)])/10)
+    for perturb in steps:
+        repl_primal2num_sensitivity = copy.deepcopy(repl_primal2num_plant)
+        repl_primal2num_sensitivity[param] = value + perturb
 
-    plant_num = matrices_sympy2numpy(
-        eval_plant_matrix(plant_sym,repl_primal2num_sensitivity, MAT_EVAL_PRECISION)
-    )
-    system_plant = create_system(plant_num,C_MATRIX_BIKE,ctrl_plant)
-    speed_axis_plant, eigenvals_plant = s2s.get_eigen_vs_speed(system_plant,SPEED_EIGEN_SPEEDRANGE)
-    bode_mags_plant = s2s.get_bode(system_plant,BODE_SPEED,FREQ_RANGE,EPS)
+        plant_num = matrices_sympy2numpy(
+            eval_plant_matrix(plant_sym,repl_primal2num_sensitivity, MAT_EVAL_PRECISION)
+        )
+        system_plant = create_system(plant_num,C_MATRIX_BIKE,ctrl_plant)
+        speed_axis_plant, eigenvals_plant = s2s.get_eigen_vs_speed(system_plant,SPEED_EIGEN_SPEEDRANGE)
+        bode_mags_plant = s2s.get_bode(system_plant,BODE_SPEED,FREQ_RANGE,EPS)
 
-    eig_error.append(output_error_eig(eigenvals_plant, eigenvals_ref))
-    bode_error.append(output_error_bode(bode_mags_plant, bode_mags_ref))
+        eig_error.append(output_error_eig(eigenvals_plant, eigenvals_ref))
+        bode_error.append(output_error_bode(bode_mags_plant, bode_mags_ref))
+    max_eig_error.append(max(eig_error))
+    max_bode_error.append(max(bode_error))
+
 
     if(VISUALIZE):
         plt.figure()
@@ -160,16 +199,26 @@ for param,value in repl_primal2num_plant.items():
                     plt.grid()
         plt.show()
 
+        plt.figure()
+        plt.title(f"Sensitivity analysis of model matching controller {param}", fontsize=24)
+        plt.ylabel("Error value [-] (eigen:squared , bode:absolute)", fontsize=16)
+        plt.xlabel("Perturbation", fontsize=16)
+        plt.plot(steps, eig_error, label='speed-eigenvalue')
+        plt.plot(steps, bode_error, label='bode magnitude')
+        plt.legend(fontsize=14)
+        plt.grid()
+        plt.show()
+
 plt.figure()
 plt.title("Sensitivity analysis of model matching controller - eigenvalues", fontsize=24)
 plt.ylabel("Squared error value [-]", fontsize=16)
-plt.bar([str(symb) for symb in list(repl_primal2num_plant.keys())], eig_error)
+plt.bar([str(symb) for symb in list(repl_primal2num_plant.keys())], max_eig_error)
 plt.grid()
 plt.show()
 
 plt.figure()
 plt.title("Sensitivity analysis of model matching controller - bode magnitudes", fontsize=24)
 plt.ylabel("Absolute error value [-]", fontsize=16)
-plt.bar([str(symb) for symb in list(repl_primal2num_plant.keys())], bode_error)
+plt.bar([str(symb) for symb in list(repl_primal2num_plant.keys())], max_bode_error)
 plt.grid()
 plt.show()
