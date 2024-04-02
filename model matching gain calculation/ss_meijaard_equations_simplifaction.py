@@ -278,16 +278,16 @@ repl_params = {
     x_B     : 0.462, # [m]
     z_B     : -0.698, # [m]
     m_B     : 20.9, # [kg]
-    I_Bxx   : 2.64, # [kg*(m**2)]
+    I_Bxx   : 1.64, # [kg*(m**2)]
     I_Bzz   : 1.94, # [kg*(m**2)]
     I_Bxz   : 0.654, # [kg*(m**2)]
 
     x_H     : 0.944, # [m]
     z_H     : -0.595, # [m]
     m_H     : 0.6, # [kg]
-    I_Hxx   : 0.0980, # [kg*(m**2)]
-    I_Hzz   : 0.0396, # [kg*(m**2)]
-    I_Hxz   : -0.0044,# [kg*(m**2)]
+    I_Hxx   : 0.00980, # 0.0980, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hzz   : 0.00396, # 0.0396, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hxz   : -0.06044, # -0.0044, # [kg*(m**2)] # corrected:Bianchi Pista
 
     r_F     : 0.3498, # [m]
     m_F     : 1.780, # [kg]
@@ -310,16 +310,16 @@ repl_params_ref = {
     x_B_r     : 0.462, # [m]
     z_B_r     : 0.698, # [m]
     m_B_r     : 0.6, # [kg]
-    I_Bxx_r   : 2.64, # [kg*(m**2)]
+    I_Bxx_r   : 1.64, # 2.64, # [kg*(m**2)] # corrected:instrumented bicycle
     I_Bzz_r   : 1.94, # [kg*(m**2)]
     I_Bxz_r   : 0.654, # [kg*(m**2)]
 
     x_H_r     : 0.944, # [m]
     z_H_r     : 0.595, # [m]
     m_H_r     : 0.6, # [kg]
-    I_Hxx_r   : 0.0980, # [kg*(m**2)]
-    I_Hzz_r   : 0.0396, # [kg*(m**2)]
-    I_Hxz_r   : -0.0044,# [kg*(m**2)]
+    I_Hxx_r   : 0.00980, # 0.0980, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hzz_r   : 0.00396, # 0.0396, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hxz_r   : -0.06044, # -0.0044, # [kg*(m**2)] # corrected:Bianchi Pista
 
     r_F_r     : 0.3498, # [m]
     m_F_r     : 1.780, # [kg]
@@ -538,7 +538,7 @@ for key, value in mm_gains.items():
 
 
 # save matrices and gains
-with open("bike_and_ref_variable_dependend_system_matrices_measured_parameters", "wb") as outf:
+with open("bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected", "wb") as outf:
     dill.dump(plant_and_ref_mtrxs, outf)
 
 # with open("model_matching_gains_measured_parameters", "wb") as outf:
