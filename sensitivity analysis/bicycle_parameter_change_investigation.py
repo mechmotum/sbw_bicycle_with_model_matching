@@ -25,16 +25,16 @@ repl_primal2num_plant = {
     x_B     : 0.462, # [m]
     z_B     : -0.698, # [m]
     m_B     : 20.9, # [kg]
-    I_Bxx   : 2.64, #0.373, # [kg*(m**2)]
-    I_Bzz   : 1.94, #0.455, # [kg*(m**2)]
-    I_Bxz   : 0.654, #-0.0383, # [kg*(m**2)]
+    I_Bxx   : 1.64, # [kg*(m**2)]
+    I_Bzz   : 1.94, # [kg*(m**2)]
+    I_Bxz   : 0.654, # [kg*(m**2)]
 
     x_H     : 0.944, # [m]
     z_H     : -0.595, # [m]
     m_H     : 0.6, # [kg]
-    I_Hxx   : 0.01768, # 0.344, # [kg*(m**2)]
-    I_Hzz   : 0.00446, # 0.1031, # [kg*(m**2)]
-    I_Hxz   : -0.0273, # -0.092, # [kg*(m**2)]
+    I_Hxx   : 0.00980, # 0.0980, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hzz   : 0.00396, # 0.0396, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hxz   : -0.06044, # -0.0044, # [kg*(m**2)] # corrected:Bianchi Pista
 
     r_F     : 0.3498, # [m]
     m_F     : 1.780, # [kg]
@@ -57,16 +57,16 @@ repl_primal2num_ref = {
     x_B_r     : 0.462, # [m]
     z_B_r     : -0.698, # [m]
     m_B_r     : 20.9, # [kg]
-    I_Bxx_r   : 2.64, #0.373, # [kg*(m**2)]
-    I_Bzz_r   : 1.94, #0.455, # [kg*(m**2)]
-    I_Bxz_r   : 0.654, #-0.0383, # [kg*(m**2)]
+    I_Bxx_r   : 1.64, # 2.64, # [kg*(m**2)] # corrected:instrumented bicycle
+    I_Bzz_r   : 1.94, # [kg*(m**2)]
+    I_Bxz_r   : 0.654, # [kg*(m**2)]
 
     x_H_r     : 0.944, # [m]
     z_H_r     : -0.595, # [m]
     m_H_r     : 0.6, # [kg]
-    I_Hxx_r   : 0.01768, # 0.344, # [kg*(m**2)]
-    I_Hzz_r   : 0.00446, # 0.1031, # [kg*(m**2)]
-    I_Hxz_r   : -0.0273, # -0.092, # [kg*(m**2)]
+    I_Hxx_r   : 0.00980, # 0.0980, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hzz_r   : 0.00396, # 0.0396, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hxz_r   : -0.06044, # -0.0044, # [kg*(m**2)] # corrected:Bianchi Pista
 
     r_F_r     : 0.3498, # [m]
     m_F_r     : 1.780, # [kg]
@@ -78,8 +78,8 @@ repl_primal2num_ref = {
 MM_SOLUTION_FILE = "10-primal_restriction_solution-Bxx-Bxz-Fyy-Ryy-z_B"
 MAT_EVAL_PRECISION = 12
 C_MATRIX_BIKE = np.array([[0,1,0,0],[0,0,1,0]])
-SIL_AVG_SPEED = 4.4
-K_SIL_L = 2.2
+SIL_AVG_SPEED = 3.9#4.4
+K_SIL_L = 3#2.2
 K_SIL_H = 0.7
 SPEED_EIGEN_SPEEDRANGE = np.linspace(0.01, 10 , num=int(1 + (10-0)/0.01))
 FREQ_RANGE = np.logspace(-3,3,1000)
