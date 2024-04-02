@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 import matplotlib.pyplot as plt
 from data_parsing import logfile2array
@@ -156,6 +157,15 @@ def get_single_bode_point_peaks(bode_points, filename,vars2extract, start, stop,
     return bode_points
 
 def get_single_bode_point_fft(bode_points, filename,vars2extract, start, stop, tune_par):
+    FRF = {}
+    for in_key in INPUT.keys():
+        FRF[in_key] = {}
+        for out_key in OUTPUT.keys():
+            FRF[in_key][out_key] = []
+    analyse_bode_data(bode_points, FRF, filename,vars2extract, start, stop, tune_par)
+    return
+
+def analyse_bode_data(bode_points, FRF, filename,vars2extract, start, stop, tune_par):
     #---[Extract variable from log file
     extraction = logfile2array(PATH,filename,vars2extract)
 
@@ -183,6 +193,9 @@ def get_single_bode_point_fft(bode_points, filename,vars2extract, start, stop, t
             freq_in = freq_bins[np.argmax(abs(input_frq))]
             freq_out = freq_bins[np.argmax(abs(output_frq))]
 
+            FRF[key_in][key_out].append([freq_bins[np.argmax(abs(input_frq))-3:np.argmax(abs(input_frq))+5],\
+                                         (abs(output_frq)/abs(input_frq))[np.argmax(abs(input_frq))-3:np.argmax(abs(input_frq))+5]])
+
             print(f"---{key_in} to {key_out}---\nfrequency input:\t{freq_in:.3}\ndifference (in-out):\t{freq_in-freq_out}\n")
             bode_points[key_in][key_out].append([freq_in,magnitude_out/magnitude_in])
 
@@ -200,7 +213,7 @@ def get_single_bode_point_fft(bode_points, filename,vars2extract, start, stop, t
     if(CHECK_VISUALLY):
         plt.show()
 
-    return bode_points
+    return
 
 def plot_uncut_data(path,file,vars2extract):
     extraction = logfile2array(path,file,vars2extract)
@@ -231,7 +244,7 @@ CHECK_VISUALLY = False
 
 #Theoretical model parameters
 PLANT_TYPE = "plant" #"plant" or "reference"
-SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices"
+SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_original"
 FREQ_RANGE = np.logspace(-3,3,1000) # [rad/s]
 
 #---[variable to invastigate and list of single experiments
@@ -282,10 +295,12 @@ if(PHASE=="calculate_bode"):
         bode_points[in_key] = {}
         for out_key in OUTPUT.keys():
             bode_points[in_key][out_key] = []
+    FRF = copy.deepcopy(bode_points)    
 
     for single_exitation in experiments:
         file, start0_stop1, tune_par = single_exitation
         get_single_bode_point(bode_points, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par) # frequency in Hz, magnitude in [-]. Bode points is passed by reference
+        # analyse_bode_data(bode_points, FRF, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par)
 
     for in_key, in_value in INPUT.items():
         for out_key, out_value in OUTPUT.items():
@@ -299,11 +314,12 @@ if(PHASE=="calculate_bode"):
 
             #---[plot the theoretic bode
             bode_mags = get_bode(SPEED_DEP_MODEL_FILE,PLANT_TYPE,EXPERIMENT_SPEED,FREQ_RANGE) # frequency in rad/s, magnitude in dB
-            plt.plot(FREQ_RANGE/(2*np.pi),bode_mags[in_value,out_value,:], label="Theoretical Gain")
-
+            plt.plot(FREQ_RANGE/(2*np.pi),bode_mags[in_value,out_value,:],linewidth=3, label="Theoretical Gain")
             #---[plot the empirical bode
-            plt.plot(bode_points[in_key][out_key][:,0], 20*np.log10(bode_points[in_key][out_key][:,1]),'o', label="Emperical Gain")
+            [plt.plot(tmp[0],20*np.log10(tmp[1])) for tmp in FRF[in_key][out_key]]
+            plt.plot(bode_points[in_key][out_key][:,0], 20*np.log10(bode_points[in_key][out_key][:,1]),'ok', label="Emperical Gain")
             
+            plt.axis([0.07,12,-70,20])
             plt.grid()
             plt.legend(fontsize=14)
     plt.show()
