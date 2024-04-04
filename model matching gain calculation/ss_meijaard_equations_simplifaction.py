@@ -287,7 +287,7 @@ repl_params = {
     m_H     : 0.6, # [kg]
     I_Hxx   : 0.00980, # 0.0980, # [kg*(m**2)] # corrected:Bianchi Pista
     I_Hzz   : 0.00396, # 0.0396, # [kg*(m**2)] # corrected:Bianchi Pista
-    I_Hxz   : -0.06044, # -0.0044, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hxz   : -0.00044, # -0.0044, # [kg*(m**2)] # corrected:Bianchi Pista
 
     r_F     : 0.3498, # [m]
     m_F     : 1.780, # [kg]
@@ -298,7 +298,7 @@ repl_params = {
 repl_params_ref = {
     w_r       : 1.036, # [m]
     c_r       : 0.0803, # [m]
-    lamb_r    : (19.2)*(sm.pi/180), # [rad]
+    lamb_r    : (20.2)*(sm.pi/180), # [rad]
     g_r       : 9.81, # [m/(s**2)]
     v_r       : 5, # [m/s]
 
@@ -308,18 +308,18 @@ repl_params_ref = {
     I_Ryy_r   : 0.1641, # [kg*(m**2)]
 
     x_B_r     : 0.462, # [m]
-    z_B_r     : 0.698, # [m]
-    m_B_r     : 0.6, # [kg]
+    z_B_r     : -0.698, # [m]
+    m_B_r     : 20.9, # [kg]
     I_Bxx_r   : 1.64, # 2.64, # [kg*(m**2)] # corrected:instrumented bicycle
     I_Bzz_r   : 1.94, # [kg*(m**2)]
     I_Bxz_r   : 0.654, # [kg*(m**2)]
 
     x_H_r     : 0.944, # [m]
-    z_H_r     : 0.595, # [m]
+    z_H_r     : -0.595, # [m]
     m_H_r     : 0.6, # [kg]
     I_Hxx_r   : 0.00980, # 0.0980, # [kg*(m**2)] # corrected:Bianchi Pista
     I_Hzz_r   : 0.00396, # 0.0396, # [kg*(m**2)] # corrected:Bianchi Pista
-    I_Hxz_r   : -0.06044, # -0.0044, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hxz_r   : -0.00044, # -0.0044, # [kg*(m**2)] # corrected:Bianchi Pista
 
     r_F_r     : 0.3498, # [m]
     m_F_r     : 1.780, # [kg]
