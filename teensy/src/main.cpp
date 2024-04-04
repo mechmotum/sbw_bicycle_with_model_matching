@@ -331,15 +331,15 @@ const float FORK_TRQ_REDUCTION_RATIO = 0.3; //The fork is free to rotate -> no f
 
 // Model matching gains: The "_Vx" indicates that the coefficient
 //  is multiplied with speed to the power of x.
-const float K_MM_PHI_V0 = 0.840841241252; // lean angle
-const float K_MM_DELT_V0 = 0.120254094656; // steer/fork angle
-const float K_MM_DELT_V2 = -0.183092924965; // steer/fork angle
-const float K_MM_DPHI_V1 = 0.373289545485; // lean rate
-const float K_MM_DPHI_VMIN1 = -2.53819533238e-13; // lean rate
-const float K_MM_DDELT_V1 = -0.041905112053; // steer/fork rate
-const float K_MM_DDELT_VMIN1 = -6.82478414984e-14; // steer/fork rate
-const float K_MM_TPHI_V0 = 0.00203761694971; // lean torque
-const float K_MM_TDELT_V0 = 0.940050621145; // steer/hand torque
+const float K_MM_PHI_V0 = 0.211492437333; // lean angle
+const float K_MM_DELT_V0 = 0.24058007042; // steer/fork angle
+const float K_MM_DELT_V2 = -0.0864766087461; // steer/fork angle
+const float K_MM_DPHI_V1 = 0.20410815964; // lean rate
+const float K_MM_DPHI_VMIN1 = 1.51052073059e-13; // lean rate
+const float K_MM_DDELT_V1 = 0.00383946633565; // steer/fork rate
+const float K_MM_DDELT_VMIN1 = 3.31138184392e-14; // steer/fork rate
+const float K_MM_TPHI_V0 = 0.00269562893980; // lean torque
+const float K_MM_TDELT_V0 = 0.944830638808; // steer/hand torque
 
 
 //-------------------------------- Pins --------------------------------------//
