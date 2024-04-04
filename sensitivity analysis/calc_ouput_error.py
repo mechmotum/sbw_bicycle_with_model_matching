@@ -2,10 +2,10 @@ import numpy as np
 
 def output_error_eig(eig_ctrld_plant, eig_ref):
     error = np.sum(
-        np.power((eig_ctrld_plant['real'] - eig_ref['real']), 2)
+       np.abs((eig_ctrld_plant['real'] - eig_ref['real']))
     )
     error = error +  np.sum(
-        np.power((eig_ctrld_plant['imag'] - eig_ref['imag']), 2)
+        np.abs((eig_ctrld_plant['imag'] - eig_ref['imag']))
     )
     return error
 

@@ -25,16 +25,16 @@ repl_primal2num_plant = {
     x_B     : 0.462, # [m]
     z_B     : -0.698, # [m]
     m_B     : 20.9, # [kg]
-    I_Bxx   : 2.64, #0.373, # [kg*(m**2)]
-    I_Bzz   : 1.94, #0.455, # [kg*(m**2)]
-    I_Bxz   : 0.654, #-0.0383, # [kg*(m**2)]
+    I_Bxx   : 1.64, # [kg*(m**2)]
+    I_Bzz   : 1.94, # [kg*(m**2)]
+    I_Bxz   : 0.654, # [kg*(m**2)]
 
     x_H     : 0.944, # [m]
     z_H     : -0.595, # [m]
     m_H     : 0.6, # [kg]
-    I_Hxx   : 0.1768, # 0.344, # [kg*(m**2)]
-    I_Hzz   : 0.0446, # 0.1031, # [kg*(m**2)]
-    I_Hxz   : -0.0273, # -0.092, # [kg*(m**2)]
+    I_Hxx   : 0.00980, # [kg*(m**2)]
+    I_Hzz   : 0.00396, # [kg*(m**2)]
+    I_Hxz   : -0.00044, # [kg*(m**2)]
 
     r_F     : 0.3498, # [m]
     m_F     : 1.780, # [kg]
@@ -57,16 +57,16 @@ repl_primal2num_ref = {
     x_B_r     : 0.462, # [m]
     z_B_r     : -0.698, # [m]
     m_B_r     : 20.9, # [kg]
-    I_Bxx_r   : 2.64, #0.373, # [kg*(m**2)]
-    I_Bzz_r   : 1.94, #0.455, # [kg*(m**2)]
-    I_Bxz_r   : 0.654, #-0.0383, # [kg*(m**2)]
+    I_Bxx_r   : 1.64, # [kg*(m**2)]
+    I_Bzz_r   : 1.94, # [kg*(m**2)]
+    I_Bxz_r   : 0.654, # [kg*(m**2)]
 
     x_H_r     : 0.944, # [m]
     z_H_r     : -0.595, # [m]
     m_H_r     : 0.6, # [kg]
-    I_Hxx_r   : 0.1768, # 0.344, # [kg*(m**2)]
-    I_Hzz_r   : 0.0446, # 0.1031, # [kg*(m**2)]
-    I_Hxz_r   : -0.0273, # -0.092, # [kg*(m**2)]
+    I_Hxx_r   : 0.00980, # [kg*(m**2)]
+    I_Hzz_r   : 0.00396, # [kg*(m**2)]
+    I_Hxz_r   : -0.00044, # [kg*(m**2)]
 
     r_F_r     : 0.3498, # [m]
     m_F_r     : 1.780, # [kg]
@@ -89,17 +89,17 @@ param_expected_error = {
 
     'x_B'     : 0.05, # [m]
     'z_B'     : -0.05, # [m]
-    'm_B'     : 0.1, # [kg]
-    'I_Bxx'   : 1* 2.64, #0.373, # [kg*(m**2)]
-    'I_Bzz'   : 1* 1.94, #0.455, # [kg*(m**2)]
-    'I_Bxz'   : 1* 0.654, #-0.0383, # [kg*(m**2)]
+    'm_B'     : 0.6, # [kg]
+    'I_Bxx'   : (-0.64,1.36), #(1-3) # [kg*(m**2)]
+    'I_Bzz'   : (-0.94,1.06), #(1-3) # [kg*(m**2)]
+    'I_Bxz'   : (-1.154, 0.346), #((-0.5)-(+0.5) # [kg*(m**2)]
 
     'x_H'     : 0.05, # [m]
     'z_H'     : -0.05, # [m]
     'm_H'     : 1* 0.6, # [kg]
-    'I_Hxx'   : 1* 0.1768, # 0.344, # [kg*(m**2)]
-    'I_Hzz'   : 1* 0.0446, # 0.1031, # [kg*(m**2)]
-    'I_Hxz'   : 1* -0.0273, # -0.092, # [kg*(m**2)]
+    'I_Hxx'   : (-0.00980, 0.0902), #(0-0.1) # [kg*(m**2)]
+    'I_Hzz'   : (-0.00396, 0.09604), #(0-0.1) # [kg*(m**2)]
+    'I_Hxz'   : (-0.00956, 0.01044), #((-0.01)-(+0.01))# [kg*(m**2)]
 
     'r_F'     : 0.005, # [m]
     'm_F'     : 0.1, # [kg]
@@ -145,12 +145,17 @@ bode_mags_ref = s2s.get_bode(system_ref,BODE_SPEED,FREQ_RANGE,EPS)
 plant_eval = eval_plant_matrix(plant_sym,repl_primal2num_plant, MAT_EVAL_PRECISION)
 ctrl_plant = ctrls.get_sil_mm_ctrl(SIL_AVG_SPEED,K_SIL_L,K_SIL_H,plant_eval,ref_eval)
 
+error_diff_eig = []
+error_diff_bode = []
 max_eig_error = []
 max_bode_error = []
-for param,value in repl_primal2num_plant.items():
+for param,value in repl_primal2num_plant.items():#[(I_Bxx, 1.64), (I_Bzz, 1.94), (I_Bxz, 0.654), (I_Hxx, 0.00980), (I_Hzz, 0.00396), (I_Hxz, -0.00044)]:
     eig_error = []
     bode_error = []
-    steps = np.arange(-param_expected_error[str(param)],+param_expected_error[str(param)],(2*param_expected_error[str(param)])/10)
+    if (str(param) in ['I_Bxx', 'I_Bzz', 'I_Bxz', 'I_Hxx', 'I_Hzz', 'I_Hxz']):
+        steps = np.arange(param_expected_error[str(param)][0],param_expected_error[str(param)][1]+(param_expected_error[str(param)][1] - param_expected_error[str(param)][0])/10, (param_expected_error[str(param)][1] - param_expected_error[str(param)][0])/10)
+    else:
+        steps = np.arange(-param_expected_error[str(param)],+param_expected_error[str(param)]+(2*param_expected_error[str(param)])/10,(2*param_expected_error[str(param)])/10)
     for perturb in steps:
         repl_primal2num_sensitivity = copy.deepcopy(repl_primal2num_plant)
         repl_primal2num_sensitivity[param] = value + perturb
@@ -164,6 +169,8 @@ for param,value in repl_primal2num_plant.items():
 
         eig_error.append(output_error_eig(eigenvals_plant, eigenvals_ref))
         bode_error.append(output_error_bode(bode_mags_plant, bode_mags_ref))
+    error_diff_eig.append(max(abs((eig_error[1]-eig_error[0])/(steps[1]-steps[0])),abs((eig_error[-1]-eig_error[-2])/(steps[-1]-steps[-2]))))
+    error_diff_bode.append(max(((bode_error[1]-bode_error[0])/(steps[1]-steps[0])),((bode_error[-1]-bode_error[-2])/(steps[-1]-steps[-2]))))
     max_eig_error.append(max(eig_error))
     max_bode_error.append(max(bode_error))
 
@@ -210,14 +217,28 @@ for param,value in repl_primal2num_plant.items():
         plt.show()
 
 plt.figure()
-plt.title("Sensitivity analysis of model matching controller - eigenvalues", fontsize=24)
-plt.ylabel("Squared error value [-]", fontsize=16)
+plt.title("Sensitivity analysis of model matching controller (slope) - eigenvalues", fontsize=24)
+plt.ylabel("Absolute error value [-]", fontsize=16)
+plt.bar([str(symb) for symb in list(repl_primal2num_plant.keys())], error_diff_eig)
+plt.grid()
+plt.show()
+
+plt.figure()
+plt.title("Sensitivity analysis of model matching controller (slope) - bode magnitudes", fontsize=24)
+plt.ylabel("Absolute error value [-]", fontsize=16)
+plt.bar([str(symb) for symb in list(repl_primal2num_plant.keys())], error_diff_bode)
+plt.grid()
+plt.show()
+
+plt.figure()
+plt.title("Sensitivity analysis of model matching controller (total sum) - eigenvalues", fontsize=24)
+plt.ylabel("Absolute error value [-]", fontsize=16)
 plt.bar([str(symb) for symb in list(repl_primal2num_plant.keys())], max_eig_error)
 plt.grid()
 plt.show()
 
 plt.figure()
-plt.title("Sensitivity analysis of model matching controller - bode magnitudes", fontsize=24)
+plt.title("Sensitivity analysis of model matching controller (total sum) - bode magnitudes", fontsize=24)
 plt.ylabel("Absolute error value [-]", fontsize=16)
 plt.bar([str(symb) for symb in list(repl_primal2num_plant.keys())], max_bode_error)
 plt.grid()
