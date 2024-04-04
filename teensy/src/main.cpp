@@ -324,9 +324,9 @@ const float KP_H = 0.5*0.9f * RAD_TO_DEG; // Handlebar
 const float KD_H = 0.012f * RAD_TO_DEG; // Handlebar
 
 // Steer into lean gains (see 'Some recent developments in bicycle dynamics and control', A. L. Schwab et al., 2008)
-const uint8_t K_SIL1 = 2; // [Ns^2/rad] gain for the steer into lean controller when below stable speed range
+const uint8_t K_SIL1 = 2.5; // [Ns^2/rad] gain for the steer into lean controller when below stable speed range
 const float K_SIL2 = 0.7; // [Ns/rad] gain for the steer into lean controller when above stable speed range
-const float V_AVERAGE = 5.5; // [m/s] value somewhere in the stable speed range. (take the average of min and max stable speed)
+const float V_AVERAGE = 4.3; // [m/s] value somewhere in the stable speed range. (take the average of min and max stable speed)
 const float FORK_TRQ_REDUCTION_RATIO = 0.3; //The fork is free to rotate -> no friction. So it will rotate much harder.
 
 // Model matching gains: The "_Vx" indicates that the coefficient
