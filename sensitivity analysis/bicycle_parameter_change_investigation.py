@@ -34,7 +34,7 @@ repl_primal2num_plant = {
     m_H     : 0.6, # [kg]
     I_Hxx   : 0.00980, # 0.0980, # [kg*(m**2)] # corrected:Bianchi Pista
     I_Hzz   : 0.00396, # 0.0396, # [kg*(m**2)] # corrected:Bianchi Pista
-    I_Hxz   : -0.06044, # -0.0044, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hxz   : -0.00044, # -0.0044, # [kg*(m**2)] # corrected:Bianchi Pista
 
     r_F     : 0.3498, # [m]
     m_F     : 1.780, # [kg]
@@ -66,7 +66,7 @@ repl_primal2num_ref = {
     m_H_r     : 0.6, # [kg]
     I_Hxx_r   : 0.00980, # 0.0980, # [kg*(m**2)] # corrected:Bianchi Pista
     I_Hzz_r   : 0.00396, # 0.0396, # [kg*(m**2)] # corrected:Bianchi Pista
-    I_Hxz_r   : -0.06044, # -0.0044, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hxz_r   : -0.00044, # -0.0044, # [kg*(m**2)] # corrected:Bianchi Pista
 
     r_F_r     : 0.3498, # [m]
     m_F_r     : 1.780, # [kg]
@@ -78,8 +78,8 @@ repl_primal2num_ref = {
 MM_SOLUTION_FILE = "10-primal_restriction_solution-Bxx-Bxz-Fyy-Ryy-z_B"
 MAT_EVAL_PRECISION = 12
 C_MATRIX_BIKE = np.array([[0,1,0,0],[0,0,1,0]])
-SIL_AVG_SPEED = 3.9#4.4
-K_SIL_L = 3#2.2
+SIL_AVG_SPEED = 4.3
+K_SIL_L = 2.5
 K_SIL_H = 0.7
 SPEED_EIGEN_SPEEDRANGE = np.linspace(0.01, 10 , num=int(1 + (10-0)/0.01))
 FREQ_RANGE = np.logspace(-3,3,1000)
