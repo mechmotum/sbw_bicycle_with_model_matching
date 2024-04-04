@@ -65,7 +65,7 @@ def plot_eigenvals(speed_emp,sigma,omega,plant_file,plant_type,start,stop,step):
     #Theoretical
     speedrange = np.linspace(start , stop , num=int(1 + (stop-start)/step))
     
-    speed_ax, eig_theory = get_eigen_vs_speed(plant_file,plant_type,speedrange)
+    speed_ax, eig_theory = get_eigen_vs_speed(plant_file,plant_type,speedrange,SIL_PARAMETERS)
     plt.scatter(speed_ax, eig_theory["real"],s=1, label="Theoretical Real")
     plt.scatter(speed_ax, eig_theory["imag"],s=1, label="Theoretical Imag")
 
@@ -108,6 +108,11 @@ SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variab
 SPEED_START = 0
 SPEED_STOP = 10
 SPEED_STEP = 0.01
+SIL_PARAMETERS = {
+    'avg_speed' : 5.5,
+    'L_gain': 2,
+    'H_gain': 0.7
+}
 
 #---[variable to invastigate and list of single experiments
 vars2extract = {

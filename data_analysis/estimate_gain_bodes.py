@@ -246,6 +246,11 @@ CHECK_VISUALLY = False
 PLANT_TYPE = "plant" #"plant" or "reference"
 SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_original"
 FREQ_RANGE = np.logspace(-3,3,1000) # [rad/s]
+SIL_PARAMETERS = {
+    'avg_speed' : 5.5,
+    'L_gain': 2,
+    'H_gain': 0.7
+}
 
 #---[variable to invastigate and list of single experiments
 vars2extract = {
@@ -313,7 +318,7 @@ if(PHASE=="calculate_bode"):
             plt.xscale('log')
 
             #---[plot the theoretic bode
-            bode_mags = get_bode(SPEED_DEP_MODEL_FILE,PLANT_TYPE,EXPERIMENT_SPEED,FREQ_RANGE) # frequency in rad/s, magnitude in dB
+            bode_mags = get_bode(SPEED_DEP_MODEL_FILE,PLANT_TYPE,EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
             plt.plot(FREQ_RANGE/(2*np.pi),bode_mags[in_value,out_value,:],linewidth=3, label="Theoretical Gain")
             #---[plot the empirical bode
             [plt.plot(tmp[0],20*np.log10(tmp[1])) for tmp in FRF[in_key][out_key]]
