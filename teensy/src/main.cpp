@@ -255,7 +255,7 @@ const uint16_t INITIAL_STEER_PWM = 16384;
 // Motor encoders
 const uint32_t ENCODER_CLK_FREQ = 225000; //clock frequency for the encoders SPI protocol
 const float HAND_ENC_BIAS = 153.65 * DEG_TO_RAD + 0.0203;
-const float FORK_ENC_BIAS = 100.65 * DEG_TO_RAD - 0.0564;
+const float FORK_ENC_BIAS = 100.65 * DEG_TO_RAD - 0.00717;
 const float HAND_ENC_MAX_VAL = 8192.0; //ticks go from 0 to 8191. At the 8192th tick encoder_tick/HAND_ENC_MAX_VAL = 1 --> 2*pi == 0
 const float FORK_ENC_MAX_VAL = 8192.0;
 
