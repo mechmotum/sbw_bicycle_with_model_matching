@@ -838,8 +838,8 @@ void BikeMeasurements::calculate_pedal_cadance(){
 void BikeMeasurements::calculate_accelarations(){
   Vector3f IMU_acc = {IMU.accel_x_mps2(),IMU.accel_y_mps2(),IMU.accel_z_mps2()};
   Vector3f bike_acc = B_ROT_IMU*IMU_acc;
-  m_accel_x = bike_acc(0);
-  m_accel_y = bike_acc(1);
+  m_accel_x = -bike_acc(0);
+  m_accel_y = -bike_acc(1);
   
 }
 
