@@ -1034,6 +1034,7 @@ void calc_mm_sil_control(BikeMeasurements& bike, double& command_fork, double& c
   }
 
   // command_hand = -sil_command * FORK_TRQ_REDUCTION_RATIO; //Different signs as the motor shafts are facing opposite directions, but are controlled the same.
+  Serial.print(sil_command,5);
   return;
 }
 

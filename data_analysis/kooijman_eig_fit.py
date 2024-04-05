@@ -123,12 +123,11 @@ vars2extract = {
         # "fork_angle": [],
         # "fork_rate": [],
         # "speed": [],
-        "x_acceleration": [],
-        "y_acceleration": [],
+        # "x_acceleration": [],
+        # "y_acceleration": [],
     }
 log_files = [
-    ("device-monitor-240404-174249.log",(0,0))
-    # ("eigenvaltest_16kph_6bar_error_in_sil.log", (0,0)),
+    ("eigenvaltest_16kph_6bar_error_in_sil.log", (0,0)),
 ]
 experiments = [ #file,speed[km/h],start&end in file, initial values)
     # ("eigenvaltest_08kph_6bar_error_in_sil.log", 8, (4527,4626), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
