@@ -86,6 +86,8 @@ def plot_uncut_data(path,file,vars2extract):
     ax.set_ylabel("states [rad] or [rad/s]", fontsize=16)
     ax.set_xlabel("index number [-]", fontsize=16)
     for key, value in extraction.items():
+        if key in ["x_acceleration","y_acceleration"]: #The acceleration measurements need to be filtered to be useful
+            value = filt.butter_running(  2  ,  5  , value, fs=1/TIME_STEP)
         ax.plot(value,label=key)
     ax.grid()
     ax.legend(fontsize=14)
@@ -98,7 +100,7 @@ TO_ANALYSE = "raw" # "raw" or "filtered"
 BUTTER_ORDER = 2
 BUTTER_CUT_OFF = 20
 TIME_STEP = 0.01
-PHASE = "calculate_eig" # "cut_data" or "calculate_eig"
+PHASE = "cut_data" # "cut_data" or "calculate_eig"
 VISUAL_CHECK_FIT = False # If true, show graph for visually checking the kooijman function fit
 MAX_FUN_EVAL = 5000
 
@@ -121,9 +123,12 @@ vars2extract = {
         # "fork_angle": [],
         # "fork_rate": [],
         # "speed": [],
+        "x_acceleration": [],
+        "y_acceleration": [],
     }
 log_files = [
-    ("eigenvaltest_16kph_6bar_error_in_sil.log", (0,0)),
+    ("device-monitor-240404-174249.log",(0,0))
+    # ("eigenvaltest_16kph_6bar_error_in_sil.log", (0,0)),
 ]
 experiments = [ #file,speed[km/h],start&end in file, initial values)
     # ("eigenvaltest_08kph_6bar_error_in_sil.log", 8, (4527,4626), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
