@@ -45,7 +45,7 @@ repl_primal2num_plant = {
 repl_primal2num_ref = {
     w_r       : 1.036, # [m]
     c_r       : 0.0803, # [m]
-    lamb_r    : (20.2)*(sm.pi/180), # [rad]
+    lamb_r    : (16.2)*(sm.pi/180), # [rad]
     g_r       : 9.81, # [m/(s**2)]
     v_r       : 5, # [m/s]
 
