@@ -297,8 +297,8 @@ repl_params = {
 
 repl_params_ref = {
     w_r       : 1.036, # [m]
-    c_r       : 0.0803, # [m]
-    lamb_r    : (20.2)*(sm.pi/180), # [rad]
+    c_r       : 0.0763, # [m]
+    lamb_r    : (18.2)*(sm.pi/180), # [rad]
     g_r       : 9.81, # [m/(s**2)]
     v_r       : 5, # [m/s]
 
