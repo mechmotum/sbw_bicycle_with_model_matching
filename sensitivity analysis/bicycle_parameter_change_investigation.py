@@ -44,8 +44,8 @@ repl_primal2num_plant = {
 
 repl_primal2num_ref = {
     w_r       : 1.036, # [m]
-    c_r       : 0.0803, # [m]
-    lamb_r    : (16.2)*(sm.pi/180), # [rad]
+    c_r       : 0.0763, # [m]
+    lamb_r    : (18.2)*(sm.pi/180), # [rad]
     g_r       : 9.81, # [m/(s**2)]
     v_r       : 5, # [m/s]
 
@@ -78,8 +78,8 @@ repl_primal2num_ref = {
 MM_SOLUTION_FILE = "10-primal_restriction_solution-Bxx-Bxz-Fyy-Ryy-z_B"
 MAT_EVAL_PRECISION = 12
 C_MATRIX_BIKE = np.array([[0,1,0,0],[0,0,1,0]])
-SIL_AVG_SPEED = 4.3
-K_SIL_L = 2.5
+SIL_AVG_SPEED = 6.5
+K_SIL_L = 2
 K_SIL_H = 0.7
 SPEED_EIGEN_SPEEDRANGE = np.linspace(0.01, 10 , num=int(1 + (10-0)/0.01))
 FREQ_RANGE = np.logspace(-3,3,1000)
