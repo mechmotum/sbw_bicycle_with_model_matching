@@ -152,6 +152,40 @@ class BikeMeasurements{
 };
 
 
+class Trq_sensor_logic_filter{
+  private:
+    uint8_t in_bounds_cntr;
+    uint8_t out_bounds_cntr;
+
+    uint8_t in_bounds_cntr_limit;
+    uint8_t out_bounds_cntr_limit;
+
+    float bounds;
+
+  public:
+    Trq_sensor_logic_filter(){
+      in_bounds_cntr = 0;
+      out_bounds_cntr = 0;
+
+      in_bounds_cntr_limit = 50;
+      out_bounds_cntr_limit = 5;
+
+      bounds = 0.5;
+    };
+
+    Trq_sensor_logic_filter(float bounds, uint8_t in_bounds_cntr_lim, uint8_t out_bounds_cntr_lim){
+      in_bounds_cntr = 0;
+      out_bounds_cntr = 0;
+
+      in_bounds_cntr_limit = in_bounds_cntr_lim;
+      out_bounds_cntr_limit = out_bounds_cntr_lim;
+
+      bounds = bounds;
+    };
+
+
+    float filter_trq_sensor(float meas_force);
+};
 
 //=========================== Function declarations ===========================//
 //---[Controllers
@@ -434,6 +468,8 @@ AH::Array<float, 2> b_coefs {0.99968594, -0.99968594};
 AH::Array<float, 2> a_coefs {1.        , -0.99937188};
 auto high_pass_filt = IIRFilter<2,2,float>(b_coefs,a_coefs);
 
+Trq_sensor_logic_filter logic_filt{};
+
 //------------------------------ Loop timing ----------------------------------//
 // elapsedMicros looptime = 0;
 
@@ -561,9 +597,9 @@ void loop(){
       calc_pd_errors(sbw_bike, error, derror_dt);
       calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
     } else {
-      calc_sil_control(sbw_bike, command_fork, command_hand);
-      command_fork += relay_measured_hand_torque(sbw_bike.get_hand_torque());
-      // calc_mm_sil_control(sbw_bike, command_fork, command_hand);
+      // calc_sil_control(sbw_bike, command_fork, command_hand);
+      // command_fork += logic_filt.filter_trq_sensor(sbw_bike.get_hand_torque());
+      calc_mm_sil_control(sbw_bike, command_fork, command_hand);
     }
     // apply_friction_compensation(command_fork);
     actuate_steer_motors(command_fork, command_hand);
@@ -949,28 +985,49 @@ void apply_friction_compensation(double& fork_command){
 
 
 //======================== [Relay measured hand torque] ========================//
-float relay_measured_hand_torque(float meas_force){
+float Trq_sensor_logic_filter::filter_trq_sensor(float meas_force){
   float force_relayed = 0;
-  static uint8_t in_bounds_cntr = 0;
-  static uint8_t out_bounds_cntr = 5; //start out of bounds
 
-  if(-0.5<meas_force && meas_force<0.5){      // If in bounds
-    if(in_bounds_cntr >= 50){                 //   for at least 50 loop cycles
-      out_bounds_cntr = 0;                    //     then ignore the measured hand torque --> most likely noise
+  if(-bounds<meas_force && meas_force<bounds){    // If in bounds
+    if(in_bounds_cntr >= in_bounds_cntr_limit){   //   for at least 50 loop cycles
+      out_bounds_cntr = 0;                        //     then ignore the measured hand torque --> most likely noise
     }else{
       in_bounds_cntr++;
-      force_relayed = meas_force;             // else, relay the measured torque --> most likely a passing through bounds
+      force_relayed = meas_force;                 // else, relay the measured torque --> most likely a passing through bounds
     }
-  }else{                                      // If out of bounds
-    if(out_bounds_cntr >= 5){                 //   for longer than 5 cycles (aka not a spike of noise that became out of bounds)
-      force_relayed = meas_force;             //      relay the measured torque
+  }else{                                          // If out of bounds
+    if(out_bounds_cntr >= out_bounds_cntr_limit){ //   for longer than 5 cycles (aka not a spike of noise that became out of bounds)
+      force_relayed = meas_force;                 //      relay the measured torque
       in_bounds_cntr = 0;
     }else{
-      out_bounds_cntr++;                      // else, ignore measured hand torque --> most likely still noise.
+      out_bounds_cntr++;                          // else, ignore measured hand torque --> most likely still noise.
     }
   }
   return force_relayed;
 }
+
+// float relay_measured_hand_torque(float meas_force){
+//   float force_relayed = 0;
+//   static uint8_t in_bounds_cntr = 0;
+//   static uint8_t out_bounds_cntr = 5; //start out of bounds
+
+//   if(-0.5<meas_force && meas_force<0.5){      // If in bounds
+//     if(in_bounds_cntr >= 50){                 //   for at least 50 loop cycles
+//       out_bounds_cntr = 0;                    //     then ignore the measured hand torque --> most likely noise
+//     }else{
+//       in_bounds_cntr++;
+//       force_relayed = meas_force;             // else, relay the measured torque --> most likely a passing through bounds
+//     }
+//   }else{                                      // If out of bounds
+//     if(out_bounds_cntr >= 5){                 //   for longer than 5 cycles (aka not a spike of noise that became out of bounds)
+//       force_relayed = meas_force;             //      relay the measured torque
+//       in_bounds_cntr = 0;
+//     }else{
+//       out_bounds_cntr++;                      // else, ignore measured hand torque --> most likely still noise.
+//     }
+//   }
+//   return force_relayed;
+// }
 
 
 //=========================== [Calculate Sil control] ==========================//
@@ -1001,6 +1058,8 @@ void calc_mm_sil_control(BikeMeasurements& bike, double& command_fork, double& c
   float k_phi, k_delta, k_dphi, k_ddelta, k_tphi, k_tdelta;
   double sil_command;
   calc_mm_gains(k_phi, k_delta, k_dphi, k_ddelta, k_tphi, k_tdelta, bike.get_bike_speed());
+
+  float hand_torque = logic_filt.filter_trq_sensor(bike.get_hand_torque());
   
   if (bike.get_bike_speed() < V_AVERAGE)
   {
@@ -1014,7 +1073,7 @@ void calc_mm_sil_control(BikeMeasurements& bike, double& command_fork, double& c
                     + (k_dphi + k_tdelta*(K_SIL1 * (V_AVERAGE - bike.get_bike_speed())))*bike.get_lean_rate() 
                     + k_ddelta*bike.get_fork_rate()
                     + k_tphi*bike.get_lean_torque()
-                    + k_tdelta*bike.get_hand_torque();
+                    + k_tdelta*hand_torque;
     }
   }
   else
@@ -1029,7 +1088,7 @@ void calc_mm_sil_control(BikeMeasurements& bike, double& command_fork, double& c
                     + k_dphi*bike.get_lean_rate() 
                     + k_ddelta*bike.get_fork_rate() 
                     + k_tphi*bike.get_lean_torque()
-                    + k_tdelta*bike.get_hand_torque();
+                    + k_tdelta*hand_torque;
     }
   }
 
