@@ -56,7 +56,7 @@ def extract_data(full_path,start,stop,time_step,vars2extract):
     
     return time, extraction
 
-def plot_eigenvals(speed_emp,sigma,omega,plant_file,plant_type,start,stop,step):
+def plot_eigenvals(results,plant_file,plant_type,start,stop,step):
     plt.figure()
     plt.title("Bicycle eigenvalues vs speed", fontsize=24)
     plt.ylabel("Eigenvalue [-]", fontsize=16)
@@ -70,10 +70,11 @@ def plot_eigenvals(speed_emp,sigma,omega,plant_file,plant_type,start,stop,step):
     plt.scatter(speed_ax, eig_theory["imag"],s=1, label="Theoretical Imag")
 
     #Emperical
-    plt.plot(speed_emp/3.6,sigma,'o',label="Emperical Real")
-    plt.plot(speed_emp/3.6,omega,'o',label="Emperical Imag")
+    for foo in results:
+        plt.plot(foo["speeds"]/3.6,foo["sigmas"],foo["marker"][0],fillstyle='none',label=foo["name"]+" Real")
+        plt.plot(foo["speeds"]/3.6,foo["omegas"],foo["marker"][1],fillstyle='none',label=foo["name"]+" Imag" )
     
-    plt.legend(fontsize=14)
+    plt.legend(fontsize=14,loc='upper right')
     plt.grid()
     plt.axis((start,stop,-12,12))
     plt.show()
@@ -132,68 +133,71 @@ log_files = [
     ("eigen_mm_sil6.5n2_18kph.log", [(0,0)])
 ]
 experiments = [ #file,speed[km/h],start&end in file, initial values
-    # Normal
-    ("eigen_normal_sil6.5n2_5.4kph.log", 0.36+5.4, (4486,4775), (-3.0, 5.5, 0.3, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_5.4kph.log", 0.36+5.4, (5420,5668), (-3.0, 5.5, 0.35, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_5.4kph.log", 0.36+5.4, (6325,6499), (-3.0, 5.5, -0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_5.4kph.log", 0.36+5.4, (7349,7532), (-3.0, 5.5, -0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_5.4kph.log", 0.36+5.4, (8984,9214), (-3.0, 5.5, 0.3, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_5.4kph.log", 0.36+5.4, (9750,9925), (-3.0, 5.5, -0.25, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_5.4kph.log", 0.36+5.4, (10600,10845), (-3.0, 5.5, 0.2, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_7.2kph.log", 0.36+7.2, (9870,10039), (-3.0, 7.5, -0.25, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_7.2kph.log", 0.36+7.2, (11024,11137), (-3.0, 7.5, -0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_7.2kph.log", 0.36+7.2, (12689,12854), (-3.0, 7.5, -0.25, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_7.2kph.log", 0.36+7.2, (13773,13934), (-3.0, 7.5, -0.35, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_7.2kph.log", 0.36+7.2, (14886,15052), (-3.0, 7.5, 0.2, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_9kph.log", 0.36+9, (2121,2273), (-2.5, 8.5, -0.3, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_9kph.log", 0.36+9, (3002,3281), (-2.5, 8.5, 0.2, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_9kph.log", 0.36+9, (8673,8765), (-2.5, 8.5, -0.3, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_9kph.log", 0.36+9, (9613,9940), (-2.5, 8.5, -0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_9kph.log", 0.36+9, (11049,11416), (-2.5, 8.5, -0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_9kph.log", 0.36+9, (12487,12695), (-2.5, 8.5, 0.3, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_10.8kph.log", 0.36+10.8, (1573,1760), (-2.5, 9.5, 0.25, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_10.8kph.log", 0.36+10.8, (2601,2750), (-2.5, 9.5, 0.25, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_10.8kph.log", 0.36+10.8, (3577,3815), (-2.5, 9.5, -0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_10.8kph.log", 0.36+10.8, (5682,5923), (-2.5, 9.5, 0.25, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_10.8kph.log", 0.36+10.8, (6527,6772), (-2.5, 9.5, -0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_10.8kph.log", 0.36+10.8, (7471,7705), (-2.5, 9.5, -0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_10.8kph.log", 0.36+10.8, (8371,8581), (-2.5, 9.5, -0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_10.8kph.log", 0.36+10.8, (9424,9585), (-2.5, 9.5, -0.5, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_10.8kph.log", 0.36+10.8, (10187,10470), (-2.5, 9.5, -0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_12.6kph.log", 0.36+12.6, (2028,2246), (-2.5, 10.0, -0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_12.6kph.log", 0.36+12.6, (3053,3175), (-2.5, 10.0, -0.5, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_12.6kph.log", 0.36+12.6, (3983,4231), (-2.5, 10.0, -0.5, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_12.6kph.log", 0.36+12.6, (4982,5191), (-2.5, 10.0, -0.5, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_12.6kph.log", 0.36+12.6, (6881,7073), (-2.5, 10.0, -0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_12.6kph.log", 0.36+12.6, (7898,8076), (-2.5, 10.0, -0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_12.6kph.log", 0.36+12.6, (8749,8970), (-2.5, 10.0, 0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_12.6kph.log", 0.36+12.6, (9733,9992), (-2.5, 10.0, -0.5, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_12.6kph.log", 0.36+12.6, (10872,11169), (-2.5, 10.0, 0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_14.4kph.log", 0.36+14.4, (1410,1538), (-2.3, 10.0, 0.5, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_14.4kph.log", 0.36+14.4, (2385,2677), (-2.3, 10.0, -0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_14.4kph.log", 0.36+14.4, (3400,3610), (-2.3, 10.0, 0.3, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_14.4kph.log", 0.36+14.4, (4352,4573), (-2.3, 10.0, -0.6, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_14.4kph.log", 0.36+14.4, (5276,5581), (-2.3, 10.0, -0.6, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_14.4kph.log", 0.36+14.4, (6311,6560), (-2.3, 10.0, -0.6, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_14.4kph.log", 0.36+14.4, (7347,7559), (-2.3, 10.0, -0.6, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_14.4kph.log", 0.36+14.4, (8423,8653), (-2.3, 10.0, -0.6, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_16.2kph.log", 0.36+16.2, (1576,1828), (-2.3, 10.0, -0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_16.2kph.log", 0.36+16.2, (2529,2695), (-2.3, 10.0, -0.5, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_16.2kph.log", 0.36+16.2, (5041,5191), (-2.3, 10.0, 0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_16.2kph.log", 0.36+16.2, (5796,6034), (-2.3, 10.0, -0.6, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_16.2kph.log", 0.36+16.2, (8035,8212), (-2.3, 10.0, 0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_16.2kph.log", 0.36+16.2, (13604,13800), (-2.3, 10.0, -0.6, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_18kph.log", 0.36+18, (1964,2310), (-2.0, 9.5, 0.4, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_18kph.log", 0.36+18, (2917,3221), (-2.0, 9.5, -0.5, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_18kph.log", 0.36+18, (3831,4007), (-2.0, 9.5, 0.5, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_18kph.log", 0.36+18, (4594,4874), (-2.0, 9.5, -0.5, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_18kph.log", 0.36+18, (5549,5679), (-2.0, 9.5, 0.5, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_18kph.log", 0.36+18, (6326,6542), (-2.0, 9.5, -0.5, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_18kph.log", 0.36+18, (7060,7310), (-2.0, 9.5, -0.5, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_18kph.log", 0.36+18, (12196,12360), (-2.0, 9.5, -0.5, 1.0, 1.0)),
-    ("eigen_normal_sil6.5n2_18kph.log", 0.36+18, (12961,13073), (-2.0, 9.5, -0.5, 1.0, 1.0)),
-    #
-    #Bode
+    # Model Matching OFF
+    ( 'Model Matching OFF', ('b<','b>'), (
+    ("eigen_normal_sil6.5n2_5.4kph.log", 5.4, (4486,4775), (-3.0, 5.5, 0.3, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_5.4kph.log", 5.4, (5420,5668), (-3.0, 5.5, 0.35, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_5.4kph.log", 5.4, (6325,6499), (-3.0, 5.5, -0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_5.4kph.log", 5.4, (7349,7532), (-3.0, 5.5, -0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_5.4kph.log", 5.4, (8984,9214), (-3.0, 5.5, 0.3, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_5.4kph.log", 5.4, (9750,9925), (-3.0, 5.5, -0.25, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_5.4kph.log", 5.4, (10600,10845), (-3.0, 5.5, 0.2, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_7.2kph.log", 7.2, (9870,10039), (-3.0, 7.5, -0.25, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_7.2kph.log", 7.2, (11024,11137), (-3.0, 7.5, -0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_7.2kph.log", 7.2, (12689,12854), (-3.0, 7.5, -0.25, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_7.2kph.log", 7.2, (13773,13934), (-3.0, 7.5, -0.35, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_7.2kph.log", 7.2, (14886,15052), (-3.0, 7.5, 0.2, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_9kph.log", 9, (2121,2273), (-2.5, 8.5, -0.3, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_9kph.log", 9, (3002,3281), (-2.5, 8.5, 0.2, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_9kph.log", 9, (8673,8765), (-2.5, 8.5, -0.3, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_9kph.log", 9, (9613,9940), (-2.5, 8.5, -0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_9kph.log", 9, (11049,11416), (-2.5, 8.5, -0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_9kph.log", 9, (12487,12695), (-2.5, 8.5, 0.3, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_10.8kph.log", 10.8, (1573,1760), (-2.5, 9.5, 0.25, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_10.8kph.log", 10.8, (2601,2750), (-2.5, 9.5, 0.25, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_10.8kph.log", 10.8, (3577,3815), (-2.5, 9.5, -0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_10.8kph.log", 10.8, (5682,5923), (-2.5, 9.5, 0.25, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_10.8kph.log", 10.8, (6527,6772), (-2.5, 9.5, -0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_10.8kph.log", 10.8, (7471,7705), (-2.5, 9.5, -0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_10.8kph.log", 10.8, (8371,8581), (-2.5, 9.5, -0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_10.8kph.log", 10.8, (9424,9585), (-2.5, 9.5, -0.5, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_10.8kph.log", 10.8, (10187,10470), (-2.5, 9.5, -0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_12.6kph.log", 12.6, (2028,2246), (-2.5, 10.0, -0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_12.6kph.log", 12.6, (3053,3175), (-2.5, 10.0, -0.5, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_12.6kph.log", 12.6, (3983,4231), (-2.5, 10.0, -0.5, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_12.6kph.log", 12.6, (4982,5191), (-2.5, 10.0, -0.5, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_12.6kph.log", 12.6, (6881,7073), (-2.5, 10.0, -0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_12.6kph.log", 12.6, (7898,8076), (-2.5, 10.0, -0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_12.6kph.log", 12.6, (8749,8970), (-2.5, 10.0, 0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_12.6kph.log", 12.6, (9733,9992), (-2.5, 10.0, -0.5, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_12.6kph.log", 12.6, (10872,11169), (-2.5, 10.0, 0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_14.4kph.log", 14.4, (1410,1538), (-2.3, 10.0, 0.5, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_14.4kph.log", 14.4, (2385,2677), (-2.3, 10.0, -0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_14.4kph.log", 14.4, (3400,3610), (-2.3, 10.0, 0.3, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_14.4kph.log", 14.4, (4352,4573), (-2.3, 10.0, -0.6, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_14.4kph.log", 14.4, (5276,5581), (-2.3, 10.0, -0.6, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_14.4kph.log", 14.4, (6311,6560), (-2.3, 10.0, -0.6, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_14.4kph.log", 14.4, (7347,7559), (-2.3, 10.0, -0.6, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_14.4kph.log", 14.4, (8423,8653), (-2.3, 10.0, -0.6, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_16.2kph.log", 16.2, (1576,1828), (-2.3, 10.0, -0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_16.2kph.log", 16.2, (2529,2695), (-2.3, 10.0, -0.5, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_16.2kph.log", 16.2, (5041,5191), (-2.3, 10.0, 0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_16.2kph.log", 16.2, (5796,6034), (-2.3, 10.0, -0.6, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_16.2kph.log", 16.2, (8035,8212), (-2.3, 10.0, 0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_16.2kph.log", 16.2, (13604,13800), (-2.3, 10.0, -0.6, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_18kph.log", 18, (1964,2310), (-2.0, 9.5, 0.4, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_18kph.log", 18, (2917,3221), (-2.0, 9.5, -0.5, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_18kph.log", 18, (3831,4007), (-2.0, 9.5, 0.5, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_18kph.log", 18, (4594,4874), (-2.0, 9.5, -0.5, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_18kph.log", 18, (5549,5679), (-2.0, 9.5, 0.5, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_18kph.log", 18, (6326,6542), (-2.0, 9.5, -0.5, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_18kph.log", 18, (7060,7310), (-2.0, 9.5, -0.5, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_18kph.log", 18, (12196,12360), (-2.0, 9.5, -0.5, 1.0, 1.0)),
+    ("eigen_normal_sil6.5n2_18kph.log", 18, (12961,13073), (-2.0, 9.5, -0.5, 1.0, 1.0)))
+    ),
+
+    # Model Matching ON
+    ( 'Model Matching ON', ('r>','r<'), (
     ("eigen_mm_sil6.5n2_5.4kph.log", 5.4, (4047,4240), (-3, 5, 0.35, 1.0, 1.0)),
     ("eigen_mm_sil6.5n2_5.4kph.log", 5.4, (4947,5105), (-3, 5, 0.45, 1.0, 1.0)),
     ("eigen_mm_sil6.5n2_5.4kph.log", 5.4, (5868,6025), (-3, 5, -0.5, 1.0, 1.0)),
@@ -241,19 +245,23 @@ experiments = [ #file,speed[km/h],start&end in file, initial values
     ("eigen_mm_sil6.5n2_18kph.log", 18, (8232,8410), (-0.5, 8, 1, 1.0, 1.0)),
     ("eigen_mm_sil6.5n2_18kph.log", 18, (10043,10260), (-0.5, 8, -1, 1.0, 1.0)),
     ("eigen_mm_sil6.5n2_18kph.log", 18, (14193,14377), (-0.5, 8, -1, 1.0, 1.0)),
-    ("eigen_mm_sil6.5n2_18kph.log", 18, (15348,15483), (-0.5, 8, -1, 1.0, 1.0)),
+    ("eigen_mm_sil6.5n2_18kph.log", 18, (15348,15483), (-0.5, 8, -1, 1.0, 1.0)))
+    )
 ]
 
 
 if(PHASE == "calculate_eig"):
-    sigmas = np.empty((len(experiments),))
-    omegas = np.empty((len(experiments),))
-    speeds = np.empty((len(experiments),))
-    for i, one_disturb in enumerate(experiments):
-        file, speeds[i], start_stop, par0  = one_disturb
-        time, extraction = extract_data(PATH+file,start_stop[0],start_stop[1],TIME_STEP,vars2extract)
-        sigmas[i], omegas[i] = extract_eigenvals(time,extraction,par0,speeds[i])
-    plot_eigenvals(speeds,sigmas,omegas,SPEED_DEP_MODEL_FILE,PLANT_TYPE,SPEED_START,SPEED_STOP,SPEED_STEP)
+    results = []
+    for name,marker,data in experiments:
+        sigmas = np.empty((len(data),))
+        omegas = np.empty((len(data),))
+        speeds = np.empty((len(data),))
+        for i, one_disturb in enumerate(data):
+            file, speeds[i], start_stop, par0 = one_disturb
+            time, extraction = extract_data(PATH+file,start_stop[0],start_stop[1],TIME_STEP,vars2extract)
+            sigmas[i], omegas[i] = extract_eigenvals(time,extraction,par0,speeds[i])
+        results.append({"name":name,"marker":marker,"sigmas":sigmas,"omegas":omegas,"speeds":speeds})
+    plot_eigenvals(results,SPEED_DEP_MODEL_FILE,PLANT_TYPE,SPEED_START,SPEED_STOP,SPEED_STEP)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:
