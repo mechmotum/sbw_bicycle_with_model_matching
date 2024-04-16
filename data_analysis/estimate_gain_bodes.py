@@ -112,13 +112,13 @@ def get_single_bode_point_peaks(bode_points, filename,vars2extract, start, stop,
 
         #---[create dict for storage
         sinus_pars[key] = {}
-        #---[Filter signal
-        val_butter = filt.butter_static(BUTTER_ORDER, BUTTER_CUT_OFF, value, fs=1/TIME_STEP)
 
         #---[Choose signal to analyse
         if(TO_ANALYSE == "raw"):
             signal = value
         elif(TO_ANALYSE == "filtered"):
+            # val_butter = filt.butter_static(BUTTER_ORDER, BUTTER_CUT_OFF, value, fs=1/TIME_STEP)
+            val_butter = filt.first_order_hp(HIGH_PASS_Wc_FREQ,value,fs=1/TIME_STEP)
             signal = val_butter
 
         #---[Get sinusoid hight, and frequency
@@ -172,13 +172,13 @@ def analyse_bode_data(bode_points, FRF, filename,vars2extract, start, stop, tune
     #---[Choose between filtered and raw signal
     signals = {}
     for key,value in extraction.items():
-        #---[Filter signal
-        val_butter = filt.butter_static(BUTTER_ORDER, BUTTER_CUT_OFF, value, fs=1/TIME_STEP)
 
         #---[Choose signal to analyse
         if(TO_ANALYSE == "raw"):
             signals[key] = value
         elif(TO_ANALYSE == "filtered"):
+            # val_butter = filt.butter_static(BUTTER_ORDER, BUTTER_CUT_OFF, value, fs=1/TIME_STEP)
+            val_butter = filt.first_order_hp(HIGH_PASS_Wc_FREQ,value,fs=1/TIME_STEP)
             signals[key] = val_butter
 
 
@@ -188,10 +188,11 @@ def analyse_bode_data(bode_points, FRF, filename,vars2extract, start, stop, tune
             output_frq = np.fft.rfft(signals[key_out][start:stop]) # magnitude [-]
             freq_bins= np.fft.rfftfreq(len(signals[key_out][start:stop]),TIME_STEP) # [Hz]
 
+            tmp = np.argmax(abs(input_frq))
+            freq_in = freq_bins[tmp]
+            freq_out = freq_bins[(tmp-2)+np.argmax(abs(output_frq[tmp-2:tmp+5]))]
             magnitude_in = np.max(abs(input_frq))
-            magnitude_out = np.max(abs(output_frq))
-            freq_in = freq_bins[np.argmax(abs(input_frq))]
-            freq_out = freq_bins[np.argmax(abs(output_frq))]
+            magnitude_out = np.max(abs(output_frq[tmp-2:tmp+5]))
 
             FRF[key_in][key_out].append([freq_bins[np.argmax(abs(input_frq))-3:np.argmax(abs(input_frq))+5],\
                                          (abs(output_frq)/abs(input_frq))[np.argmax(abs(input_frq))-3:np.argmax(abs(input_frq))+5]])
@@ -207,8 +208,8 @@ def analyse_bode_data(bode_points, FRF, filename,vars2extract, start, stop, tune
                 plt.ylabel("Magnitude [dB]", fontsize=16)
                 plt.plot(freq_bins,abs(input_frq),label="input")
                 plt.plot(freq_bins,abs(output_frq),label="output")
-                plt.plot(freq_bins[freq_in],np.max(abs(input_frq)),'o',label="input max")
-                plt.plot(freq_bins[freq_out],np.max(abs(output_frq)),'o',label="output max")
+                plt.plot(freq_in,np.max(abs(input_frq)),'o',label="input max")
+                plt.plot(freq_out,np.max(abs(output_frq[tmp-2:tmp+5])),'o',label="output max")
                 plt.legend(fontsize=14)
     if(CHECK_VISUALLY):
         plt.show()
@@ -232,8 +233,9 @@ def plot_uncut_data(path,file,vars2extract):
 #---[Constants
 PATH = "..\\teensy\\logs\\"
 TO_ANALYSE = "raw" # "raw" or "filtered"
-BUTTER_ORDER = 2
-BUTTER_CUT_OFF = 20
+# BUTTER_ORDER = 2
+# BUTTER_CUT_OFF = 20
+HIGH_PASS_Wc_FREQ = 1
 TIME_STEP = 0.01
 OUTPUT = {"fork_angle": 0,"lean_rate": 1}
 INPUT = {"hand_torque": 1} #"lean_torque": 0,
@@ -243,7 +245,7 @@ EXPERIMENT_SPEED = 8/3.6 #[m/s]
 CHECK_VISUALLY = False
 
 #Theoretical model parameters
-PLANT_TYPE = "plant" #"plant" or "reference"
+PLANT_TYPE = "ref" #"plant" or "ref"
 SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
 FREQ_RANGE = np.logspace(-3,3,1000) # [rad/s]
 SIL_PARAMETERS = {
@@ -260,7 +262,16 @@ vars2extract = {
 }
 # log_files is a list of tuples containing (filename, data investigation start-and-stop)
 log_files = [
-    ("bode_normal_sil6.5_1Hz(pre-run).log", (40060,40460))
+    ("bode_mm_sil6.5_1Hz.log", (510,845)),
+    ("bode_mm_sil6.5_2Hz.log", (4250,4505)),
+    ("bode_mm_sil6.5_3Hz.log", (3475,3741)),
+    ("bode_mm_sil6.5_3Hz.log", (4864,5105)),
+    ("bode_mm_sil6.5_4Hz.log", (13592,13942)),
+    ("bode_mm_sil6.5_5Hz.log", (3498,3781)),
+    ("bode_mm_sil6.5_5Hz.log", (6897,7105)),
+    ("bode_mm_sil6.5_5Hz.log", (8448,8698)),
+    ("bode_mm_sil6.5_5Hz.log", (17630,17805)),
+    ("bode_mm_sil6.5_maxHz.log", (5478,5588)),
 ]
 # A list of tuples containing (file, data investigation start-and-stop, tuning parameter).
 '''NOTE: The tuning parameter is a parameter used in the method to filter away noise:
@@ -276,17 +287,23 @@ If the tune_par is 0, then the new_peak has to be larger than the previous peak
 The lower the tune_par the closer the next peak is allowed to be to the previous vally.
  ''' 
 experiments = [
-    # # ("oscilation_18bpm_8kph_error_in_sil.log", (3600,4133), {"lean_rate":0.3,"fork_angle":0.8, "hand_torque":0.5}), #Questionalble
-    # ("oscilation_22bpm_8kph_error_in_sil.log", (13220,14310), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-    # ("oscilation_30bpm_8kph_last_set_error_in_sil.log", (18385,18775), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-    # ("oscilation_60bpm_8kph_2_error_in_sil.log", (7356,7845), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-    # ("oscilation_90bpm_8kph_error_in_sil.log", (6615,6928), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-    # ("oscilation_120bpm_8kph_error_in_sil.log", (9394,9716), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-    # ("oscilation_120bpm_8kph_error_in_sil.log", (12060,12296), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("oscillation_240bpm_8kph_error_in_sil.log", (4535,4683), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-    # ("oscillation_240bpm_8kph_error_in_sil.log", (7794,8051), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("oscillation_fast_as_possible_error_in_sil.log", (3744,3891), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    ("bode_normal_sil6.5_1Hz.log(pre-run)", (40060,40460), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # # ("bode_normal_sil6.5_1Hz.log(pre-run)", (40060,40460), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_normal_sil6.5_1Hz.log", (3925,4220),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_normal_sil6.5_2Hz.log", (762,1013),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_normal_sil6.5_3Hz.log", (7357,7851),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_normal_sil6.5_4Hz.log", (18120,18392),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_normal_sil6.5_5Hz.log", (20648,20809),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_normal_sil6.5_maxHz.log", (6322,6427),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("bode_mm_sil6.5_1Hz.log", (510,845),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("bode_mm_sil6.5_2Hz.log", (4250,4505),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("bode_mm_sil6.5_3Hz.log", (3475,3741),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("bode_mm_sil6.5_3Hz.log", (4864,5105),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("bode_mm_sil6.5_4Hz.log", (13592,13942),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("bode_mm_sil6.5_5Hz.log", (6897,7105),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("bode_mm_sil6.5_5Hz.log", (6897,7105),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("bode_mm_sil6.5_5Hz.log", (8448,8698),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("bode_mm_sil6.5_5Hz.log", (17630,17805),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("bode_mm_sil6.5_maxHz.log", (5478,5588),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
 ]
 
 #---[Get the bodepoints from the measured data of the experiments
@@ -342,3 +359,14 @@ elif(PHASE == "cut_data"):
 
 # ("pilot_test_28-02.log", (14730,15625), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}), 
 # ("pilot_test_28-02.log", (15682,16125), {"lean_rate":0.55,"fork_angle":0.8, "hand_torque":0.5}),
+
+# # ("oscilation_18bpm_8kph_error_in_sil.log", (3600,4133), {"lean_rate":0.3,"fork_angle":0.8, "hand_torque":0.5}), #Questionalble
+# ("oscilation_22bpm_8kph_error_in_sil.log", (13220,14310), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+# ("oscilation_30bpm_8kph_last_set_error_in_sil.log", (18385,18775), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+# ("oscilation_60bpm_8kph_2_error_in_sil.log", (7356,7845), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+# ("oscilation_90bpm_8kph_error_in_sil.log", (6615,6928), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+# ("oscilation_120bpm_8kph_error_in_sil.log", (9394,9716), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+# ("oscilation_120bpm_8kph_error_in_sil.log", (12060,12296), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+# ("oscillation_240bpm_8kph_error_in_sil.log", (4535,4683), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+# ("oscillation_240bpm_8kph_error_in_sil.log", (7794,8051), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+# ("oscillation_fast_as_possible_error_in_sil.log", (3744,3891), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),

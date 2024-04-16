@@ -71,8 +71,8 @@ def sensor_matrix_bike():
 
 def get_plant_n_ctrl(bike_plant_file,plant_type,sil_parameters):
     #Input sanitation
-    if(plant_type != "plant" and plant_type != "reference"):
-        print('input variable plant_type must either be "plant" or "reference"')
+    if(plant_type != "plant" and plant_type != "ref"):
+        print('input variable plant_type must either be "plant" or "ref"')
         return
     
     #load in the plant of which the eigenvalues will be calculated
