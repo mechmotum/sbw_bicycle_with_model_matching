@@ -57,26 +57,45 @@ def extract_data(full_path,start,stop,time_step,vars2extract):
     return time, extraction
 
 def plot_eigenvals(results,plant_file,plant_type,start,stop,step):
+    #Theoretical
+    speedrange = np.linspace(start , stop , num=int(1 + (stop-start)/step))
+    speed_ax_plant, eig_theory_plant = get_eigen_vs_speed(plant_file,'plant',speedrange,SIL_PARAMETERS)
+    speed_ax_ref, eig_theory_ref = get_eigen_vs_speed(plant_file,'ref',speedrange,SIL_PARAMETERS)
+    
+    ## REAL PART
+    plt.figure()
+    plt.title("Bicycle eigenvalues vs speed", fontsize=24)
+    plt.ylabel("Eigenvalue [-]", fontsize=16)
+    plt.xlabel("Speed [m/s]", fontsize=16)
+    
+    # Theoretical speed-eigen
+    plt.scatter(speed_ax_plant, eig_theory_plant["real"], s=1, label="Theoretical Real plant")
+    plt.scatter(speed_ax_ref, eig_theory_ref["real"],s=1, label="Theoretical Real reference")
+    # Emperical speed-eigen
+    for method in results:
+        plt.plot(method["speeds"]/3.6,method["sigmas"],method["marker"][0],fillstyle='none',label=method["name"]+" Real")
+
+    plt.legend(fontsize=14,loc='upper left')
+    plt.grid()
+    plt.axis((start,stop,-10,5))
+
+
+    ## IMAG PART
     plt.figure()
     plt.title("Bicycle eigenvalues vs speed", fontsize=24)
     plt.ylabel("Eigenvalue [-]", fontsize=16)
     plt.xlabel("Speed [m/s]", fontsize=16)
 
-    #Theoretical
-    speedrange = np.linspace(start , stop , num=int(1 + (stop-start)/step))
+    # Theoretical speed-eigen
+    plt.scatter(speed_ax_plant, eig_theory_plant["imag"], s=1, label="Theoretical Imag plant")
+    plt.scatter(speed_ax_ref, eig_theory_ref["imag"],s=1, label="Theoretical Imag reference")
+    # Emperical speed-eigen
+    for method in results:
+        plt.plot(method["speeds"]/3.6,method["omegas"],method["marker"][1],fillstyle='none',label=method["name"]+" Imag" )
     
-    speed_ax, eig_theory = get_eigen_vs_speed(plant_file,plant_type,speedrange,SIL_PARAMETERS)
-    plt.scatter(speed_ax, eig_theory["real"],s=1, label="Theoretical Real")
-    plt.scatter(speed_ax, eig_theory["imag"],s=1, label="Theoretical Imag")
-
-    #Emperical
-    for foo in results:
-        plt.plot(foo["speeds"]/3.6,foo["sigmas"],foo["marker"][0],fillstyle='none',label=foo["name"]+" Real")
-        plt.plot(foo["speeds"]/3.6,foo["omegas"],foo["marker"][1],fillstyle='none',label=foo["name"]+" Imag" )
-    
-    plt.legend(fontsize=14,loc='upper right')
+    plt.legend(fontsize=14,loc='lower right')
     plt.grid()
-    plt.axis((start,stop,-12,12))
+    plt.axis((start,stop,0,10))
     plt.show()
 
 def plot_uncut_data(path,file,vars2extract):
@@ -97,7 +116,7 @@ def plot_uncut_data(path,file,vars2extract):
 #=====START=====#
 #---[Constants
 PATH = "..\\teensy\\logs\\"
-TO_ANALYSE = "filtered" # "raw" or "filtered"
+TO_ANALYSE = "raw" # "raw" or "filtered"
 # BUTTER_ORDER = 2
 # BUTTER_CUT_OFF = 10
 HIGH_PASS_Wc_FREQ = 1
@@ -110,7 +129,7 @@ MAX_FUN_EVAL = 5000
 PLANT_TYPE = "ref" #"plant" or "reference"
 SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
 SPEED_START = 0.1
-SPEED_STOP = 10
+SPEED_STOP = 8
 SPEED_STEP = 0.01
 SIL_PARAMETERS = {
     'avg_speed' : 6.5,
