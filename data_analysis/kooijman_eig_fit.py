@@ -40,16 +40,17 @@ def extract_eigenvals(time,data,par0,speed):
     omega = np.average(omega_vec)
     return sigma, omega
 
-def extract_data(full_path,start,stop,time_step,vars2extract):
+def extract_data(full_path,start,stop,time_step,vars2extract,filter_type):
     extraction = logfile2array(full_path,"",vars2extract)
 
     for key,value in extraction.items():
         #---[Choose signal to analyse
-        if(TO_ANALYSE == "raw"):
+        if(filter_type == "raw"):
             signal = value
-        elif(TO_ANALYSE == "filtered"):
+        elif(filter_type == "hp_filtered"):
             signal = filt.first_order_hp(HIGH_PASS_Wc_FREQ,value,fs=1/time_step)
-            # signal = filt.butter_static(BUTTER_ORDER, BUTTER_CUT_OFF, value, fs=1/time_step)
+        elif(filter_type == "lp_filtered"):
+            signal = filt.butter_static(BUTTER_ORDER, BUTTER_CUT_OFF, value, fs=1/time_step)
         extraction[key] = signal[start:stop]
 
     time = np.linspace(0,time_step*(len(extraction[key])-1),len(extraction[key]))
@@ -63,35 +64,47 @@ def plot_eigenvals(results,plant_file,plant_type,start,stop,step):
     speed_ax_ref, eig_theory_ref = get_eigen_vs_speed(plant_file,'ref',speedrange,SIL_PARAMETERS)
     
     ## REAL PART
-    plt.figure()
-    plt.title("Bicycle eigenvalues vs speed", fontsize=24)
+    plt.figure(figsize=(11, 5), dpi=125)
+    plt.title("Bicycle eigenvalues vs speed - Real part", fontsize=24)
     plt.ylabel("Eigenvalue [-]", fontsize=16)
     plt.xlabel("Speed [m/s]", fontsize=16)
     
     # Theoretical speed-eigen
-    plt.scatter(speed_ax_plant, eig_theory_plant["real"], s=1, label="Theoretical Real plant")
-    plt.scatter(speed_ax_ref, eig_theory_ref["real"],s=1, label="Theoretical Real reference")
+    plt.scatter(speed_ax_plant, eig_theory_plant["real"], s=1, label="Theoretical plant")
+    plt.scatter(speed_ax_ref, eig_theory_ref["real"],s=1, label="Theoretical reference")
     # Emperical speed-eigen
     for method in results:
-        plt.plot(method["speeds"]/3.6,method["sigmas"],method["marker"][0],fillstyle='none',label=method["name"]+" Real")
+        plt.plot(method["speeds"]/3.6, method["sigmas"],
+                 color=method["style"]["color"][0],
+                 marker=method["style"]["marker"][0],
+                 fillstyle=method["style"]["fillstyle"][0],
+                 linestyle='',
+                 markersize=6,
+                 label=method["name"])
 
-    plt.legend(fontsize=14,loc='upper left')
+    plt.legend(fontsize=14,loc='lower right')
     plt.grid()
     plt.axis((start,stop,-10,5))
 
 
     ## IMAG PART
-    plt.figure()
-    plt.title("Bicycle eigenvalues vs speed", fontsize=24)
+    plt.figure(figsize=(11, 5), dpi=125)
+    plt.title("Bicycle eigenvalues vs speed - imaginairy", fontsize=24)
     plt.ylabel("Eigenvalue [-]", fontsize=16)
     plt.xlabel("Speed [m/s]", fontsize=16)
 
     # Theoretical speed-eigen
-    plt.scatter(speed_ax_plant, eig_theory_plant["imag"], s=1, label="Theoretical Imag plant")
-    plt.scatter(speed_ax_ref, eig_theory_ref["imag"],s=1, label="Theoretical Imag reference")
+    plt.scatter(speed_ax_plant, eig_theory_plant["imag"], s=1, label="Theoretical plant")
+    plt.scatter(speed_ax_ref, eig_theory_ref["imag"],s=1, label="Theoretical reference")
     # Emperical speed-eigen
     for method in results:
-        plt.plot(method["speeds"]/3.6,method["omegas"],method["marker"][1],fillstyle='none',label=method["name"]+" Imag" )
+        plt.plot(method["speeds"]/3.6, method["omegas"],
+                 color=method["style"]["color"][1],
+                 marker=method["style"]["marker"][1],
+                 fillstyle=method["style"]["fillstyle"][1],
+                 linestyle='',
+                 markersize=6,
+                 label=method["name"])
     
     plt.legend(fontsize=14,loc='lower right')
     plt.grid()
@@ -116,9 +129,9 @@ def plot_uncut_data(path,file,vars2extract):
 #=====START=====#
 #---[Constants
 PATH = "..\\teensy\\logs\\"
-TO_ANALYSE = "raw" # "raw" or "filtered"
-# BUTTER_ORDER = 2
-# BUTTER_CUT_OFF = 10
+# TO_ANALYSE = "raw" # "raw" or "filtered"
+BUTTER_ORDER = 2
+BUTTER_CUT_OFF = 10
 HIGH_PASS_Wc_FREQ = 1
 TIME_STEP = 0.01
 PHASE = "calculate_eig" # "cut_data" or "calculate_eig"
@@ -151,9 +164,13 @@ vars2extract = {
 log_files = [
     ("eigen_mm_sil6.5n2_18kph.log", [(0,0)])
 ]
-experiments = [ #file,speed[km/h],start&end in file, initial values
-    # Model Matching OFF
-    ( 'Model Matching OFF', ('b<','b>'), (
+experiments = [ #file,speed[km/h],start&end in file, initial values    
+    # Model Matching OFF RAW
+    ( 'MM OFF raw',
+    {"color":('b', 'b'),
+     "marker":('^','^'), 
+     "fillstyle":('full','full')} ,
+     'raw',(
     ("eigen_normal_sil6.5n2_5.4kph.log", 5.4, (4486,4775), (-3.0, 5.5, 0.3, 1.0, 1.0)),
     ("eigen_normal_sil6.5n2_5.4kph.log", 5.4, (5420,5668), (-3.0, 5.5, 0.35, 1.0, 1.0)),
     ("eigen_normal_sil6.5n2_5.4kph.log", 5.4, (6325,6499), (-3.0, 5.5, -0.4, 1.0, 1.0)),
@@ -215,8 +232,12 @@ experiments = [ #file,speed[km/h],start&end in file, initial values
     ("eigen_normal_sil6.5n2_18kph.log", 18, (12961,13073), (-2.0, 9.5, -0.5, 1.0, 1.0)))
     ),
 
-    # Model Matching ON
-    ( 'Model Matching ON', ('r>','r<'), (
+    # Model Matching ON RAW
+    ( 'MM ON raw',
+    {"color":('tab:red', 'tab:red'),
+     "marker":('^','^'), 
+     "fillstyle":('none','none')} ,
+     'raw',(
     ("eigen_mm_sil6.5n2_5.4kph.log", 5.4, (4047,4240), (-3, 5, 0.35, 1.0, 1.0)),
     ("eigen_mm_sil6.5n2_5.4kph.log", 5.4, (4947,5105), (-3, 5, 0.45, 1.0, 1.0)),
     ("eigen_mm_sil6.5n2_5.4kph.log", 5.4, (5868,6025), (-3, 5, -0.5, 1.0, 1.0)),
@@ -265,21 +286,21 @@ experiments = [ #file,speed[km/h],start&end in file, initial values
     ("eigen_mm_sil6.5n2_18kph.log", 18, (10043,10260), (-0.5, 8, -1, 1.0, 1.0)),
     ("eigen_mm_sil6.5n2_18kph.log", 18, (14193,14377), (-0.5, 8, -1, 1.0, 1.0)),
     ("eigen_mm_sil6.5n2_18kph.log", 18, (15348,15483), (-0.5, 8, -1, 1.0, 1.0)))
-    )
+    ),
 ]
 
 
 if(PHASE == "calculate_eig"):
     results = []
-    for name,marker,data in experiments:
+    for name,style,filter_type,data in experiments:
         sigmas = np.empty((len(data),))
         omegas = np.empty((len(data),))
         speeds = np.empty((len(data),))
         for i, one_disturb in enumerate(data):
             file, speeds[i], start_stop, par0 = one_disturb
-            time, extraction = extract_data(PATH+file,start_stop[0],start_stop[1],TIME_STEP,vars2extract)
+            time, extraction = extract_data(PATH+file,start_stop[0],start_stop[1],TIME_STEP,vars2extract,filter_type)
             sigmas[i], omegas[i] = extract_eigenvals(time,extraction,par0,speeds[i])
-        results.append({"name":name,"marker":marker,"sigmas":sigmas,"omegas":omegas,"speeds":speeds})
+        results.append({"name":name,"style":style,"sigmas":sigmas,"omegas":omegas,"speeds":speeds})
     plot_eigenvals(results,SPEED_DEP_MODEL_FILE,PLANT_TYPE,SPEED_START,SPEED_STOP,SPEED_STEP)
 
 elif(PHASE == "cut_data"):
