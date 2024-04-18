@@ -216,6 +216,40 @@ def analyse_bode_data(bode_points, FRF, filename,vars2extract, start, stop, tune
 
     return
 
+def plot_results(results):
+    bode_mags_plant = get_bode(SPEED_DEP_MODEL_FILE,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+    bode_mags_ref = get_bode(SPEED_DEP_MODEL_FILE,"ref",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+    
+    for in_key, in_value in INPUT.items():
+        for out_key, out_value in OUTPUT.items():
+            plt.figure()
+            plt.title(f" - {in_key} to {out_key}",fontsize=24)
+            plt.xlabel("Frequency [Hz]", fontsize=16)
+            plt.ylabel("Gain [dB]", fontsize=16)
+            plt.xscale('log')
+
+            #---[plot the theoretic bode
+            plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],linewidth=3, label="Theoretical Gain Plant")
+            plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:],linewidth=3, label="Theoretical Gain Reference")
+
+            #---[plot the empirical bode
+            for foo in results:
+                bode_points[in_key][out_key] = np.array(foo["bode_points"][in_key][out_key])
+
+                [plt.plot(tmp[0],20*np.log10(tmp[1])) for tmp in FRF[in_key][out_key]]
+                plt.plot(bode_points[in_key][out_key][:,0], 20*np.log10(bode_points[in_key][out_key][:,1]),
+                        color=foo["style"]["color"],
+                        marker=foo["style"]["marker"],
+                        fillstyle=foo["style"]["fillstyle"],
+                        linestyle='',
+                        markersize=6,
+                        label="Emperical Gain - " + foo["name"])
+            
+            plt.axis([0.07,12,-70,20])
+            plt.grid()
+            plt.legend(fontsize=14)
+    plt.show()
+
 def plot_uncut_data(path,file,vars2extract):
     extraction = logfile2array(path,file,vars2extract)
 
@@ -241,11 +275,11 @@ OUTPUT = {"fork_angle": 0,"lean_rate": 1}
 INPUT = {"hand_torque": 1} #"lean_torque": 0,
 PHASE = "calculate_bode" #"cut_data" OR "calculate_bode" the first to investigate the uncut plot, the later to calculate the bode plot of the different samples
 METHOD = "FFT"
-EXPERIMENT_SPEED = 8/3.6 #[m/s]
+EXPERIMENT_SPEED = 2 #[m/s]
 CHECK_VISUALLY = False
 
 #Theoretical model parameters
-PLANT_TYPE = "ref" #"plant" or "ref"
+# PLANT_TYPE = "ref" #"plant" or "ref"
 SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
 FREQ_RANGE = np.logspace(-3,3,1000) # [rad/s]
 SIL_PARAMETERS = {
@@ -287,13 +321,26 @@ If the tune_par is 0, then the new_peak has to be larger than the previous peak
 The lower the tune_par the closer the next peak is allowed to be to the previous vally.
  ''' 
 experiments = [
-    # # ("bode_normal_sil6.5_1Hz.log(pre-run)", (40060,40460), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_normal_sil6.5_1Hz.log", (3925,4220),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_normal_sil6.5_2Hz.log", (762,1013),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_normal_sil6.5_3Hz.log", (7357,7851),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_normal_sil6.5_4Hz.log", (18120,18392),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_normal_sil6.5_5Hz.log", (20648,20809),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_normal_sil6.5_maxHz.log", (6322,6427),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    
+    ("MM OFF", 
+     {"color":'g',
+      "marker":'o', 
+      "fillstyle":'full'}, 
+    (
+    # ("bode_normal_sil6.5_1Hz.log(pre-run)", (40060,40460), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("bode_normal_sil6.5_1Hz.log", (3925,4220),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("bode_normal_sil6.5_2Hz.log", (762,1013),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("bode_normal_sil6.5_3Hz.log", (7357,7851),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("bode_normal_sil6.5_4Hz.log", (18120,18392),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("bode_normal_sil6.5_5Hz.log", (20648,20809),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("bode_normal_sil6.5_maxHz.log", (6322,6427),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}))
+    ),
+
+    ("MM on", 
+     {"color":'r',
+      "marker":'o', 
+      "fillstyle":'none'}, 
+    (
     ("bode_mm_sil6.5_1Hz.log", (510,845),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
     ("bode_mm_sil6.5_2Hz.log", (4250,4505),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
     ("bode_mm_sil6.5_3Hz.log", (3475,3741),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
@@ -303,7 +350,8 @@ experiments = [
     ("bode_mm_sil6.5_5Hz.log", (6897,7105),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
     ("bode_mm_sil6.5_5Hz.log", (8448,8698),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
     ("bode_mm_sil6.5_5Hz.log", (17630,17805),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    ("bode_mm_sil6.5_maxHz.log", (5478,5588),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    ("bode_mm_sil6.5_maxHz.log", (5478,5588),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}))
+    )
 ]
 
 #---[Get the bodepoints from the measured data of the experiments
@@ -313,39 +361,22 @@ if(PHASE=="calculate_bode"):
     elif(METHOD=="FFT"):
         get_single_bode_point = get_single_bode_point_fft
 
-    bode_points = {}
-    for in_key in INPUT.keys():
-        bode_points[in_key] = {}
-        for out_key in OUTPUT.keys():
-            bode_points[in_key][out_key] = []
-    FRF = copy.deepcopy(bode_points)    
+    results = []
+    for name,style,data in experiments:
+        bode_points = {}
+        for in_key in INPUT.keys():
+            bode_points[in_key] = {}
+            for out_key in OUTPUT.keys():
+                bode_points[in_key][out_key] = []
+        FRF = copy.deepcopy(bode_points)    
 
-    for single_exitation in experiments:
-        file, start0_stop1, tune_par = single_exitation
-        get_single_bode_point(bode_points, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par) # frequency in Hz, magnitude in [-]. Bode points is passed by reference
-        # analyse_bode_data(bode_points, FRF, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par)
-
-    for in_key, in_value in INPUT.items():
-        for out_key, out_value in OUTPUT.items():
-            bode_points[in_key][out_key] = np.array(bode_points[in_key][out_key])
-            
-            plt.figure()
-            plt.title(f"{in_key} to {out_key}",fontsize=24)
-            plt.xlabel("Frequency [Hz]", fontsize=16)
-            plt.ylabel("Gain [dB]", fontsize=16)
-            plt.xscale('log')
-
-            #---[plot the theoretic bode
-            bode_mags = get_bode(SPEED_DEP_MODEL_FILE,PLANT_TYPE,EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
-            plt.plot(FREQ_RANGE/(2*np.pi),bode_mags[in_value,out_value,:],linewidth=3, label="Theoretical Gain")
-            #---[plot the empirical bode
-            [plt.plot(tmp[0],20*np.log10(tmp[1])) for tmp in FRF[in_key][out_key]]
-            plt.plot(bode_points[in_key][out_key][:,0], 20*np.log10(bode_points[in_key][out_key][:,1]),'ok', label="Emperical Gain")
-            
-            plt.axis([0.07,12,-70,20])
-            plt.grid()
-            plt.legend(fontsize=14)
-    plt.show()
+        for single_exitation in data:
+            file, start0_stop1, tune_par = single_exitation
+            get_single_bode_point(bode_points, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par) # frequency in Hz, magnitude in [-]. Bode points is passed by reference
+            # analyse_bode_data(bode_points, FRF, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par)
+        
+        results.append({"name":name, "style":style, "bode_points":copy.deepcopy(bode_points)})
+    plot_results(results)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:
