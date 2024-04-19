@@ -100,7 +100,7 @@ def find_freq_and_amp(time,sig,peaks,vallies):
     sig_amplitude = np.average(np.abs(amplitudes))
     return sig_frequency,sig_amplitude
 
-def get_single_bode_point_peaks(bode_points, filename,vars2extract, start, stop, tune_par):
+def get_single_bode_point_peaks(bode_points, filename,vars2extract, start, stop, tune_par, FRF):
     #---[Decide on and extract variable from log file
     extraction = logfile2array(PATH,filename,vars2extract)
 
@@ -156,16 +156,16 @@ def get_single_bode_point_peaks(bode_points, filename,vars2extract, start, stop,
 
     return bode_points
 
-def get_single_bode_point_fft(bode_points, filename,vars2extract, start, stop, tune_par):
+def get_single_bode_point_fft(bode_points, filename,vars2extract, start, stop, tune_par, FRF):
     FRF = {}
     for in_key in INPUT.keys():
         FRF[in_key] = {}
         for out_key in OUTPUT.keys():
             FRF[in_key][out_key] = []
-    analyse_bode_data(bode_points, FRF, filename,vars2extract, start, stop, tune_par)
+    analyse_bode_data(bode_points, filename,vars2extract, start, stop, tune_par, FRF)
     return
 
-def analyse_bode_data(bode_points, FRF, filename,vars2extract, start, stop, tune_par):
+def analyse_bode_data(bode_points, filename,vars2extract, start, stop, tune_par, FRF):
     #---[Extract variable from log file
     extraction = logfile2array(PATH,filename,vars2extract)
 
@@ -233,17 +233,17 @@ def plot_results(results):
             plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:],linewidth=3, label="Theoretical Gain Reference")
 
             #---[plot the empirical bode
-            for foo in results:
-                bode_points[in_key][out_key] = np.array(foo["bode_points"][in_key][out_key])
+            for trial in results:
+                bode_points[in_key][out_key] = np.array(trial["bode_points"][in_key][out_key])
 
-                [plt.plot(tmp[0],20*np.log10(tmp[1])) for tmp in FRF[in_key][out_key]]
+                [plt.plot(tmp[0],20*np.log10(tmp[1]),linestyle=':',color=trial["style"]["FFT_color"]) for tmp in trial["FRF"][in_key][out_key]]
                 plt.plot(bode_points[in_key][out_key][:,0], 20*np.log10(bode_points[in_key][out_key][:,1]),
-                        color=foo["style"]["color"],
-                        marker=foo["style"]["marker"],
-                        fillstyle=foo["style"]["fillstyle"],
+                        color=trial["style"]["color"],
+                        marker=trial["style"]["marker"],
+                        fillstyle=trial["style"]["fillstyle"],
                         linestyle='',
                         markersize=6,
-                        label="Emperical Gain - " + foo["name"])
+                        label="Emperical Gain - " + trial["name"])
             
             plt.axis([0.07,12,-70,20])
             plt.grid()
@@ -265,7 +265,7 @@ def plot_uncut_data(path,file,vars2extract):
 
 #=====START=====#
 #---[Constants
-PATH = "..\\teensy\\logs\\"
+PATH = "..\\teensy\\logs\\bodetest11April-2m_per_s\\"
 TO_ANALYSE = "raw" # "raw" or "filtered"
 # BUTTER_ORDER = 2
 # BUTTER_CUT_OFF = 20
@@ -274,7 +274,7 @@ TIME_STEP = 0.01
 OUTPUT = {"fork_angle": 0,"lean_rate": 1}
 INPUT = {"hand_torque": 1} #"lean_torque": 0,
 PHASE = "calculate_bode" #"cut_data" OR "calculate_bode" the first to investigate the uncut plot, the later to calculate the bode plot of the different samples
-METHOD = "FFT"
+METHOD = "FFT+"
 EXPERIMENT_SPEED = 2 #[m/s]
 CHECK_VISUALLY = False
 
@@ -323,8 +323,9 @@ The lower the tune_par the closer the next peak is allowed to be to the previous
 experiments = [
     
     ("MM OFF", 
-     {"color":'g',
-      "marker":'o', 
+     {"color":'tab:green',
+      "FFT_color":'gold',
+      "marker":'d', 
       "fillstyle":'full'}, 
     (
     # ("bode_normal_sil6.5_1Hz.log(pre-run)", (40060,40460), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
@@ -337,9 +338,10 @@ experiments = [
     ),
 
     ("MM on", 
-     {"color":'r',
-      "marker":'o', 
-      "fillstyle":'none'}, 
+     {"color":'tab:red',
+      "FFT_color":'k',
+      "marker":'d', 
+      "fillstyle":'full'}, 
     (
     ("bode_mm_sil6.5_1Hz.log", (510,845),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
     ("bode_mm_sil6.5_2Hz.log", (4250,4505),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
@@ -360,6 +362,8 @@ if(PHASE=="calculate_bode"):
         get_single_bode_point = get_single_bode_point_peaks
     elif(METHOD=="FFT"):
         get_single_bode_point = get_single_bode_point_fft
+    elif(METHOD=="FFT+"):
+        get_single_bode_point = analyse_bode_data
 
     results = []
     for name,style,data in experiments:
@@ -372,10 +376,9 @@ if(PHASE=="calculate_bode"):
 
         for single_exitation in data:
             file, start0_stop1, tune_par = single_exitation
-            get_single_bode_point(bode_points, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par) # frequency in Hz, magnitude in [-]. Bode points is passed by reference
-            # analyse_bode_data(bode_points, FRF, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par)
+            get_single_bode_point(bode_points, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par, FRF) # frequency in Hz, magnitude in [-]. Bode points is passed by reference
         
-        results.append({"name":name, "style":style, "bode_points":copy.deepcopy(bode_points)})
+        results.append({"name":name, "style":style, "bode_points":copy.deepcopy(bode_points), "FRF":copy.deepcopy(FRF)})
     plot_results(results)
 
 elif(PHASE == "cut_data"):
