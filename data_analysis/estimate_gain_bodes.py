@@ -222,7 +222,7 @@ def plot_results(results):
     
     for in_key, in_value in INPUT.items():
         for out_key, out_value in OUTPUT.items():
-            plt.figure()
+            plt.figure(figsize=(9,3.5), dpi=125)
             plt.title(f" - {in_key} to {out_key}",fontsize=24)
             plt.xlabel("Frequency [Hz]", fontsize=16)
             plt.ylabel("Gain [dB]", fontsize=16)
@@ -244,10 +244,11 @@ def plot_results(results):
                         linestyle='',
                         markersize=6,
                         label="Emperical Gain - " + trial["name"])
+                # plt.plot([1],linestyle=':',color=trial["style"]["FFT_color"],label="Y(s)/U(s) - " + trial["name"])
             
             plt.axis([0.07,12,-70,20])
             plt.grid()
-            plt.legend(fontsize=14)
+            plt.legend(fontsize=12, loc='lower left')
     plt.show()
 
 def plot_uncut_data(path,file,vars2extract):
@@ -274,7 +275,7 @@ TIME_STEP = 0.01
 OUTPUT = {"fork_angle": 0,"lean_rate": 1}
 INPUT = {"hand_torque": 1} #"lean_torque": 0,
 PHASE = "calculate_bode" #"cut_data" OR "calculate_bode" the first to investigate the uncut plot, the later to calculate the bode plot of the different samples
-METHOD = "FFT+"
+METHOD = "FFT"
 EXPERIMENT_SPEED = 2 #[m/s]
 CHECK_VISUALLY = False
 
@@ -324,7 +325,7 @@ experiments = [
     
     ("MM OFF", 
      {"color":'tab:green',
-      "FFT_color":'gold',
+      "FFT_color":'salmon',
       "marker":'d', 
       "fillstyle":'full'}, 
     (
@@ -341,7 +342,7 @@ experiments = [
      {"color":'tab:red',
       "FFT_color":'k',
       "marker":'d', 
-      "fillstyle":'full'}, 
+      "fillstyle":'none'}, 
     (
     ("bode_mm_sil6.5_1Hz.log", (510,845),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
     ("bode_mm_sil6.5_2Hz.log", (4250,4505),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
