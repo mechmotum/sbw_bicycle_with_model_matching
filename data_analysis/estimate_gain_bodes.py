@@ -133,7 +133,7 @@ def get_single_bode_point_peaks(bode_points, filename,vars2extract, start, stop,
             plt.xlabel("Time [s]", fontsize=16)
             plt.ylabel(f"{key} [Nm] or [rad/s] or [rad]", fontsize=16)
             plt.plot(time[start-50:stop+50], value[start-50:stop+50],'-',label="Raw")
-            plt.plot(time[start-50:stop+50], val_butter[start-50:stop+50],'--',label="Filtered")
+            # plt.plot(time[start-50:stop+50], val_butter[start-50:stop+50],'--',label="Filtered")
             plt.plot(time[peaks], signal[peaks],'o',label="peak")
             plt.plot(time[vallies], signal[vallies],'o',label="vally")
             plt.axvline(time[start])
@@ -190,9 +190,11 @@ def analyse_bode_data(bode_points, filename,vars2extract, start, stop, tune_par,
 
             tmp = np.argmax(abs(input_frq))
             freq_in = freq_bins[tmp]
-            freq_out = freq_bins[(tmp-2)+np.argmax(abs(output_frq[tmp-2:tmp+5]))]
+            # freq_out = freq_bins[(tmp-2)+np.argmax(abs(output_frq[tmp-2:tmp+5]))]
+            freq_out = freq_bins[np.argmax(abs(output_frq[1:]))+1]
             magnitude_in = np.max(abs(input_frq))
-            magnitude_out = np.max(abs(output_frq[tmp-2:tmp+5]))
+            # magnitude_out = np.max(abs(output_frq[tmp-2:tmp+5]))
+            magnitude_out = np.max(abs(output_frq[1:]))
 
             FRF[key_in][key_out].append([freq_bins[np.argmax(abs(input_frq))-3:np.argmax(abs(input_frq))+5],\
                                          (abs(output_frq)/abs(input_frq))[np.argmax(abs(input_frq))-3:np.argmax(abs(input_frq))+5]])
@@ -209,7 +211,8 @@ def analyse_bode_data(bode_points, filename,vars2extract, start, stop, tune_par,
                 plt.plot(freq_bins,abs(input_frq),label="input")
                 plt.plot(freq_bins,abs(output_frq),label="output")
                 plt.plot(freq_in,np.max(abs(input_frq)),'o',label="input max")
-                plt.plot(freq_out,np.max(abs(output_frq[tmp-2:tmp+5])),'o',label="output max")
+                # plt.plot(freq_out,np.max(abs(output_frq[tmp-2:tmp+5])),'o',label="output max")
+                plt.plot(freq_out,np.max(abs(output_frq)),'o',label="output max")
                 plt.legend(fontsize=14)
     if(CHECK_VISUALLY):
         plt.show()
@@ -222,8 +225,8 @@ def plot_results(results):
     
     for in_key, in_value in INPUT.items():
         for out_key, out_value in OUTPUT.items():
-            plt.figure(figsize=(9,3.5), dpi=125)
-            plt.title(f" - {in_key} to {out_key}",fontsize=24)
+            plt.figure(figsize=(14,5), dpi=125)
+            plt.title(f"{in_key} to {out_key}",fontsize=24)
             plt.xlabel("Frequency [Hz]", fontsize=16)
             plt.ylabel("Gain [dB]", fontsize=16)
             plt.xscale('log')
@@ -246,7 +249,7 @@ def plot_results(results):
                         label="Emperical Gain - " + trial["name"])
                 # plt.plot([1],linestyle=':',color=trial["style"]["FFT_color"],label="Y(s)/U(s) - " + trial["name"])
             
-            plt.axis([0.07,12,-70,20])
+            plt.axis([0.07,12,-50,0])
             plt.grid()
             plt.legend(fontsize=12, loc='lower left')
     plt.show()
@@ -259,6 +262,8 @@ def plot_uncut_data(path,file,vars2extract):
     ax.set_ylabel("states [rad] or [rad/s]", fontsize=16)
     ax.set_xlabel("index number [-]", fontsize=16)
     for key, value in extraction.items():
+        if key in ["x_acceleration", "y_acceleration"]: #The acceleration measurements need to be filtered to be useful
+            value = filt.butter_running(  4  ,  2  , value, fs=1/TIME_STEP)
         ax.plot(value,label=key)
     ax.grid()
     ax.legend(fontsize=14)
@@ -266,7 +271,7 @@ def plot_uncut_data(path,file,vars2extract):
 
 #=====START=====#
 #---[Constants
-PATH = "..\\teensy\\logs\\bodetest11April-2m_per_s\\"
+PATH = "..\\teensy\\logs\\bodetest-4m_per_s\\"
 TO_ANALYSE = "raw" # "raw" or "filtered"
 # BUTTER_ORDER = 2
 # BUTTER_CUT_OFF = 20
@@ -276,7 +281,7 @@ OUTPUT = {"fork_angle": 0,"lean_rate": 1}
 INPUT = {"hand_torque": 1} #"lean_torque": 0,
 PHASE = "calculate_bode" #"cut_data" OR "calculate_bode" the first to investigate the uncut plot, the later to calculate the bode plot of the different samples
 METHOD = "FFT"
-EXPERIMENT_SPEED = 2 #[m/s]
+EXPERIMENT_SPEED = 4 #[m/s]
 CHECK_VISUALLY = False
 
 #Theoretical model parameters
@@ -293,20 +298,28 @@ SIL_PARAMETERS = {
 vars2extract = {
     "lean_rate": [],
     "fork_angle": [],
-    "hand_torque": []
+    "hand_torque": [],
+    # "x_acceleration": [],
+    # "speed":[],
 }
 # log_files is a list of tuples containing (filename, data investigation start-and-stop)
 log_files = [
-    ("bode_mm_sil6.5_1Hz.log", (510,845)),
-    ("bode_mm_sil6.5_2Hz.log", (4250,4505)),
-    ("bode_mm_sil6.5_3Hz.log", (3475,3741)),
-    ("bode_mm_sil6.5_3Hz.log", (4864,5105)),
-    ("bode_mm_sil6.5_4Hz.log", (13592,13942)),
-    ("bode_mm_sil6.5_5Hz.log", (3498,3781)),
-    ("bode_mm_sil6.5_5Hz.log", (6897,7105)),
-    ("bode_mm_sil6.5_5Hz.log", (8448,8698)),
-    ("bode_mm_sil6.5_5Hz.log", (17630,17805)),
-    ("bode_mm_sil6.5_maxHz.log", (5478,5588)),
+    ("bode_normal_4mps_1.0Hz.log", [(6077,6269),(8823,8920)]),
+    ("bode_normal_4mps_1.1Hz.log", [(793,1221)]),
+    ("bode_normal_4mps_1.2Hz.log", [(4488,4637),(5888,5965)]),
+    ("bode_normal_4mps_1.3Hz.log", [(2538,2835)]),
+    ("bode_normal_4mps_1.4Hz.log", [(2889,2957), (10312,10454), (13231,13298), (18350,18489)]),
+    ("bode_normal_4mps_1.5Hz.log", [(4625,4759)]),
+    ("bode_normal_4mps_1.6Hz.log", [(3461,3585),(6330,6640)]),
+    ("bode_normal_4mps_1.7Hz.log", [(7855,8032)]),
+    ("bode_normal_4mps_1.8Hz.log", [(8888,8999)]),
+    ("bode_normal_4mps_1.9Hz.log", [(3262,3575)]),
+    ("bode_normal_4mps_2.05Hz.log", [(3586,3828)]),
+    ("bode_normal_4mps_2.2Hz.log", [(2347,2711),(4171,4531)]),
+    ("bode_normal_4mps_2.4Hz.log", [(2504,2630),(3473,3683),(5013,5185),(6344,6591)]),
+    ("bode_normal_4mps_2.6Hz.log", [(20267,20460),(21955,22137)]),
+    ("bode_normal_4mps_2.8Hz.log", [(3765,3975),(6073,6380)]),
+    ("bode_normal_4mps_3.0Hz.log", [(3450,3610),(4769,4931),(7333,7526)])
 ]
 # A list of tuples containing (file, data investigation start-and-stop, tuning parameter).
 '''NOTE: The tuning parameter is a parameter used in the method to filter away noise:
@@ -322,39 +335,80 @@ If the tune_par is 0, then the new_peak has to be larger than the previous peak
 The lower the tune_par the closer the next peak is allowed to be to the previous vally.
  ''' 
 experiments = [
-    
+    ## OLD BODE DATA (2mps)
+    # ("MM OFF", 
+    #  {"color":'tab:green',
+    #   "FFT_color":'salmon',
+    #   "marker":'d', 
+    #   "fillstyle":'full'}, 
+    # (
+    # # ("bode_normal_sil6.5_1Hz.log(pre-run)", (40060,40460), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_normal_sil6.5_1Hz.log", (3925,4220),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_normal_sil6.5_2Hz.log", (762,1013),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_normal_sil6.5_3Hz.log", (7357,7851),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_normal_sil6.5_4Hz.log", (18120,18392),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_normal_sil6.5_5Hz.log", (20648,20809),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_normal_sil6.5_maxHz.log", (6322,6427),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}))
+    # ),
+
+    # ("MM on", 
+    #  {"color":'tab:red',
+    #   "FFT_color":'k',
+    #   "marker":'d', 
+    #   "fillstyle":'none'}, 
+    # (
+    # ("bode_mm_sil6.5_1Hz.log", (510,845),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_mm_sil6.5_2Hz.log", (4250,4505),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_mm_sil6.5_3Hz.log", (3475,3741),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_mm_sil6.5_3Hz.log", (4864,5105),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_mm_sil6.5_4Hz.log", (13592,13942),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_mm_sil6.5_5Hz.log", (6897,7105),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_mm_sil6.5_5Hz.log", (6897,7105),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_mm_sil6.5_5Hz.log", (8448,8698),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_mm_sil6.5_5Hz.log", (17630,17805),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+    # ("bode_mm_sil6.5_maxHz.log", (5478,5588),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}))
+    # )
+
+
+    ## NEW BODE DATA (MORE POINTS AROUND PEAK) (4mps)
     ("MM OFF", 
      {"color":'tab:green',
       "FFT_color":'salmon',
       "marker":'d', 
       "fillstyle":'full'}, 
     (
-    # ("bode_normal_sil6.5_1Hz.log(pre-run)", (40060,40460), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    ("bode_normal_sil6.5_1Hz.log", (3925,4220),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    ("bode_normal_sil6.5_2Hz.log", (762,1013),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    ("bode_normal_sil6.5_3Hz.log", (7357,7851),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    ("bode_normal_sil6.5_4Hz.log", (18120,18392),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    ("bode_normal_sil6.5_5Hz.log", (20648,20809),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    ("bode_normal_sil6.5_maxHz.log", (6322,6427),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}))
-    ),
-
-    ("MM on", 
-     {"color":'tab:red',
-      "FFT_color":'k',
-      "marker":'d', 
-      "fillstyle":'none'}, 
-    (
-    ("bode_mm_sil6.5_1Hz.log", (510,845),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    ("bode_mm_sil6.5_2Hz.log", (4250,4505),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    ("bode_mm_sil6.5_3Hz.log", (3475,3741),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    ("bode_mm_sil6.5_3Hz.log", (4864,5105),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    ("bode_mm_sil6.5_4Hz.log", (13592,13942),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    ("bode_mm_sil6.5_5Hz.log", (6897,7105),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    ("bode_mm_sil6.5_5Hz.log", (6897,7105),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    ("bode_mm_sil6.5_5Hz.log", (8448,8698),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    ("bode_mm_sil6.5_5Hz.log", (17630,17805),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    ("bode_mm_sil6.5_maxHz.log", (5478,5588),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}))
+    ("bode_normal_4mps_1.0Hz.log", (6077,6269),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_1.0Hz.log", (8823,8920),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_1.1Hz.log", (793,1221),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_1.2Hz.log", (4488,4637),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_1.2Hz.log", (5888,5965),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_1.3Hz.log", (2538,2835),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_1.4Hz.log", (2889,2957),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_1.4Hz.log", (10312,10454),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_1.4Hz.log", (13231,13298),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_1.4Hz.log", (18350,18489),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_1.5Hz.log", (4625,4759),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_1.6Hz.log", (3461,3585),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_1.6Hz.log", (6330,6640),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_1.7Hz.log", (7855,8032),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_1.8Hz.log", (8888,8999),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_1.9Hz.log", (3262,3575),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_2.05Hz.log", (3586,3828),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_2.2Hz.log", (2347,2711),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_2.2Hz.log", (4171,4531),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_2.4Hz.log", (2504,2630),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_2.4Hz.log", (3473,3683),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_2.4Hz.log", (5013,5185),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_2.4Hz.log", (6344,6591),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_2.6Hz.log", (20267,20460),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_2.6Hz.log", (21955,22137),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_2.8Hz.log", (3765,3975),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_2.8Hz.log", (6073,6380),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_3.0Hz.log", (3450,3610),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_3.0Hz.log", (4769,4931),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_normal_4mps_3.0Hz.log", (7333,7526),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5})
     )
+    ),
 ]
 
 #---[Get the bodepoints from the measured data of the experiments
@@ -386,8 +440,9 @@ elif(PHASE == "cut_data"):
     for foo in log_files:
         log, start_stop = foo
         ax = plot_uncut_data(PATH,log,vars2extract)
-        ax.axvline(start_stop[0])
-        ax.axvline(start_stop[1])
+        for start, stop in start_stop:
+            ax.axvline(start)
+            ax.axvline(stop)
         plt.show()
 
 
