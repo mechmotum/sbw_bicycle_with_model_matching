@@ -45,10 +45,12 @@ T_c,y_c,x_c = sign.lsim((A_c,B,C,D),u_vec,time,x0,interp=True)
 
 
 ## Plot
-plt.figure()
-plt.xlabel("time [s]")
-plt.plot(T_r,x_r,linestyle='-',label=["nominal 1", "nominal 2"])
-plt.plot(T_c,x_c,linestyle='--',label=["reference 1", "reference 2"])
+plt.figure(dpi=110)
+plt.title("Toy example: model matching with pole placement",fontsize=24)
+plt.ylabel("state value [-]",fontsize=16)
+plt.xlabel("time [s]",fontsize=16)
+plt.plot(T_r,x_r,linestyle='-',label=["reference 1", "reference 2"])
+plt.plot(T_c,x_c,linestyle='--',label=["controlled 1", "controlled 2"])
 plt.grid()
-plt.legend()
+plt.legend(fontsize=12)
 plt.show()
