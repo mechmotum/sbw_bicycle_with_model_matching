@@ -304,22 +304,28 @@ vars2extract = {
 }
 # log_files is a list of tuples containing (filename, data investigation start-and-stop)
 log_files = [
-    ("bode_normal_4mps_1.0Hz.log", [(6077,6269),(8823,8920)]),
-    ("bode_normal_4mps_1.1Hz.log", [(793,1221)]),
-    ("bode_normal_4mps_1.2Hz.log", [(4488,4637),(5888,5965)]),
-    ("bode_normal_4mps_1.3Hz.log", [(2538,2835)]),
-    ("bode_normal_4mps_1.4Hz.log", [(2889,2957), (10312,10454), (13231,13298), (18350,18489)]),
-    ("bode_normal_4mps_1.5Hz.log", [(4625,4759)]),
-    ("bode_normal_4mps_1.6Hz.log", [(3461,3585),(6330,6640)]),
-    ("bode_normal_4mps_1.7Hz.log", [(7855,8032)]),
-    ("bode_normal_4mps_1.8Hz.log", [(8888,8999)]),
-    ("bode_normal_4mps_1.9Hz.log", [(3262,3575)]),
-    ("bode_normal_4mps_2.05Hz.log", [(3586,3828)]),
-    ("bode_normal_4mps_2.2Hz.log", [(2347,2711),(4171,4531)]),
-    ("bode_normal_4mps_2.4Hz.log", [(2504,2630),(3473,3683),(5013,5185),(6344,6591)]),
-    ("bode_normal_4mps_2.6Hz.log", [(20267,20460),(21955,22137)]),
-    ("bode_normal_4mps_2.8Hz.log", [(3765,3975),(6073,6380)]),
-    ("bode_normal_4mps_3.0Hz.log", [(3450,3610),(4769,4931),(7333,7526)])
+    # ("bode_normal_4mps_1.0Hz.log", [(6077,6269),(8823,8920)]),
+    # ("bode_normal_4mps_1.1Hz.log", [(793,1221)]),
+    # ("bode_normal_4mps_1.2Hz.log", [(4488,4637),(5888,5965)]),
+    # ("bode_normal_4mps_1.3Hz.log", [(2538,2835)]),
+    # ("bode_normal_4mps_1.4Hz.log", [(2889,2957), (10312,10454), (13231,13298), (18350,18489)]),
+    # ("bode_normal_4mps_1.5Hz.log", [(4625,4759)]),
+    # ("bode_normal_4mps_1.6Hz.log", [(3461,3585),(6330,6640)]),
+    # ("bode_normal_4mps_1.7Hz.log", [(7855,8032)]),
+    # ("bode_normal_4mps_1.8Hz.log", [(8888,8999)]),
+    # ("bode_normal_4mps_1.9Hz.log", [(3262,3575)]),
+    # ("bode_normal_4mps_2.05Hz.log", [(3586,3828)]),
+    # ("bode_normal_4mps_2.2Hz.log", [(2347,2711),(4171,4531)]),
+    # ("bode_normal_4mps_2.4Hz.log", [(2504,2630),(3473,3683),(5013,5185),(6344,6591)]),
+    # ("bode_normal_4mps_2.6Hz.log", [(20267,20460),(21955,22137)]),
+    # ("bode_normal_4mps_2.8Hz.log", [(3765,3975),(6073,6380)]),
+    # ("bode_normal_4mps_3.0Hz.log", [(3450,3610),(4769,4931),(7333,7526)])
+    ("bode_mm_4mps_1.0Hz.log", [(9069,9554)]),
+    ("bode_mm_4mps_1.1Hz.log", [(34646,34820)]),
+    ("bode_mm_4mps_1.2Hz.log", [(19120,19202)]),
+    ("bode_mm_4mps_1.3Hz.log", [(18407,18483)]),
+    ("bode_mm_4mps_1.4Hz.log", [(8232,8296),(12838,12985)]),
+    ("bode_mm_4mps_1.5Hz.log", [(13574,13774)]),
 ]
 # A list of tuples containing (file, data investigation start-and-stop, tuning parameter).
 '''NOTE: The tuning parameter is a parameter used in the method to filter away noise:
@@ -407,6 +413,22 @@ experiments = [
     ("bode_normal_4mps_3.0Hz.log", (3450,3610),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
     ("bode_normal_4mps_3.0Hz.log", (4769,4931),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
     ("bode_normal_4mps_3.0Hz.log", (7333,7526),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5})
+    )
+    ),
+
+    ("MM OFF", 
+     {"color":'tab:red',
+      "FFT_color":'k',
+      "marker":'d', 
+      "fillstyle":'none'}, 
+    (
+    ("bode_mm_4mps_1.0Hz.log", (9069,9554),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_1.1Hz.log", (34646,34820),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_1.2Hz.log", (19120,19202),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_1.3Hz.log", (18407,18483),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_1.4Hz.log", (8232,8296),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_1.4Hz.log", (12838,12985),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_1.5Hz.log", (13574,13774),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
     )
     ),
 ]
