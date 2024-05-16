@@ -300,32 +300,27 @@ vars2extract = {
     "fork_angle": [],
     "hand_torque": [],
     # "x_acceleration": [],
+    # "y_acceleration": [],
     # "speed":[],
 }
 # log_files is a list of tuples containing (filename, data investigation start-and-stop)
 log_files = [
-    # ("bode_normal_4mps_1.0Hz.log", [(6077,6269),(8823,8920)]),
-    # ("bode_normal_4mps_1.1Hz.log", [(793,1221)]),
-    # ("bode_normal_4mps_1.2Hz.log", [(4488,4637),(5888,5965)]),
-    # ("bode_normal_4mps_1.3Hz.log", [(2538,2835)]),
-    # ("bode_normal_4mps_1.4Hz.log", [(2889,2957), (10312,10454), (13231,13298), (18350,18489)]),
-    # ("bode_normal_4mps_1.5Hz.log", [(4625,4759)]),
-    # ("bode_normal_4mps_1.6Hz.log", [(3461,3585),(6330,6640)]),
-    # ("bode_normal_4mps_1.7Hz.log", [(7855,8032)]),
-    # ("bode_normal_4mps_1.8Hz.log", [(8888,8999)]),
-    # ("bode_normal_4mps_1.9Hz.log", [(3262,3575)]),
-    # ("bode_normal_4mps_2.05Hz.log", [(3586,3828)]),
-    # ("bode_normal_4mps_2.2Hz.log", [(2347,2711),(4171,4531)]),
-    # ("bode_normal_4mps_2.4Hz.log", [(2504,2630),(3473,3683),(5013,5185),(6344,6591)]),
-    # ("bode_normal_4mps_2.6Hz.log", [(20267,20460),(21955,22137)]),
-    # ("bode_normal_4mps_2.8Hz.log", [(3765,3975),(6073,6380)]),
-    # ("bode_normal_4mps_3.0Hz.log", [(3450,3610),(4769,4931),(7333,7526)])
-    ("bode_mm_4mps_1.0Hz.log", [(9069,9554)]),
-    ("bode_mm_4mps_1.1Hz.log", [(34646,34820)]),
-    ("bode_mm_4mps_1.2Hz.log", [(19120,19202)]),
-    ("bode_mm_4mps_1.3Hz.log", [(18407,18483)]),
-    ("bode_mm_4mps_1.4Hz.log", [(8232,8296),(12838,12985)]),
-    ("bode_mm_4mps_1.5Hz.log", [(13574,13774)]),
+    # ("bode_mm_4mps_1.0Hz.log", [(13108,13308)]),
+    # ("bode_mm_4mps_1.1Hz.log", [(8380,8561),(10153,10330)]),
+    ("bode_mm_4mps_1.2Hz.log", [(7265,7408)]),
+    ("bode_mm_4mps_1.3Hz.log", [(1214,1437),(7735,8023)]),
+    # ("bode_mm_4mps_1.4Hz.log", [(17516,17875)]),
+    # ("bode_mm_4mps_1.5Hz.log", [(1615,1875)]),
+    # ("bode_mm_4mps_1.6Hz.log", [(1156,1408)]),
+    # ("bode_mm_4mps_1.7Hz.log", [(14272,14752)]),
+    # ("bode_mm_4mps_1.8Hz.log", [(9393,9732)]),
+    ("bode_mm_4mps_1.9Hz.log", [(7716,7960)]),
+    # ("bode_mm_4mps_2.05Hz.log", [(36920,37180)]),
+    # ("bode_mm_4mps_2.2Hz.log", [(60421,60621)]),
+    # ("bode_mm_4mps_2.4Hz.log", [(3920,4137)]),
+    ("bode_mm_4mps_2.6Hz.log", [(7707,7918)]),
+    # ("bode_mm_4mps_2.8Hz.log", [(20988,21104)]),
+    # ("bode_mm_4mps_3.0Hz.log", [(6735,6860)])
 ]
 # A list of tuples containing (file, data investigation start-and-stop, tuning parameter).
 '''NOTE: The tuning parameter is a parameter used in the method to filter away noise:
@@ -416,19 +411,30 @@ experiments = [
     )
     ),
 
-    ("MM OFF", 
-     {"color":'tab:red',
+   ("MM ON", 
+     {"color":'k',
       "FFT_color":'k',
-      "marker":'d', 
-      "fillstyle":'none'}, 
+      "marker":'^', 
+      "fillstyle":'full'}, 
     (
-    ("bode_mm_4mps_1.0Hz.log", (9069,9554),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-    ("bode_mm_4mps_1.1Hz.log", (34646,34820),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-    ("bode_mm_4mps_1.2Hz.log", (19120,19202),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-    ("bode_mm_4mps_1.3Hz.log", (18407,18483),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-    ("bode_mm_4mps_1.4Hz.log", (8232,8296),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-    ("bode_mm_4mps_1.4Hz.log", (12838,12985),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-    ("bode_mm_4mps_1.5Hz.log", (13574,13774),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_1.0Hz.log", (13108,13308),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_1.1Hz.log", (8380,8561),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_1.1Hz.log", (10153,10330),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_1.2Hz.log", (7265,7561),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}), #--- fishy
+    ("bode_mm_4mps_1.3Hz.log", (1214,1437),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_1.3Hz.log", (7760,7966),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}), #--- fishy
+    ("bode_mm_4mps_1.4Hz.log", (17516,17875),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_1.5Hz.log", (1615,1875),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_1.6Hz.log", (1156,1408),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_1.7Hz.log", (14272,14752),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_1.8Hz.log", (9393,9732),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_1.9Hz.log", (7576,7960),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}), #--- fishy
+    ("bode_mm_4mps_2.05Hz.log", (36920,37180),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_2.2Hz.log", (60421,60621),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_2.4Hz.log", (3920,4137),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_2.6Hz.log", (7707,7918),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),#--- fishy
+    ("bode_mm_4mps_2.8Hz.log", (20988,21104),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+    ("bode_mm_4mps_3.0Hz.log", (6735,6860),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
     )
     ),
 ]
@@ -482,3 +488,19 @@ elif(PHASE == "cut_data"):
 # ("oscillation_240bpm_8kph_error_in_sil.log", (4535,4683), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
 # ("oscillation_240bpm_8kph_error_in_sil.log", (7794,8051), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
 # ("oscillation_fast_as_possible_error_in_sil.log", (3744,3891), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
+
+#  ("MM OFF", 
+#      {"color":'tab:red',
+#       "FFT_color":'k',
+#       "marker":'d', 
+#       "fillstyle":'none'}, 
+#     (
+#     ("experiment_with_crash\\bode_mm_4mps_1.0Hz.log", (9069,9554),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+#     ("experiment_with_crash\\bode_mm_4mps_1.1Hz.log", (34646,34820),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+#     ("experiment_with_crash\\bode_mm_4mps_1.2Hz.log", (19120,19202),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+#     ("experiment_with_crash\\bode_mm_4mps_1.3Hz.log", (18407,18483),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+#     ("experiment_with_crash\\bode_mm_4mps_1.4Hz.log", (8232,8296),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+#     ("experiment_with_crash\\bode_mm_4mps_1.4Hz.log", (12838,12985),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+#     ("experiment_with_crash\\bode_mm_4mps_1.5Hz.log", (13574,13774),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
+#     )
+#     ),
