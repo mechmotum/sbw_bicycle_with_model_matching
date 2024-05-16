@@ -137,7 +137,7 @@ def get_eigen_vs_speed(bike_plant_file,plant_type,speedrange,sil_parameters):
     for idx, speed in enumerate(speedrange):
         # calculate speed depenend matrices
         plant.calc_mtrx(speed)
-        ctrl.calc_gain(speed-0.1)
+        ctrl.calc_gain(speed)
         # calculate eigenvalues
         eigenvals[idx] = np.linalg.eigvals(plant.mat["A"] + plant.mat["B"]@ctrl.gain["F"]) # plant-> dx = Ax + Bu
 
@@ -191,7 +191,7 @@ def get_bode(bike_plant_file,plant_type,speed,freq_range,sil_parameters):
     #--[Calculating bode magnitudes for all input to output combos
     # Initialize objects at correct speed
     plant.calc_mtrx(speed)
-    ctrl.calc_gain(speed-0.1)
+    ctrl.calc_gain(speed)
 
     bode_mags = calc_bode_mag(
         plant.mat["A"] + plant.mat["B"]@ctrl.gain["F"],
