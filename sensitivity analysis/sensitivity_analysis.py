@@ -208,7 +208,7 @@ for param,value in repl_primal2num_plant.items():#[(I_Bxx, 1.64), (I_Bzz, 1.94),
 
         plt.figure()
         plt.title(f"Sensitivity analysis of model matching controller {param}", fontsize=24)
-        plt.ylabel("Error value [-] (eigen:squared , bode:absolute)", fontsize=16)
+        plt.ylabel("Error value [-]", fontsize=16)
         plt.xlabel("Perturbation", fontsize=16)
         plt.plot(steps, eig_error, label='speed-eigenvalue')
         plt.plot(steps, bode_error, label='bode magnitude')
@@ -216,30 +216,75 @@ for param,value in repl_primal2num_plant.items():#[(I_Bxx, 1.64), (I_Bzz, 1.94),
         plt.grid()
         plt.show()
 
-plt.figure()
-plt.title("Sensitivity analysis of model matching controller (slope) - eigenvalues", fontsize=24)
-plt.ylabel("Absolute error value [-]", fontsize=16)
-plt.bar([str(symb) for symb in list(repl_primal2num_plant.keys())], error_diff_eig)
-plt.grid()
-plt.show()
 
-plt.figure()
-plt.title("Sensitivity analysis of model matching controller (slope) - bode magnitudes", fontsize=24)
-plt.ylabel("Absolute error value [-]", fontsize=16)
-plt.bar([str(symb) for symb in list(repl_primal2num_plant.keys())], error_diff_bode)
-plt.grid()
-plt.show()
+## Plotting
+error_diff = {"Speed-Eigenvalue": error_diff_eig, "Bode Gain": error_diff_bode}
+error_max = {"Speed-Eigenvalue": max_eig_error, "Bode Gain": max_bode_error}
+bike_param_names = [
+    '$w$',
+    '$c$',
+    '$\\lambda$',
+    '$g$',
+    '$v$',
+    '$r_R$',
+    '$m_R$',
+    '$I_{Rxx}$',
+    '$I_{Ryy}$',
+    '$x_B$',
+    '$z_B$',
+    '$m_B$',
+    '$I_{Bxx}$',
+    '$I_{Bzz}$',
+    '$I_{Bxz}$',
+    '$x_H$',
+    '$z_H$',
+    '$m_H$',
+    '$I_{Hxx}$',
+    '$I_{Hzz}$',
+    '$I_{Hxz}$',
+    '$r_F$',
+    '$m_F$',
+    '$I_{Fxx}$',
+    '$I_{Fyy}$'
+]
 
-plt.figure()
-plt.title("Sensitivity analysis of model matching controller (total sum) - eigenvalues", fontsize=24)
-plt.ylabel("Absolute error value [-]", fontsize=16)
-plt.bar([str(symb) for symb in list(repl_primal2num_plant.keys())], max_eig_error)
-plt.grid()
-plt.show()
+x = np.arange(len(bike_param_names))  # the label locations
+width = 0.3  # the width of the bars
+multiplier = 0
 
-plt.figure()
-plt.title("Sensitivity analysis of model matching controller (total sum) - bode magnitudes", fontsize=24)
-plt.ylabel("Absolute error value [-]", fontsize=16)
-plt.bar([str(symb) for symb in list(repl_primal2num_plant.keys())], max_bode_error)
-plt.grid()
+# Set fontsize for y label ticks. (the numbers)
+plt.rc('ytick', labelsize=14)
+
+
+# Plot Max average error
+fig, ax = plt.subplots(dpi=115)
+
+for type, error in error_max.items():
+    offset = width * multiplier
+    rects = ax.bar(x + offset, error, width, label=type)
+    # ax.bar_label(rects, padding=3)
+    multiplier += 1
+
+# Plot styling
+ax.set_title('Sensitivity analysis - Maximal Average Error',fontsize=24)
+ax.set_ylabel('Absolute error [-]',fontsize=16)
+ax.set_xticks(x + 0.5*width, bike_param_names, fontsize=16)
+ax.legend(loc='upper left', ncol=2, fontsize=14)
+
+
+#Plot Slope of average error
+fig, ax = plt.subplots(dpi=115)
+
+multiplier = 0
+for type, error in error_diff.items():
+    offset = width * multiplier
+    rects = ax.bar(x + offset, error, width, label=type)
+    # ax.bar_label(rects, padding=3)
+    multiplier += 1
+
+# Plot styling
+ax.set_title('Sensitivity analysis - Slope of Average Error',fontsize=24)
+ax.set_ylabel('Absolute error per change in variable [-]',fontsize=16)
+ax.set_xticks(x + 0.5*width, bike_param_names, fontsize=16)
+ax.legend(loc='upper left', ncol=2, fontsize=14)
 plt.show()
