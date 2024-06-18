@@ -254,6 +254,54 @@ def plot_results(results):
             plt.legend(fontsize=12, loc='lower left')
     plt.show()
 
+def plot_results_paper(results):
+    bode_mags_plant = get_bode(SPEED_DEP_MODEL_FILE,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+    bode_mags_ref = get_bode(SPEED_DEP_MODEL_FILE,"ref",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+    
+    for in_key, in_value in INPUT.items():
+        for out_key, out_value in OUTPUT.items():
+            fig = plt.figure(figsize=(14,5), dpi=125)
+            fig.suptitle(f"{in_key} to {out_key}",fontsize=24)
+            by_label = dict()
+            
+            axs = dict()
+            axs["left"] = fig.add_subplot(121)
+            axs["left"].set_xlabel("Frequency [Hz]", fontsize=16)
+            axs["left"].set_ylabel("Gain [dB]", fontsize=16)
+            axs["left"].set_xscale('log')
+            axs["left"].axis([0.5,5,-40,0])
+            axs["left"].tick_params(axis='x', labelsize=14)
+            axs["left"].tick_params(axis='y', labelsize=14)
+
+            axs["right"] = fig.add_subplot(122)
+            axs["right"].set_xlabel("Frequency [Hz]", fontsize=16)
+            axs["right"].set_xscale('log')
+            axs["right"].axis([0.5,5,-40,0])
+            axs["right"].tick_params(axis='x', labelsize=14)
+            axs["right"].tick_params(axis='y', labelsize=14)
+                
+            for trial in results:
+                #---[plot the theoretic bode
+                axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],linewidth=4, label="Theoretical Gain Plant")
+                axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:],'--',linewidth=4, label="Theoretical Gain Reference")
+                bode_points[in_key][out_key] = np.array(trial["bode_points"][in_key][out_key])
+
+                [axs[trial["style"]["place"]].plot(tmp[0],20*np.log10(tmp[1]),linestyle=':',color=trial["style"]["FFT_color"]) for tmp in trial["FRF"][in_key][out_key]]
+                axs[trial["style"]["place"]].plot(bode_points[in_key][out_key][:,0], 20*np.log10(bode_points[in_key][out_key][:,1]),
+                        color=trial["style"]["color"],
+                        marker=trial["style"]["marker"],
+                        fillstyle=trial["style"]["fillstyle"],
+                        linestyle='',
+                        markersize=10,
+                        label="Emperical Gain - " + trial["name"])
+                # plt.plot([1],linestyle=':',color=trial["style"]["FFT_color"],label="Y(s)/U(s) - " + trial["name"])
+                axs[trial["style"]["place"]].grid()
+                handles, labels = axs[trial["style"]["place"]].get_legend_handles_labels()
+                by_label.update(zip(labels, handles))
+            fig.subplots_adjust(left=0.07, bottom=None, right=0.99, top=0.785, wspace=0.14, hspace=None)
+            fig.legend(by_label.values(), by_label.keys(), ncols=2, fontsize=14, loc='upper center', bbox_to_anchor=(0.52, 0.93))
+    plt.show()
+
 def plot_uncut_data(path,file,vars2extract):
     extraction = logfile2array(path,file,vars2extract)
 
@@ -372,12 +420,21 @@ experiments = [
 
 
     ## NEW BODE DATA (MORE POINTS AROUND PEAK) (4mps)
-    ("MM OFF", 
-     {"color":'tab:green',
+    #--Plotting for paper
+    ("Model Matching OFF", 
+     {"color":'black',
       "FFT_color":'salmon',
       "marker":'d', 
-      "fillstyle":'full'}, 
+      "fillstyle":'full',
+      "place": "left"}, 
     (
+    #--Plotting for normal
+    # ("MM OFF", 
+    #  {"color":'tab:green',
+    #   "FFT_color":'salmon',
+    #   "marker":'d', 
+    #   "fillstyle":'full'}, 
+    # (
     ("bode_normal_4mps_1.0Hz.log", (6077,6269),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
     ("bode_normal_4mps_1.0Hz.log", (8823,8920),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
     ("bode_normal_4mps_1.1Hz.log", (793,1221),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
@@ -411,12 +468,21 @@ experiments = [
     )
     ),
 
-   ("MM ON", 
-     {"color":'k',
+    #--Plotting for paper
+    ("Model Matching ON", 
+     {"color":'green',
       "FFT_color":'k',
-      "marker":'^', 
-      "fillstyle":'full'}, 
+      "marker":'o', 
+      "fillstyle":'full',
+      "place": "right"}, 
     (
+    #--Plotting for normal
+#    ("MM ON", 
+#      {"color":'k',
+#       "FFT_color":'k',
+#       "marker":'^', 
+#       "fillstyle":'full'}, 
+#     (
     ("bode_mm_4mps_1.0Hz.log", (13108,13308),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
     ("bode_mm_4mps_1.1Hz.log", (8380,8561),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
     ("bode_mm_4mps_1.1Hz.log", (10153,10330),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
@@ -462,7 +528,7 @@ if(PHASE=="calculate_bode"):
             get_single_bode_point(bode_points, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par, FRF) # frequency in Hz, magnitude in [-]. Bode points is passed by reference
         
         results.append({"name":name, "style":style, "bode_points":copy.deepcopy(bode_points), "FRF":copy.deepcopy(FRF)})
-    plot_results(results)
+    plot_results_paper(results)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:

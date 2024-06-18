@@ -77,7 +77,7 @@ def plot_eigenvals(results,plant_file,plant_type,start,stop,step):
     plt.scatter(speed_ax_ref, eig_theory_ref["real"],s=1, label="Theoretical reference")
     # Emperical speed-eigen
     for method in results:
-        plt.plot(method["speeds"]/3.6+method["style"]["offset"], method["sigmas"],
+        plt.plot(method["speeds"]/3.6+method["style"]["offset"], method["real"],
                  color=method["style"]["color"][0],
                  marker=method["style"]["marker"][0],
                  fillstyle=method["style"]["fillstyle"][0],
@@ -92,7 +92,7 @@ def plot_eigenvals(results,plant_file,plant_type,start,stop,step):
 
     ## IMAG PART
     plt.figure(figsize=(11, 5), dpi=125)
-    plt.title("Bicycle eigenvalues vs speed - imaginairy", fontsize=24)
+    plt.title("Bicycle eigenvalues vs speed - Imaginairy part", fontsize=24)
     plt.ylabel("Eigenvalue [-]", fontsize=16)
     plt.xlabel("Speed [m/s]", fontsize=16)
 
@@ -101,7 +101,7 @@ def plot_eigenvals(results,plant_file,plant_type,start,stop,step):
     plt.scatter(speed_ax_ref, eig_theory_ref["imag"],s=1, label="Theoretical reference")
     # Emperical speed-eigen
     for method in results:
-        plt.plot(method["speeds"]/3.6+method["style"]["offset"], method["omegas"],
+        plt.plot(method["speeds"]/3.6+method["style"]["offset"], method["imag"],
                  color=method["style"]["color"][1],
                  marker=method["style"]["marker"][1],
                  fillstyle=method["style"]["fillstyle"][1],
@@ -112,6 +112,52 @@ def plot_eigenvals(results,plant_file,plant_type,start,stop,step):
     plt.legend(fontsize=14,loc='lower right')
     plt.grid()
     plt.axis((start,stop,0,10))
+    plt.show()
+
+def plot_eigenvals_paper(results,plant_file,plant_type,start,stop,step):
+    #Theoretical
+    speedrange = np.linspace(start , stop , num=int(1 + (stop-start)/step))
+    speed_ax_plant, eig_theory_plant = get_eigen_vs_speed(plant_file,'plant',speedrange,SIL_PARAMETERS)
+    speed_ax_ref, eig_theory_ref = get_eigen_vs_speed(plant_file,'ref',speedrange,SIL_PARAMETERS)
+    
+    
+    fig = plt.figure(figsize=(14,5), dpi=125)
+    fig.suptitle("Bicycle eigenvalues vs speed",fontsize=24)
+    by_label = dict()
+    
+    ax = dict()
+    ax["real"] = fig.add_subplot(121)
+    ax["real"].axis((0,6,-10,3))
+    ax["real"].set_title("Real part", fontsize=20)
+    ax["real"].set_ylabel("Eigenvalue [-]", fontsize=16)
+    ax["real"].set_xlabel("Speed [m/s]", fontsize=16)
+
+    ax["imag"] = fig.add_subplot(122)
+    ax["imag"].axis((0,6,0,10))
+    ax["imag"].set_title("Imaginary part", fontsize=20)
+    ax["imag"].set_xlabel("Speed [m/s]", fontsize=16)
+
+    for type, axs in ax.items():
+        # Theoretic
+        axs.scatter(speed_ax_plant, eig_theory_plant[type], s=4, label="Theoretical plant")
+        axs.scatter(speed_ax_ref, eig_theory_ref[type],s=4, label="Theoretical reference")
+
+        # Emperical speed-eigen
+        for method in results:
+            axs.plot(method["speeds"]/3.6+method["style"]["offset"], method[type],
+                    color=method["style"]["color"][0],
+                    marker=method["style"]["marker"][0],
+                    fillstyle=method["style"]["fillstyle"][0],
+                    linestyle='',
+                    markersize=10,
+                    label=method["name"])
+        axs.grid()
+        axs.tick_params(axis='x', labelsize=14)
+        axs.tick_params(axis='y', labelsize=14)
+        handles, labels = axs.get_legend_handles_labels()
+        by_label.update(zip(labels, handles))
+    fig.subplots_adjust(left=0.07, bottom=0.175, right=0.99, top=0.85, wspace=0.12, hspace=None)
+    fig.legend(by_label.values(), by_label.keys(), ncols= 4, scatterpoints = 50, fontsize=14, loc='lower center', bbox_to_anchor=(0.52, 0))
     plt.show()
 
 def plot_uncut_data(path,file,vars2extract):
@@ -237,10 +283,10 @@ experiments = [ #file,speed[km/h],start&end in file, initial values
     # ),
 
     ( 'Model Matching OFF',
-    {"color":('r', 'r'),
+    {"color":('k', 'k'),
      "marker":('<','<'), 
      "fillstyle":('full','full'),
-     "offset": +0.02} ,
+     "offset": +0.04} ,
      'raw',(
     ("eigen_normal_sil6.5n2_5.4kph.log", 5.4, (4486,4486+100), (-3.0, 5.5, 0.3, 1.0, 1.0)), #(4486,4775)
     ("eigen_normal_sil6.5n2_5.4kph.log", 5.4, (5420,5420+100), (-3.0, 5.5, 0.35, 1.0, 1.0)), #(5420,5668)
@@ -366,7 +412,7 @@ experiments = [ #file,speed[km/h],start&end in file, initial values
     {"color":('g', 'g'),
      "marker":('>','>'), 
      "fillstyle":('full','full'),
-     "offset": -0.02} ,
+     "offset": -0.04} ,
      'raw',(
     ("eigen_mm_sil6.5n2_5.4kph.log", 5.4, (4047,4047+100), (-3, 5, 0.35, 1.0, 1.0)),#(4047,4240)
     ("eigen_mm_sil6.5n2_5.4kph.log", 5.4, (4947,4947+100), (-3, 5, 0.45, 1.0, 1.0)),#(4947,5105)
@@ -430,8 +476,8 @@ if(PHASE == "calculate_eig"):
             file, speeds[i], start_stop, par0 = one_disturb
             time, extraction = extract_data(PATH+file,start_stop[0],start_stop[1],TIME_STEP,vars2extract,filter_type)
             sigmas[i], omegas[i] = extract_eigenvals(time,extraction,par0,speeds[i])
-        results.append({"name":name,"style":style,"sigmas":sigmas,"omegas":omegas,"speeds":speeds})
-    plot_eigenvals(results,SPEED_DEP_MODEL_FILE,PLANT_TYPE,SPEED_START,SPEED_STOP,SPEED_STEP)
+        results.append({"name":name,"style":style,"real":sigmas,"imag":omegas,"speeds":speeds})
+    plot_eigenvals_paper(results,SPEED_DEP_MODEL_FILE,PLANT_TYPE,SPEED_START,SPEED_STOP,SPEED_STEP)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:
