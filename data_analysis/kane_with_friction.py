@@ -208,32 +208,34 @@ def create_ss_cw_with_friction():
     z_B, z_H = symbols('z_B, z_H')                                     # center of mass z coordinate
 
     meijaard_par_repl = {
-        w      : 1.02,
-        c      : 0.08,
-        lamb   : pi/10,
-        g      : 9.81,
-        r_R    : 0.3,
-        m_R    : 2,
-        I_Rxx  : 0.0603,
-        I_Ryy  : 0.12,
-        x_B    : 0.3,
-        z_B    : -0.9,
-        m_B    : 85,
-        I_Bxx  : 9.2,
-        I_Byy  : 11,
-        I_Bzz  : 2.8,
-        I_Bxz  : 2.4,
-        x_H    : 0.9,
-        z_H    : -0.7,
-        m_H    : 4,
-        I_Hxx  : 0.05892,
-        I_Hyy  : 0.06,
-        I_Hzz  : 0.00708,
-        I_Hxz  : -0.00756,
-        r_F    : 0.35,
-        m_F    : 3,
-        I_Fxx  : 0.1405,
-        I_Fyy  : 0.28
+    w       : 1.036, # [m]
+    c       : 0.0803, # [m]
+    lamb    : (18.2)*(pi/180), # [rad]
+    g       : 9.81, # [m/(s**2)]
+
+    r_R     : 0.3498, # [m]
+    m_R     : 10.12, # [kg]
+    I_Rxx   : 0.1040, # [kg*(m**2)]
+    I_Ryy   : 0.1641, # [kg*(m**2)]
+
+    x_B     : 0.462, # [m]
+    z_B     : -0.698, # [m]
+    m_B     : 20.9, # [kg]
+    I_Bxx   : 1.64, # [kg*(m**2)]
+    I_Bzz   : 1.94, # [kg*(m**2)]
+    I_Bxz   : 0.654, # [kg*(m**2)]
+
+    x_H     : 0.944, # [m]
+    z_H     : -0.595, # [m]
+    m_H     : 0.6, # [kg]
+    I_Hxx   : 0.00980, # 0.0980, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hzz   : 0.00396, # 0.0396, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hxz   : -0.00044, # -0.0044, # [kg*(m**2)] # corrected:Bianchi Pista
+
+    r_F     : 0.3498, # [m]
+    m_F     : 1.780, # [kg]
+    I_Fxx   : 0.0644, # [kg*(m**2)]
+    I_Fyy   : 0.1289, # [kg*(m**2)]
     }
 
     val_dict = meijaard2kane(meijaard_par_repl)
