@@ -60,11 +60,12 @@ def extract_data(full_path,start,stop,time_step,vars2extract,filter_type):
     
     return time, extraction
 
-def plot_eigenvals(results,plant_file,plant_type,start,stop,step):
+def plot_eigenvals(results,plant_ref_file,friction_file,plant_type,start,stop,step):
     #Theoretical
     speedrange = np.linspace(start , stop , num=int(1 + (stop-start)/step))
-    speed_ax_plant, eig_theory_plant = get_eigen_vs_speed(plant_file,'plant',speedrange,SIL_PARAMETERS)
-    speed_ax_ref, eig_theory_ref = get_eigen_vs_speed(plant_file,'ref',speedrange,SIL_PARAMETERS)
+    speed_ax_plant, eig_theory_plant = get_eigen_vs_speed(plant_ref_file,'plant',speedrange,SIL_PARAMETERS)
+    speed_ax_ref, eig_theory_ref = get_eigen_vs_speed(plant_ref_file,'ref',speedrange,SIL_PARAMETERS)
+    speed_ax_fric, eig_theory_fric = get_eigen_vs_speed(friction_file,'plant',speedrange,SIL_PARAMETERS)
     
     ## REAL PART
     plt.figure(figsize=(11, 5), dpi=125)
@@ -75,6 +76,7 @@ def plot_eigenvals(results,plant_file,plant_type,start,stop,step):
     # Theoretical speed-eigen
     plt.scatter(speed_ax_plant, eig_theory_plant["real"], s=1, label="Theoretical plant")
     plt.scatter(speed_ax_ref, eig_theory_ref["real"],s=1, label="Theoretical reference")
+    plt.scatter(speed_ax_fric, eig_theory_fric["real"],s=1, label="Friction reference")
     # Emperical speed-eigen
     for method in results:
         plt.plot(method["speeds"]/3.6+method["style"]["offset"], method["real"],
@@ -99,6 +101,7 @@ def plot_eigenvals(results,plant_file,plant_type,start,stop,step):
     # Theoretical speed-eigen
     plt.scatter(speed_ax_plant, eig_theory_plant["imag"], s=1, label="Theoretical plant")
     plt.scatter(speed_ax_ref, eig_theory_ref["imag"],s=1, label="Theoretical reference")
+    plt.scatter(speed_ax_fric, eig_theory_fric["imag"],s=1, label="Friction reference")
     # Emperical speed-eigen
     for method in results:
         plt.plot(method["speeds"]/3.6+method["style"]["offset"], method["imag"],
@@ -114,12 +117,12 @@ def plot_eigenvals(results,plant_file,plant_type,start,stop,step):
     plt.axis((start,stop,0,10))
     plt.show()
 
-def plot_eigenvals_paper(results,plant_file,plant_type,start,stop,step):
+def plot_eigenvals_paper(results,plant_ref_file,friction_file,plant_type,start,stop,step):
     #Theoretical
     speedrange = np.linspace(start , stop , num=int(1 + (stop-start)/step))
-    speed_ax_plant, eig_theory_plant = get_eigen_vs_speed(plant_file,'plant',speedrange,SIL_PARAMETERS)
-    speed_ax_ref, eig_theory_ref = get_eigen_vs_speed(plant_file,'ref',speedrange,SIL_PARAMETERS)
-    
+    speed_ax_plant, eig_theory_plant = get_eigen_vs_speed(plant_ref_file,'plant',speedrange,SIL_PARAMETERS)
+    speed_ax_ref, eig_theory_ref = get_eigen_vs_speed(plant_ref_file,'ref',speedrange,SIL_PARAMETERS)
+    speed_ax_fric, eig_theory_fric = get_eigen_vs_speed(friction_file,'plant',speedrange,SIL_PARAMETERS)
     
     fig = plt.figure(figsize=(14,5), dpi=125)
     fig.suptitle("Bicycle eigenvalues vs speed",fontsize=24)
@@ -141,6 +144,7 @@ def plot_eigenvals_paper(results,plant_file,plant_type,start,stop,step):
         # Theoretic
         axs.scatter(speed_ax_plant, eig_theory_plant[type], s=4, label="Theoretical plant")
         axs.scatter(speed_ax_ref, eig_theory_ref[type],s=4, label="Theoretical reference")
+        axs.scatter(speed_ax_fric, eig_theory_fric[type],s=4, label="Friction reference")
 
         # Emperical speed-eigen
         for method in results:
@@ -190,6 +194,7 @@ MAX_FUN_EVAL = 5000
 #Theoretical model parameters
 PLANT_TYPE = "ref" #"plant" or "reference"
 SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
+FRICTION_IN_STEER_FILE = ".\\ss_cw_friction"
 SPEED_START = 0.1
 SPEED_STOP = 8
 SPEED_STEP = 0.01
@@ -477,7 +482,7 @@ if(PHASE == "calculate_eig"):
             time, extraction = extract_data(PATH+file,start_stop[0],start_stop[1],TIME_STEP,vars2extract,filter_type)
             sigmas[i], omegas[i] = extract_eigenvals(time,extraction,par0,speeds[i])
         results.append({"name":name,"style":style,"real":sigmas,"imag":omegas,"speeds":speeds})
-    plot_eigenvals_paper(results,SPEED_DEP_MODEL_FILE,PLANT_TYPE,SPEED_START,SPEED_STOP,SPEED_STEP)
+    plot_eigenvals(results, SPEED_DEP_MODEL_FILE, FRICTION_IN_STEER_FILE, PLANT_TYPE, SPEED_START, SPEED_STOP, SPEED_STEP)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:

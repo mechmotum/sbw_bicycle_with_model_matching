@@ -222,6 +222,7 @@ def analyse_bode_data(bode_points, filename,vars2extract, start, stop, tune_par,
 def plot_results(results):
     bode_mags_plant = get_bode(SPEED_DEP_MODEL_FILE,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
     bode_mags_ref = get_bode(SPEED_DEP_MODEL_FILE,"ref",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+    bode_mags_fric = get_bode(FRICTION_IN_STEER_FILE,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
     
     for in_key, in_value in INPUT.items():
         for out_key, out_value in OUTPUT.items():
@@ -234,6 +235,7 @@ def plot_results(results):
             #---[plot the theoretic bode
             plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],linewidth=3, label="Theoretical Gain Plant")
             plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:],linewidth=3, label="Theoretical Gain Reference")
+            plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_fric[in_value,out_value,:],'-.',linewidth=4, label="Theoretical Gain Friction")
 
             #---[plot the empirical bode
             for trial in results:
@@ -257,6 +259,7 @@ def plot_results(results):
 def plot_results_paper(results):
     bode_mags_plant = get_bode(SPEED_DEP_MODEL_FILE,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
     bode_mags_ref = get_bode(SPEED_DEP_MODEL_FILE,"ref",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+    bode_mags_fric = get_bode(FRICTION_IN_STEER_FILE,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
     
     for in_key, in_value in INPUT.items():
         for out_key, out_value in OUTPUT.items():
@@ -284,6 +287,7 @@ def plot_results_paper(results):
                 #---[plot the theoretic bode
                 axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],linewidth=4, label="Theoretical Gain Plant")
                 axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:],'--',linewidth=4, label="Theoretical Gain Reference")
+                axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_fric[in_value,out_value,:],'-.',linewidth=4, label="Theoretical Gain Friction")
                 bode_points[in_key][out_key] = np.array(trial["bode_points"][in_key][out_key])
 
                 [axs[trial["style"]["place"]].plot(tmp[0],20*np.log10(tmp[1]),linestyle=':',color=trial["style"]["FFT_color"]) for tmp in trial["FRF"][in_key][out_key]]
@@ -335,6 +339,7 @@ CHECK_VISUALLY = False
 #Theoretical model parameters
 # PLANT_TYPE = "ref" #"plant" or "ref"
 SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
+FRICTION_IN_STEER_FILE = ".\\ss_cw_friction"
 FREQ_RANGE = np.logspace(-3,3,1000) # [rad/s]
 SIL_PARAMETERS = {
     'avg_speed' : 6.5,
@@ -528,7 +533,7 @@ if(PHASE=="calculate_bode"):
             get_single_bode_point(bode_points, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par, FRF) # frequency in Hz, magnitude in [-]. Bode points is passed by reference
         
         results.append({"name":name, "style":style, "bode_points":copy.deepcopy(bode_points), "FRF":copy.deepcopy(FRF)})
-    plot_results_paper(results)
+    plot_results(results)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:
