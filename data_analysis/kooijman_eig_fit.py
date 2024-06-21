@@ -66,6 +66,7 @@ def plot_eigenvals(results,plant_ref_file,friction_file,plant_type,start,stop,st
     speed_ax_plant, eig_theory_plant = get_eigen_vs_speed(plant_ref_file,'plant',speedrange,SIL_PARAMETERS)
     speed_ax_ref, eig_theory_ref = get_eigen_vs_speed(plant_ref_file,'ref',speedrange,SIL_PARAMETERS)
     speed_ax_fric, eig_theory_fric = get_eigen_vs_speed(friction_file,'plant',speedrange,SIL_PARAMETERS)
+    speed_ax_fric_mm, eig_theory_fric_mm = get_eigen_vs_speed(friction_file,'plant',speedrange,SIL_PARAMETERS,isFrictionMM=True)
     
     ## REAL PART
     plt.figure(figsize=(11, 5), dpi=125)
@@ -76,7 +77,8 @@ def plot_eigenvals(results,plant_ref_file,friction_file,plant_type,start,stop,st
     # Theoretical speed-eigen
     plt.scatter(speed_ax_plant, eig_theory_plant["real"], s=1, label="Theoretical plant")
     plt.scatter(speed_ax_ref, eig_theory_ref["real"],s=1, label="Theoretical reference")
-    plt.scatter(speed_ax_fric, eig_theory_fric["real"],s=1, label="Friction reference")
+    plt.scatter(speed_ax_fric, eig_theory_fric["real"],s=1, label="Friction plant")
+    plt.scatter(speed_ax_fric_mm, eig_theory_fric_mm["real"],s=1, label="Friction reference")
     # Emperical speed-eigen
     for method in results:
         plt.plot(method["speeds"]/3.6+method["style"]["offset"], method["real"],
@@ -101,7 +103,8 @@ def plot_eigenvals(results,plant_ref_file,friction_file,plant_type,start,stop,st
     # Theoretical speed-eigen
     plt.scatter(speed_ax_plant, eig_theory_plant["imag"], s=1, label="Theoretical plant")
     plt.scatter(speed_ax_ref, eig_theory_ref["imag"],s=1, label="Theoretical reference")
-    plt.scatter(speed_ax_fric, eig_theory_fric["imag"],s=1, label="Friction reference")
+    plt.scatter(speed_ax_fric, eig_theory_fric["imag"],s=1, label="Friction plant")
+    plt.scatter(speed_ax_fric_mm, eig_theory_fric_mm["imag"],s=1, label="Friction reference")
     # Emperical speed-eigen
     for method in results:
         plt.plot(method["speeds"]/3.6+method["style"]["offset"], method["imag"],
@@ -123,6 +126,7 @@ def plot_eigenvals_paper(results,plant_ref_file,friction_file,plant_type,start,s
     speed_ax_plant, eig_theory_plant = get_eigen_vs_speed(plant_ref_file,'plant',speedrange,SIL_PARAMETERS)
     speed_ax_ref, eig_theory_ref = get_eigen_vs_speed(plant_ref_file,'ref',speedrange,SIL_PARAMETERS)
     speed_ax_fric, eig_theory_fric = get_eigen_vs_speed(friction_file,'plant',speedrange,SIL_PARAMETERS)
+    speed_ax_fric_mm, eig_theory_fric_mm = get_eigen_vs_speed(friction_file,'plant',speedrange,SIL_PARAMETERS,isFrictionMM=True)
     
     fig = plt.figure(figsize=(14,5), dpi=125)
     fig.suptitle("Bicycle eigenvalues vs speed",fontsize=24)
@@ -144,7 +148,8 @@ def plot_eigenvals_paper(results,plant_ref_file,friction_file,plant_type,start,s
         # Theoretic
         axs.scatter(speed_ax_plant, eig_theory_plant[type], s=4, label="Theoretical plant")
         axs.scatter(speed_ax_ref, eig_theory_ref[type],s=4, label="Theoretical reference")
-        axs.scatter(speed_ax_fric, eig_theory_fric[type],s=4, label="Friction reference")
+        axs.scatter(speed_ax_fric, eig_theory_fric[type],s=4, label="Friction plant")
+        axs.scatter(speed_ax_fric_mm, eig_theory_fric_mm[type],s=4, label="Friction reference")
 
         # Emperical speed-eigen
         for method in results:
