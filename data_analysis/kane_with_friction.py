@@ -5,11 +5,14 @@ from sympy.core.numbers import pi
 from sympy.core.symbol import symbols
 from sympy.functions.elementary.miscellaneous import sqrt
 from sympy.functions.elementary.trigonometric import acos, sin, cos
+from sympy.functions.elementary.hyperbolic import tanh
 from sympy.matrices.dense import Matrix
 from sympy.physics.mechanics import (ReferenceFrame, dynamicsymbols,
                                      KanesMethod, inertia, Point, RigidBody,
                                      dot, find_dynamicsymbols)
-def create_ss_cw_with_friction():
+from numpy import linspace
+
+def create_ss_cw_with_friction(friction_torque_fun):
     # Code to get equations of motion for a bicycle modeled as in:
     # J.P Meijaard, Jim M Papadopoulos, Andy Ruina and A.L Schwab. Linearized
     # dynamics equations for the balance and steer of a bicycle: a benchmark
@@ -157,18 +160,19 @@ def create_ss_cw_with_friction():
 
     # The force list; each body has the appropriate gravitational force applied
     # at its mass center.
-    # T4 : roll torque, between Newtonian frame and rear frame
-    # T6 : rear wheel torque, between rear wheel and rear frame
-    # T7 : steer torque, between rear frame and front frame
-    T4, T6, T7 = dynamicsymbols('T4 T6 T7')
+    # T2 : roll torque, between Newtonian frame and rear frame
+    # T3 : rear wheel torque, between rear wheel and rear frame
+    # T5 : steer torque, between rear frame and front frame
+    T2, T3, T5 = dynamicsymbols('T2 T3 T5')
+    Tf = friction_torque_fun(u5)
 
     FL = [(Frame_mc, -mframe * g * Y.z),
         (Fork_mc, -mfork * g * Y.z),
         (WF_mc, -mwf * g * Y.z),
         (WR_mc, -mwr * g * Y.z),
-        (Frame, T4*Y.x - T6*R.y - T7*Frame.x),
-        (WR, T6*R.y),
-        (Fork, T7*Frame.x)]
+        (Frame, T2*Y.x - T3*R.y - (T5 + Tf)*Frame.x),
+        (WR, T3*R.y),
+        (Fork, (T5 + Tf)*Frame.x)]
     BL = [BodyFrame, BodyFork, BodyWR, BodyWF]
 
     # The N frame is the inertial frame, coordinates are supplied in the order
@@ -260,9 +264,9 @@ def create_ss_cw_with_friction():
         q2: 0,
         q4: 0,
         q5: 0,
-        T4: 0,
-        T6: 0,
-        T7: 0,
+        T2: 0,
+        T3: 0,
+        T5: 0,
     }
 
     # Linearizes the forcing vector; the equations are set up as MM udot =
@@ -272,7 +276,7 @@ def create_ss_cw_with_friction():
     # centripital or coriolis forces.  This actually returns a matrix with as
     # many rows as *total* coordinates and speeds, but only as many columns as
     # independent coordinates and speeds.
-
+    print(1)
     A, B, r = KM.linearize(
         A_and_B=True,
         # Operating points for the accelerations are required for the
@@ -285,7 +289,7 @@ def create_ss_cw_with_friction():
     # to include both q's and u's, so the mass matrix must have this done as
     # well.  This will likely be changed to be part of the linearized process,
     # for future reference.
-
+    print(2)
     # with open("solABr", "wb") as outf:
     #     dill.dump((A, B, r), outf)
 
@@ -323,6 +327,25 @@ def create_ss_cw_with_friction():
 
     return ss_cw_model
 
-ss_cw_friction = create_ss_cw_with_friction()
-with open("ss_cw_friction", "wb") as outf:
-    dill.dump(ss_cw_friction, outf)
+def get_viscous_friction_fun(friction_coef):
+    def viscous_friction_fun(steer_rate):
+        return friction_coef*steer_rate
+    return viscous_friction_fun
+
+def get_sigmoid_friction_fun(friction_coef):
+    def sigmoid_friction_fun(steer_rate):
+        return friction_coef*tanh(10*steer_rate)
+    return sigmoid_friction_fun
+
+friction_functions = {
+    # "viscous":get_viscous_friction_fun,
+    "sigmoid":get_sigmoid_friction_fun,
+}
+
+for type, func in friction_functions.items():
+    for fric_coef in linspace(-0.04,-0.09,6):
+        ss_cw_friction = create_ss_cw_with_friction(func(fric_coef))
+        with open(f"ss_cw_friction{fric_coef}_"+type, "wb") as outf:
+            dill.dump(ss_cw_friction, outf)
+        print(fric_coef)
+    print(type)

@@ -199,7 +199,8 @@ MAX_FUN_EVAL = 5000
 #Theoretical model parameters
 PLANT_TYPE = "ref" #"plant" or "reference"
 SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
-FRICTION_IN_STEER_FILE = ".\\ss_cw_friction"
+FRICTION_IN_STEER_FILE = ".\\ss_cw_friction-0.02_sigmoid"
+# FRICTION_IN_STEER_FILE = ".\\ss_cw_friction-0.2_viscous"
 SPEED_START = 0.1
 SPEED_STOP = 8
 SPEED_STEP = 0.01
@@ -487,7 +488,7 @@ if(PHASE == "calculate_eig"):
             time, extraction = extract_data(PATH+file,start_stop[0],start_stop[1],TIME_STEP,vars2extract,filter_type)
             sigmas[i], omegas[i] = extract_eigenvals(time,extraction,par0,speeds[i])
         results.append({"name":name,"style":style,"real":sigmas,"imag":omegas,"speeds":speeds})
-    plot_eigenvals(results, SPEED_DEP_MODEL_FILE, FRICTION_IN_STEER_FILE, PLANT_TYPE, SPEED_START, SPEED_STOP, SPEED_STEP)
+    plot_eigenvals_paper(results, SPEED_DEP_MODEL_FILE, FRICTION_IN_STEER_FILE, PLANT_TYPE, SPEED_START, SPEED_STOP, SPEED_STEP)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:

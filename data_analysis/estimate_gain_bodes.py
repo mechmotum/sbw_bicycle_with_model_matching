@@ -343,7 +343,8 @@ CHECK_VISUALLY = False
 #Theoretical model parameters
 # PLANT_TYPE = "ref" #"plant" or "ref"
 SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
-FRICTION_IN_STEER_FILE = ".\\ss_cw_friction"
+# FRICTION_IN_STEER_FILE = ".\\ss_cw_friction-0.2_viscous"
+FRICTION_IN_STEER_FILE = ".\\ss_cw_friction-0.02_sigmoid"
 FREQ_RANGE = np.logspace(-3,3,1000) # [rad/s]
 SIL_PARAMETERS = {
     'avg_speed' : 6.5,
@@ -537,7 +538,7 @@ if(PHASE=="calculate_bode"):
             get_single_bode_point(bode_points, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par, FRF) # frequency in Hz, magnitude in [-]. Bode points is passed by reference
         
         results.append({"name":name, "style":style, "bode_points":copy.deepcopy(bode_points), "FRF":copy.deepcopy(FRF)})
-    plot_results(results)
+    plot_results_paper(results)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:
