@@ -317,11 +317,11 @@ width = 0.3  # the width of the bars
 multiplier = 0
 
 # Set fontsize for y label ticks. (the numbers)
-plt.rc('ytick', labelsize=14)
+plt.rc('ytick', labelsize=20)
 
 
 # Plot Max average error
-fig, ax = plt.subplots(dpi=115)
+fig, ax = plt.subplots(dpi=125)
 
 for type, error in error_max.items():
     offset = width * multiplier
@@ -330,14 +330,15 @@ for type, error in error_max.items():
     multiplier += 1
 
 # Plot styling
-ax.set_title('Sensitivity analysis - Maximal Average Error',fontsize=24)
-ax.set_ylabel('Absolute error [-]',fontsize=16)
-ax.set_xticks(x + 0.5*width, bike_param_names, fontsize=16)
-ax.legend(loc='upper left', ncol=2, fontsize=14)
+ax.set_title('Sensitivity analysis - Maximal Average Error',fontsize=28)
+ax.set_ylabel('Absolute error [-]',fontsize=22)
+ax.set_xticks(x + 0.5*width, bike_param_names, fontsize=20)
+ax.legend(loc='upper left', ncol=2, fontsize=16)
+fig.subplots_adjust(left=0.075, bottom=0.06, right=0.99, top=0.95, wspace=None, hspace=None)
 
 
 #Plot Slope of average error
-fig, ax = plt.subplots(dpi=115)
+fig, ax = plt.subplots(dpi=125)
 
 multiplier = 0
 for type, error in error_diff.items():
@@ -347,8 +348,9 @@ for type, error in error_diff.items():
     multiplier += 1
 
 # Plot styling
-ax.set_title('Sensitivity analysis - Slope of Average Error',fontsize=24)
-ax.set_ylabel('Absolute error per change in variable [-]',fontsize=16)
-ax.set_xticks(x + 0.5*width, bike_param_names, fontsize=16)
-ax.legend(loc='upper left', ncol=2, fontsize=14)
+ax.set_title('Sensitivity analysis - Slope of Average Error',fontsize=28)
+ax.set_ylabel('Absolute error per change in variable [-]',fontsize=22)
+ax.set_xticks(x + 0.5*width, bike_param_names, fontsize=20)
+ax.legend(loc='upper left', ncol=2, fontsize=16)
+fig.subplots_adjust(left=0.075, bottom=0.06, right=0.99, top=0.95, wspace=None, hspace=None)
 plt.show()
