@@ -121,6 +121,7 @@ BODE_SPEED = 4 #[m/s]
 BODE_OUTPUT = {"fork_angle": 0,"lean_rate": 1}
 BODE_INPUT = {"hand_torque": 1} #{"lean_torque": 0, "hand_torque": 1}
 VISUALIZE = False
+VISUALIZE_ALL = False
 
 def create_system(np_matrices,C_matrix,ctrl_fun_dict:dict):
     system = {
@@ -145,11 +146,13 @@ bode_mags_ref = s2s.get_bode(system_ref,BODE_SPEED,FREQ_RANGE,EPS)
 plant_eval = eval_plant_matrix(plant_sym,repl_primal2num_plant, MAT_EVAL_PRECISION)
 ctrl_plant = ctrls.get_sil_mm_ctrl(SIL_AVG_SPEED,K_SIL_L,K_SIL_H,plant_eval,ref_eval)
 
+eigen_store = []
+bode_store = []
 error_diff_eig = []
 error_diff_bode = []
 max_eig_error = []
 max_bode_error = []
-for param,value in repl_primal2num_plant.items():#[(I_Bxx, 1.64), (I_Bzz, 1.94), (I_Bxz, 0.654), (I_Hxx, 0.00980), (I_Hzz, 0.00396), (I_Hxz, -0.00044)]:# [(I_Hzz, 0.00396)]:#
+for param,value in repl_primal2num_plant.items():#[(I_Bxx, 1.64), (I_Bzz, 1.94), (I_Bxz, 0.654), (I_Hxx, 0.00980), (I_Hzz, 0.00396), (I_Hxz, -0.00044)]:# [(I_Hzz, 0.00396)]:# [(x_H, 0.944),(I_Fyy, 0.1289),(I_Hzz, 0.00396)]:#
     eig_error = []
     bode_error = []
     if (str(param) in ['I_Bxx', 'I_Bzz', 'I_Bxz', 'I_Hxx', 'I_Hzz', 'I_Hxz']):
@@ -169,6 +172,8 @@ for param,value in repl_primal2num_plant.items():#[(I_Bxx, 1.64), (I_Bzz, 1.94),
 
         eig_error.append(output_error_eig(eigenvals_plant, eigenvals_ref))
         bode_error.append(output_error_bode(bode_mags_plant, bode_mags_ref))
+    eigen_store.append((speed_axis_plant, eigenvals_plant, str(param)))
+    bode_store.append((bode_mags_plant, str(param)))
     error_diff_eig.append(max(abs((eig_error[1]-eig_error[0])/(steps[1]-steps[0])),abs((eig_error[-1]-eig_error[-2])/(steps[-1]-steps[-2]))))
     error_diff_bode.append(max(((bode_error[1]-bode_error[0])/(steps[1]-steps[0])),((bode_error[-1]-bode_error[-2])/(steps[-1]-steps[-2]))))
     max_eig_error.append(max(eig_error))
@@ -280,6 +285,71 @@ for param,value in repl_primal2num_plant.items():#[(I_Bxx, 1.64), (I_Bzz, 1.94),
         plt.grid()
         plt.show()
 
+if(VISUALIZE_ALL):
+    #Theoretical    
+    fig = plt.figure(figsize=(14,5), dpi=125)
+    fig.suptitle("Eigenvalues vs speed - Model Matching Applied to Perturbed System",fontsize=24)
+    by_label = dict()
+    
+    ax = dict()
+    ax["real"] = fig.add_subplot(121)
+    ax["real"].axis((0,6,-10,3))
+    ax["real"].set_title("Real part", fontsize=20)
+    ax["real"].set_ylabel("Eigenvalue [-]", fontsize=16)
+    ax["real"].set_xlabel("Speed [m/s]", fontsize=16)
+
+    ax["imag"] = fig.add_subplot(122)
+    ax["imag"].axis((0,6,0,10))
+    ax["imag"].set_title("Imaginary part", fontsize=20)
+    ax["imag"].set_xlabel("Speed [m/s]", fontsize=16)
+
+    for type, axs in ax.items():
+        # Theoretic
+        for speed_axis_plant, eigenvals_plant, name in eigen_store:
+            axs.scatter(speed_axis_plant, eigenvals_plant[type], s=4, label="Model Matching on Perturbed System " + name)
+        axs.scatter(speed_axis_ref, eigenvals_ref[type],s=4, label="Reference System")
+        axs.grid()
+        axs.tick_params(axis='x', labelsize=14)
+        axs.tick_params(axis='y', labelsize=14)
+        handles, labels = axs.get_legend_handles_labels()
+        by_label.update(zip(labels, handles))
+    fig.subplots_adjust(left=0.07, bottom=0.225, right=0.99, top=0.85, wspace=0.12, hspace=None)
+    fig.legend(by_label.values(), by_label.keys(), ncols= 2, scatterpoints = 50, fontsize=14, loc='lower center', bbox_to_anchor=(0.52, 0))
+    plt.show()
+
+    fig = plt.figure(figsize=(14,5), dpi=125)
+    fig.suptitle(f"Bode gain - Model Matching Applied to Perturbed System",fontsize=24)
+    by_label = dict()
+    axs = dict()
+    axs["lean_rate"] = fig.add_subplot(121)
+    axs["lean_rate"].set_title("Hand Torque to Lean Rate", fontsize=20)
+    axs["lean_rate"].set_xlabel("Frequency [Hz]", fontsize=16)
+    axs["lean_rate"].set_ylabel("Gain [dB]", fontsize=16)
+    axs["lean_rate"].set_xscale('log')
+    axs["lean_rate"].axis([0.5,5,-40,0])
+    axs["lean_rate"].tick_params(axis='x', labelsize=14)
+    axs["lean_rate"].tick_params(axis='y', labelsize=14)
+
+    axs["fork_angle"] = fig.add_subplot(122)
+    axs["fork_angle"].set_title("Hand Torque to Fork Angle", fontsize=20)
+    axs["fork_angle"].set_xlabel("Frequency [Hz]", fontsize=16)
+    axs["fork_angle"].set_xscale('log')
+    axs["fork_angle"].axis([0.5,5,-40,0])
+    axs["fork_angle"].tick_params(axis='x', labelsize=14)
+    axs["fork_angle"].tick_params(axis='y', labelsize=14)
+    
+    for in_key, in_value in BODE_INPUT.items():
+        for out_key, out_value in BODE_OUTPUT.items():
+            #---[plot the theoretic bode
+            for bode_mags_plant, name in bode_store:
+                axs[out_key].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],linewidth=4, label="Model Matching on Perturbed System " + name)
+            axs[out_key].plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:],'--',linewidth=4, label="Reference system")
+            axs[out_key].grid()
+            handles, labels = axs[out_key].get_legend_handles_labels()
+            by_label.update(zip(labels, handles))
+    fig.subplots_adjust(left=0.07, bottom=None, right=0.99, top=0.72, wspace=0.14, hspace=None)
+    fig.legend(by_label.values(), by_label.keys(), ncols=2, fontsize=14, loc='upper center', bbox_to_anchor=(0.52, 0.915))
+    plt.show()
 
 ## Plotting
 error_diff = {"Speed-Eigenvalue": error_diff_eig, "Bode Gain": error_diff_bode}
