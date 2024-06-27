@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 def plot_disturbance_reactions(logfiles,vars2extract):
     fig = plt.figure(figsize=(14,5), dpi=125)
-    fig.suptitle("Impulse Response Autonomous Bicycle",fontsize=24)
+    fig.suptitle("Impulse Response Autonomous Bicycle - Model matching On",fontsize=24)
 
     rows = 2
     cols = int(np.ceil(len(logfiles)/rows))
@@ -14,18 +14,27 @@ def plot_disturbance_reactions(logfiles,vars2extract):
         run = logfile2array(PATH,file,vars2extract)
 
         ax = fig.add_subplot(rows,cols,i+1)
-        # ax.axis((0,6,-10,3))
+        ax.axis((0,2,-1.1,1.1))
         ax.set_title(title, fontsize=20)
+        ax.tick_params(axis='y', labelsize=14)
+        ax.tick_params(axis='x', labelsize=14)
         if (i)%cols == 0:
             ax.set_ylabel("Lean rate [rad/s]", fontsize=16)
-        if (i+1) >= (rows-1)*cols:
+        else:
+            plt.setp(ax.get_yticklabels(), visible=False)
+        if (i) >= (rows-1)*cols:
             ax.set_xlabel("Time [s]", fontsize=16)
+        else:
+            plt.setp(ax.get_xticklabels(), visible=False)
 
         for j, value in enumerate(run.values()):
             for trial in trial_stamps:
                 y = value[trial[0]:trial[1]]
                 x = np.arange(len(y))*TIME_STEP
-                ax.plot(x,y,color='C'+str(j))
+                ax.plot(x,y)
+                ax.axvline(1)
+                ax.grid(visible=True, which='major')
+    fig.subplots_adjust(left=0.065, bottom=0.071, right=0.99, top=0.88, wspace=None, hspace=None)
     plt.show()
 
 PATH = "..\\teensy\\logs\\"
@@ -39,10 +48,24 @@ vars2extract = {
     }
 
 log_files = [
-    ("eigen_mm_sil6.5n2_18kph.log", [(2928,2928+100),(4308,4308+100),(5508,5508+100),(6931,6931+100),(8232,8232+100),(10043,10043+100),(14193,14193+100),(15348,15348+100)], "Model Matching ON - 18 kph"),
-    ("eigen_normal_sil6.5n2_5.4kph.log", [(4486,4486+100), (5420,5420+100), (6325,6325+100),(7349,7349+100),(8984,8984+100),(9750,9750+100),(10600,10700)], "Model Matching OFF - 5.4 kph"),
-    ("eigen_mm_sil6.5n2_5.4kph.log", [(4047,4047+100), (4947,4947+100), (5868,5868+100), (6755,6755+100), (7658,7658+100)], "Model Matching ON - 5.4 kph"),
-    ]
+    # ("eigen_normal_sil6.5n2_5.4kph.log", [(4486,4775), (5420,5668), (6325,6499), (7349,7532), (8984,9214), (9750,9925), (10600,10845)], "5.4 kph"),
+    # # ("eigen_normal_sil6.5n2_7.2kph.log", [(9870,10039), (11024,11137), (12689,12854), (13773,13934), (14886,15052)], "7.2 kph"),
+    # ("eigen_normal_sil6.5n2_9kph.log", [(2121,2273), (3002,3281), (8673,8765), (9613,9940), (11049,11416), (12487,12695)], "9 kph"),
+    # # ("eigen_normal_sil6.5n2_10.8kph.log", [(1573,1760), (2601,2750), (3577,3815), (5682,5923), (6527,6772), (7471,7705), (8371,8581), (9424,9585), (10187,10470)], "10.8 kph"),
+    # ("eigen_normal_sil6.5n2_12.6kph.log", [(2028,2246), (3053,3175), (3983,4231), (4982,5191), (6881,7073), (7898,8076), (8749,8970), (9733,9992), (10872,11169)], "12.6 kph"),
+    # # ("eigen_normal_sil6.5n2_14.4kph.log", [(1410,1538), (2385,2677), (3400,3610), (4352,4573), (5276,5581), (6311,6560), (7347,7559), (8423,8653)], "14.4 kph"),
+    # # ("eigen_normal_sil6.5n2_16.2kph.log", [(1576,1828), (2529,2695), (5041,5191), (5796,6034), (8035,8212), (13604,13800)], "16.2 kph"),
+    # ("eigen_normal_sil6.5n2_18kph.log", [(1964,2310), (2917,3221), (3831,4007), (4594,4874), (5549,5679), (6326,6542), (7060,7310), (12196,12360), (12961,13073)], "18 kph"),
+    
+    # ("eigen_mm_sil6.5n2_5.4kph.log", [(4047,4240), (4947,5105), (5868,6025), (6755,6910), (7658,7855)], "5.4 kph"),
+    # # ("eigen_mm_sil6.5n2_7.2kph.log", [(3388,3528), (4202,4420), (5061,5300), (5958,6178), (6912,7120)], "7.2 kph"),
+    # ("eigen_mm_sil6.5n2_9kph.log", [(1308,1602), (2326,2560), (3775,4000), (5812,6134), (6948,7080), (7922,8240)], "9 kph"),
+    # # ("eigen_mm_sil6.5n2_10.8kph.log", [(1440,1720), (2586,2890), (3894,4065), (5017,5355), (7224,7520)], "10.8 kph"),
+    # ("eigen_mm_sil6.5n2_12.6kph.log", [(1501,1700), (2311,2445), (3165,3450), (4180,4470), (5237,5445), (6500,6780), (8508,8735)], "12.6 kph"),
+    # # ("eigen_mm_sil6.5n2_14.4kph.log", [(1767,1975), (2523,2750), (3326,3435), (4346,4670), (5346,5580)], "14.4 kph"),
+    # # ("eigen_mm_sil6.5n2_16.2kph.log", [(4003,4195), (4957,5060), (5870,6090), (6787,7000), (7918,8280), (9187,9360), (9988,10325)], "16.2 kph"),
+    # ("eigen_mm_sil6.5n2_18kph.log", [(2928,3240), (4308,4520), (5508,5675), (6931,7200), (8232,8410), (10043,10260), (14193,14377), (15348,15483)], "18 kph"),
+]
 
 
 plot_disturbance_reactions(log_files,vars2extract)
