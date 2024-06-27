@@ -121,7 +121,7 @@ BODE_SPEED = 4 #[m/s]
 BODE_OUTPUT = {"fork_angle": 0,"lean_rate": 1}
 BODE_INPUT = {"hand_torque": 1} #{"lean_torque": 0, "hand_torque": 1}
 VISUALIZE = False
-VISUALIZE_ALL = False
+VISUALIZE_ALL = True
 
 def create_system(np_matrices,C_matrix,ctrl_fun_dict:dict):
     system = {
@@ -152,7 +152,7 @@ error_diff_eig = []
 error_diff_bode = []
 max_eig_error = []
 max_bode_error = []
-for param,value in repl_primal2num_plant.items():#[(I_Bxx, 1.64), (I_Bzz, 1.94), (I_Bxz, 0.654), (I_Hxx, 0.00980), (I_Hzz, 0.00396), (I_Hxz, -0.00044)]:# [(I_Hzz, 0.00396)]:# [(x_H, 0.944),(I_Fyy, 0.1289),(I_Hzz, 0.00396)]:#
+for param,value in [(x_H, 0.944),(I_Fyy, 0.1289),(I_Hzz, 0.00396)]:#repl_primal2num_plant.items():#[(I_Bxx, 1.64), (I_Bzz, 1.94), (I_Bxz, 0.654), (I_Hxx, 0.00980), (I_Hzz, 0.00396), (I_Hxz, -0.00044)]:# [(I_Hzz, 0.00396)]:# [(x_H, 0.944),(I_Fyy, 0.1289),(I_Hzz, 0.00396)]:#
     eig_error = []
     bode_error = []
     if (str(param) in ['I_Bxx', 'I_Bzz', 'I_Bxz', 'I_Hxx', 'I_Hzz', 'I_Hxz']):
@@ -346,9 +346,9 @@ if(VISUALIZE_ALL):
             axs[out_key].plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:],'--',linewidth=4, label="Reference system")
             axs[out_key].grid()
             handles, labels = axs[out_key].get_legend_handles_labels()
-            by_label.update(zip(labels, handles))
-    fig.subplots_adjust(left=0.07, bottom=None, right=0.99, top=0.72, wspace=0.14, hspace=None)
-    fig.legend(by_label.values(), by_label.keys(), ncols=2, fontsize=14, loc='upper center', bbox_to_anchor=(0.52, 0.915))
+            by_label.update(zip(labels, handles))q
+    fig.subplots_adjust(left=0.07, bottom=0.225, right=0.99, top=0.85, wspace=0.12, hspace=None) #used with 125% zoom in screen resolution settings
+    fig.legend(by_label.values(), by_label.keys(), ncols=2, fontsize=14, loc='lower center', bbox_to_anchor=(0.52, 0))
     plt.show()
 
 ## Plotting
