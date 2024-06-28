@@ -306,7 +306,8 @@ def plot_results_paper(results):
                 axs[trial["style"]["place"]].grid()
                 handles, labels = axs[trial["style"]["place"]].get_legend_handles_labels()
                 by_label.update(zip(labels, handles))
-            fig.subplots_adjust(left=0.07, bottom=None, right=0.99, top=0.785, wspace=0.14, hspace=None)
+            # fig.subplots_adjust(left=0.07, bottom=None, right=0.99, top=0.785, wspace=0.14, hspace=None) #for 100% screen zoom
+            fig.subplots_adjust(left=0.07, bottom=None, right=0.99, top=0.74, wspace=0.14, hspace=None) #for 125% screen zoom
             fig.legend(by_label.values(), by_label.keys(), ncols=2, fontsize=14, loc='upper center', bbox_to_anchor=(0.52, 0.93))
     plt.show()
 
