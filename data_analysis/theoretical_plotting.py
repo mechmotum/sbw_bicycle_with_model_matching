@@ -139,7 +139,7 @@ def get_plant_n_ctrl(bike_plant_file, plant_type, sil_parameters, isAppliedMM=Fa
 
 
 #---[ Get the theoretical speed-eigenvalue plot
-def get_eigen_vs_speed(bike_plant_file,plant_type,speedrange,sil_parameters, isAppliedMM=False,isWrongSpeed=False):
+def get_eigen_vs_speed(bike_plant_file,plant_type,speedrange,sil_parameters, isAppliedMM=False,isWrongSpeed=False,cmd2trq_gain=1):
     '''
     bike_plant_file:    (String) File that contains the speed depended A,B,C and D matrix of the plant and reference bicycle
     plant_type:         (String) "plant" or "reference"
@@ -158,7 +158,7 @@ def get_eigen_vs_speed(bike_plant_file,plant_type,speedrange,sil_parameters, isA
         plant.calc_mtrx(speed)
         ctrl.calc_gain(speed)
         # calculate eigenvalues
-        eigenvals[idx] = np.linalg.eigvals(plant.mat["A"] + plant.mat["B"]@ctrl.gain["F"]) # plant-> dx = Ax + Bu
+        eigenvals[idx] = np.linalg.eigvals(plant.mat["A"] + plant.mat["B"]@ctrl.gain["F"]*cmd2trq_gain) # plant-> dx = Ax + Bu
 
     # Reorganize results for plotting
     eigenvals = {
@@ -200,7 +200,7 @@ def calc_bode_mag(A,B,C,D,freq_range):
                 plant_bodes[nbr_in,nbr_out,:] = mag
     return plant_bodes
 
-def get_bode(bike_plant_file,plant_type,speed,freq_range,sil_parameters,isAppliedMM=False,isWrongSpeed=False):
+def get_bode(bike_plant_file,plant_type,speed,freq_range,sil_parameters,isAppliedMM=False,isWrongSpeed=False,cmd2trq_gain=1):
     '''
     start_frq,stop_frq are in rad/s
     '''
@@ -215,10 +215,10 @@ def get_bode(bike_plant_file,plant_type,speed,freq_range,sil_parameters,isApplie
     ctrl.calc_gain(speed)
 
     bode_mags = calc_bode_mag(
-        plant.mat["A"] + plant.mat["B"]@ctrl.gain["F"],
-        plant.mat["B"]@ctrl.gain["G"],
-        plant.mat["C"] + plant.mat["D"]@ctrl.gain["F"],
-        plant.mat["D"]@ctrl.gain["G"],
+        plant.mat["A"] + plant.mat["B"]@ctrl.gain["F"]*cmd2trq_gain,
+        plant.mat["B"]@ctrl.gain["G"]*cmd2trq_gain,
+        plant.mat["C"] + plant.mat["D"]@ctrl.gain["F"]*cmd2trq_gain,
+        plant.mat["D"]@ctrl.gain["G"]*cmd2trq_gain,
         freq_range
     )
     return bode_mags
