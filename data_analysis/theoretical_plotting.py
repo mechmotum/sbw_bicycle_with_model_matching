@@ -115,7 +115,7 @@ def get_mm_sil_gain_G(mm_funs):
         return (mm_funs["G"]()@sil_gain_G_fun())
     return mm_gain_fun
 
-def get_plant_n_ctrl(bike_plant_file, plant_type, sil_parameters, isFrictionMM=False):
+def get_plant_n_ctrl(bike_plant_file, plant_type, sil_parameters, isAppliedMM=False):
     #Input sanitation
     if(plant_type != "plant" and plant_type != "ref"):
         print('input variable plant_type must either be "plant" or "ref"')
@@ -127,7 +127,7 @@ def get_plant_n_ctrl(bike_plant_file, plant_type, sil_parameters, isFrictionMM=F
     sys_mtrx[plant_type]["C"] = sensor_matrix_bike
     plant = VariableStateSpaceSystem(sys_mtrx[plant_type])
 
-    if isFrictionMM:
+    if isAppliedMM:
         with open("..\\model matching gain calculation\\model_matching_gains_measured_parameters", "rb") as inf:
             mm_gain_fun = dill.load(inf)
         ctrl = VariableController({"F": get_mm_sil_gain_F(mm_gain_fun,sil_parameters), "G": get_mm_sil_gain_G(mm_gain_fun)})
@@ -139,7 +139,7 @@ def get_plant_n_ctrl(bike_plant_file, plant_type, sil_parameters, isFrictionMM=F
 
 
 #---[ Get the theoretical speed-eigenvalue plot
-def get_eigen_vs_speed(bike_plant_file,plant_type,speedrange,sil_parameters, isFrictionMM=False):
+def get_eigen_vs_speed(bike_plant_file,plant_type,speedrange,sil_parameters, isAppliedMM=False):
     '''
     bike_plant_file:    (String) File that contains the speed depended A,B,C and D matrix of the plant and reference bicycle
     plant_type:         (String) "plant" or "reference"
@@ -148,7 +148,7 @@ def get_eigen_vs_speed(bike_plant_file,plant_type,speedrange,sil_parameters, isF
     step:               stepsize [m/s]
     '''
     # initialize plant and controller
-    plant, ctrl = get_plant_n_ctrl(bike_plant_file,plant_type,sil_parameters,isFrictionMM)
+    plant, ctrl = get_plant_n_ctrl(bike_plant_file,plant_type,sil_parameters,isAppliedMM)
 
     eigenvals = [None for k in range(len(speedrange))]
     for idx, speed in enumerate(speedrange):
@@ -198,12 +198,12 @@ def calc_bode_mag(A,B,C,D,freq_range):
                 plant_bodes[nbr_in,nbr_out,:] = mag
     return plant_bodes
 
-def get_bode(bike_plant_file,plant_type,speed,freq_range,sil_parameters,isFrictionMM=False):
+def get_bode(bike_plant_file,plant_type,speed,freq_range,sil_parameters,isAppliedMM=False):
     '''
     start_frq,stop_frq are in rad/s
     '''
      #--[Initialize plant and controller
-    plant, ctrl = get_plant_n_ctrl(bike_plant_file,plant_type,sil_parameters,isFrictionMM)
+    plant, ctrl = get_plant_n_ctrl(bike_plant_file,plant_type,sil_parameters,isAppliedMM)
     
     #--[Calculating bode magnitudes for all input to output combos
     # Initialize objects at correct speed

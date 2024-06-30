@@ -66,7 +66,7 @@ def plot_eigenvals(results,plant_ref_file,friction_file,plant_type,start,stop,st
     speed_ax_plant, eig_theory_plant = get_eigen_vs_speed(plant_ref_file,'plant',speedrange,SIL_PARAMETERS)
     speed_ax_ref, eig_theory_ref = get_eigen_vs_speed(plant_ref_file,'ref',speedrange,SIL_PARAMETERS)
     speed_ax_fric, eig_theory_fric = get_eigen_vs_speed(friction_file,'plant',speedrange,SIL_PARAMETERS)
-    speed_ax_fric_mm, eig_theory_fric_mm = get_eigen_vs_speed(friction_file,'plant',speedrange,SIL_PARAMETERS,isFrictionMM=True)
+    speed_ax_fric_mm, eig_theory_fric_mm = get_eigen_vs_speed(friction_file,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
     
     ## REAL PART
     plt.figure(figsize=(11, 5), dpi=125)
@@ -126,7 +126,8 @@ def plot_eigenvals_paper(results,plant_ref_file,friction_file,plant_type,start,s
     speed_ax_plant, eig_theory_plant = get_eigen_vs_speed(plant_ref_file,'plant',speedrange,SIL_PARAMETERS)
     speed_ax_ref, eig_theory_ref = get_eigen_vs_speed(plant_ref_file,'ref',speedrange,SIL_PARAMETERS)
     speed_ax_fric, eig_theory_fric = get_eigen_vs_speed(friction_file,'plant',speedrange,SIL_PARAMETERS)
-    speed_ax_fric_mm, eig_theory_fric_mm = get_eigen_vs_speed(friction_file,'plant',speedrange,SIL_PARAMETERS,isFrictionMM=True)
+    speed_ax_fric_mm, eig_theory_fric_mm = get_eigen_vs_speed(friction_file,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
+    speed_ax_param_mm, eig_theory_param_mm = get_eigen_vs_speed(plant_ref_file,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
     
     fig = plt.figure(figsize=(14,5), dpi=125)
     fig.suptitle("Bicycle eigenvalues vs speed",fontsize=24)
@@ -147,9 +148,10 @@ def plot_eigenvals_paper(results,plant_ref_file,friction_file,plant_type,start,s
     for type, axs in ax.items():
         # Theoretic
         axs.scatter(speed_ax_plant, eig_theory_plant[type], s=4, label="Theoretical plant")
-        axs.scatter(speed_ax_ref, eig_theory_ref[type],s=4, label="Theoretical reference")
-        axs.scatter(speed_ax_fric, eig_theory_fric[type],s=4, label="Friction plant")
-        axs.scatter(speed_ax_fric_mm, eig_theory_fric_mm[type],s=4, label="Friction reference")
+        # axs.scatter(speed_ax_ref, eig_theory_ref[type],s=4, label="Theoretical reference")
+        # axs.scatter(speed_ax_fric, eig_theory_fric[type],s=4, label="Friction plant")
+        # axs.scatter(speed_ax_fric_mm, eig_theory_fric_mm[type],s=4, label="Friction reference")
+        axs.scatter(speed_ax_param_mm, eig_theory_param_mm[type],s=4, label="Theoretical reference")
 
         # Emperical speed-eigen
         for method in results:
@@ -198,7 +200,8 @@ MAX_FUN_EVAL = 5000
 
 #Theoretical model parameters
 PLANT_TYPE = "ref" #"plant" or "reference"
-SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
+# SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
+SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_estimated_error_parameters"
 FRICTION_IN_STEER_FILE = ".\\ss_cw_friction-0.02_sigmoid"
 # FRICTION_IN_STEER_FILE = ".\\ss_cw_friction-0.2_viscous"
 SPEED_START = 0.1
