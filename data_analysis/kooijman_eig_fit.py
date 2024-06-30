@@ -148,10 +148,10 @@ def plot_eigenvals_paper(results,plant_ref_file,friction_file,plant_type,start,s
     for type, axs in ax.items():
         # Theoretic
         axs.scatter(speed_ax_plant, eig_theory_plant[type], s=4, label="Theoretical plant")
-        # axs.scatter(speed_ax_ref, eig_theory_ref[type],s=4, label="Theoretical reference")
+        axs.scatter(speed_ax_ref, eig_theory_ref[type],s=4, label="Theoretical reference")
         # axs.scatter(speed_ax_fric, eig_theory_fric[type],s=4, label="Friction plant")
         # axs.scatter(speed_ax_fric_mm, eig_theory_fric_mm[type],s=4, label="Friction reference")
-        axs.scatter(speed_ax_param_mm, eig_theory_param_mm[type],s=4, label="Theoretical reference")
+        # axs.scatter(speed_ax_param_mm, eig_theory_param_mm[type],s=4, label="Theoretical reference")
 
         # Emperical speed-eigen
         for method in results:
@@ -200,8 +200,8 @@ MAX_FUN_EVAL = 5000
 
 #Theoretical model parameters
 PLANT_TYPE = "ref" #"plant" or "reference"
-# SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
-SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_estimated_error_parameters"
+SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
+# SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_estimated_error_parameters"
 FRICTION_IN_STEER_FILE = ".\\ss_cw_friction-0.02_sigmoid"
 # FRICTION_IN_STEER_FILE = ".\\ss_cw_friction-0.2_viscous"
 SPEED_START = 0.1
@@ -219,21 +219,29 @@ vars2extract = {
         "lean_rate": [],
         # "fork_angle": [],
         # "fork_rate": [],
-        # "speed": [],
-        # "x_acceleration": [],
-        # "y_acceleration": [],
-        # "hand_torque": [],q
+        "speed": [],
+        "x_acceleration": [],
+        "y_acceleration": [],
+        # "hand_torque": [],
     }
 log_files = [
+    # ("eigen_normal_sil6.5n2_5.4kph.log", [(4486,4486+100), (5420,5420+100), (6325,6325+100), (7349,7349+100), (8984,8984+100), (9750,9750+100), (10600,10700)]),
+    # ("eigen_normal_sil6.5n2_7.2kph.log", [(9870,9870+100), (11024,11024+100), (12689,12689+100), (13773,13773+100), (14886,14886+100)]),
+    # ("eigen_normal_sil6.5n2_9kph.log", [(2121,2121+100), (3002,3002+100), (8673,8765), (9613,9613+100), (11049,11049+100), (12487,12487+100)]),
+    # ("eigen_normal_sil6.5n2_10.8kph.log", [(1573,1573+100), (2601,2601+100), (3577,3577+100), (5682,5682+100), (6527,6527+100), (7471,7471+100), (8371,8371+100), (9424,9424+100), (10187,10187+100)]),
+    # ("eigen_normal_sil6.5n2_12.6kph.log", [(2028,2028+100), (3053,3053+100), (3983,3983+100), (4982,4982+100), (6881,6881+100), (7898,7898+100), (8749,8749+100), (9733,9733+100), (10872,10872+100)]),
+    # ("eigen_normal_sil6.5n2_14.4kph.log", [(1410,1410+100), (2385,2385+100), (3400,3400+100), (4352,4352+100), (5276,5276+100), (6311,6311+100), (7347,7347+100), (8423,8423+100)]),
+    # ("eigen_normal_sil6.5n2_16.2kph.log", [(1576,1576+100), (2529,2529+100), (5041,5041+100), (5796,5796+100), (8035,8035+100), (13604,13604+100)]),
+    ("eigen_normal_sil6.5n2_18kph.log", [(1964,1964+100), (2917,2917+100), (3831,3831+100), (4594,4594+100), (5549,5549+100), (6326,6326+100), (7060,7060+100)]),
     ("eigen_mm_sil6.5n2_18kph.log", [(2928,2928+100),(4308,4308+100),(5508,5508+100),(6931,6931+100),(8232,8232+100),(10043,10043+100),(14193,14193+100),(15348,15348+100)])
 ]
 experiments = [ #file,speed[km/h],start&end in file, initial values    
-    # # Model Matching OFF RAW
-    # ( 'MM OFF raw short lp filt',
-    # {"color":('g', 'g'),
+    # Model Matching OFF
+    # ('Model Matching OFF - low pass filtered',
+    # {"color":('k', 'k'),
     #  "marker":('>','>'), 
-    #  "fillstyle":('full','full'),
-    #  "offset": -0.05} ,
+    #  "fillstyle":('none','none'),
+    #  "offset": -0.04} ,
     #  'lp_filtered',(
     # ("eigen_normal_sil6.5n2_5.4kph.log", 5.4, (4486,4486+100), (-3.0, 5.5, 0.3, 1.0, 1.0)), #(4486,4775)
     # ("eigen_normal_sil6.5n2_5.4kph.log", 5.4, (5420,5420+100), (-3.0, 5.5, 0.35, 1.0, 1.0)), #(5420,5668)
@@ -364,12 +372,12 @@ experiments = [ #file,speed[km/h],start&end in file, initial values
     ),
 
 
-    # # Model Matching ON RAW
-    # ( 'MM ON raw short lp filt',
-    # {"color":('k', 'k'),
+    # # Model Matching ON
+    # ( 'Model Matching ON - low pass filtered',
+    # {"color":('g', 'g'),
     #  "marker":('>','>'), 
     #  "fillstyle":('none','none'),
-    #  "offset": -0.02} ,
+    #  "offset": -0.04} ,
     #  'lp_filtered',(
     # ("eigen_mm_sil6.5n2_5.4kph.log", 5.4, (4047,4047+100), (-3, 5, 0.35, 1.0, 1.0)),#(4047,4240)
     # ("eigen_mm_sil6.5n2_5.4kph.log", 5.4, (4947,4947+100), (-3, 5, 0.45, 1.0, 1.0)),#(4947,5105)
