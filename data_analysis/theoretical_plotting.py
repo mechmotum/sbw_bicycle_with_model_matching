@@ -139,7 +139,7 @@ def get_plant_n_ctrl(bike_plant_file, plant_type, sil_parameters, isAppliedMM=Fa
 
 
 #---[ Get the theoretical speed-eigenvalue plot
-def get_eigen_vs_speed(bike_plant_file,plant_type,speedrange,sil_parameters, isAppliedMM=False):
+def get_eigen_vs_speed(bike_plant_file,plant_type,speedrange,sil_parameters, isAppliedMM=False,isWrongSpeed=False):
     '''
     bike_plant_file:    (String) File that contains the speed depended A,B,C and D matrix of the plant and reference bicycle
     plant_type:         (String) "plant" or "reference"
@@ -153,6 +153,8 @@ def get_eigen_vs_speed(bike_plant_file,plant_type,speedrange,sil_parameters, isA
     eigenvals = [None for k in range(len(speedrange))]
     for idx, speed in enumerate(speedrange):
         # calculate speed depenend matrices
+        if isWrongSpeed:
+            speed = speed*1.0661904761904761 - 0.12761904761904752
         plant.calc_mtrx(speed)
         ctrl.calc_gain(speed)
         # calculate eigenvalues
@@ -198,7 +200,7 @@ def calc_bode_mag(A,B,C,D,freq_range):
                 plant_bodes[nbr_in,nbr_out,:] = mag
     return plant_bodes
 
-def get_bode(bike_plant_file,plant_type,speed,freq_range,sil_parameters,isAppliedMM=False):
+def get_bode(bike_plant_file,plant_type,speed,freq_range,sil_parameters,isAppliedMM=False,isWrongSpeed=False):
     '''
     start_frq,stop_frq are in rad/s
     '''
@@ -207,6 +209,8 @@ def get_bode(bike_plant_file,plant_type,speed,freq_range,sil_parameters,isApplie
     
     #--[Calculating bode magnitudes for all input to output combos
     # Initialize objects at correct speed
+    if isWrongSpeed:
+        speed = speed*1.0661904761904761 - 0.12761904761904752    
     plant.calc_mtrx(speed)
     ctrl.calc_gain(speed)
 

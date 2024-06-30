@@ -128,6 +128,8 @@ def plot_eigenvals_paper(results,plant_ref_file,friction_file,plant_type,start,s
     speed_ax_fric, eig_theory_fric = get_eigen_vs_speed(friction_file,'plant',speedrange,SIL_PARAMETERS)
     speed_ax_fric_mm, eig_theory_fric_mm = get_eigen_vs_speed(friction_file,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
     speed_ax_param_mm, eig_theory_param_mm = get_eigen_vs_speed(plant_ref_file,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
+    speed_ax_plant_speed, eig_theory_plant_speed = get_eigen_vs_speed(plant_ref_file,'plant',speedrange,SIL_PARAMETERS,isWrongSpeed=True)
+    speed_ax_ref_speed, eig_theory_ref_speed = get_eigen_vs_speed(plant_ref_file,'ref',speedrange,SIL_PARAMETERS,isWrongSpeed=True)
     
     fig = plt.figure(figsize=(14,5), dpi=125)
     fig.suptitle("Bicycle eigenvalues vs speed",fontsize=24)
@@ -152,6 +154,8 @@ def plot_eigenvals_paper(results,plant_ref_file,friction_file,plant_type,start,s
         # axs.scatter(speed_ax_fric, eig_theory_fric[type],s=4, label="Friction plant")
         # axs.scatter(speed_ax_fric_mm, eig_theory_fric_mm[type],s=4, label="Friction reference")
         # axs.scatter(speed_ax_param_mm, eig_theory_param_mm[type],s=4, label="Theoretical reference")
+        axs.scatter(speed_ax_plant_speed, eig_theory_plant_speed[type],s=4, label="Corrected Speed plant")
+        axs.scatter(speed_ax_ref_speed, eig_theory_ref_speed[type],s=4, label="Corrected Speed ref")
 
         # Emperical speed-eigen
         for method in results:
@@ -219,9 +223,9 @@ vars2extract = {
         "lean_rate": [],
         # "fork_angle": [],
         # "fork_rate": [],
-        "speed": [],
-        "x_acceleration": [],
-        "y_acceleration": [],
+        # "speed": [],
+        # "x_acceleration": [],
+        # "y_acceleration": [],
         # "hand_torque": [],
     }
 log_files = [
@@ -232,7 +236,7 @@ log_files = [
     # ("eigen_normal_sil6.5n2_12.6kph.log", [(2028,2028+100), (3053,3053+100), (3983,3983+100), (4982,4982+100), (6881,6881+100), (7898,7898+100), (8749,8749+100), (9733,9733+100), (10872,10872+100)]),
     # ("eigen_normal_sil6.5n2_14.4kph.log", [(1410,1410+100), (2385,2385+100), (3400,3400+100), (4352,4352+100), (5276,5276+100), (6311,6311+100), (7347,7347+100), (8423,8423+100)]),
     # ("eigen_normal_sil6.5n2_16.2kph.log", [(1576,1576+100), (2529,2529+100), (5041,5041+100), (5796,5796+100), (8035,8035+100), (13604,13604+100)]),
-    ("eigen_normal_sil6.5n2_18kph.log", [(1964,1964+100), (2917,2917+100), (3831,3831+100), (4594,4594+100), (5549,5549+100), (6326,6326+100), (7060,7060+100)]),
+    # ("eigen_normal_sil6.5n2_18kph.log", [(1964,1964+100), (2917,2917+100), (3831,3831+100), (4594,4594+100), (5549,5549+100), (6326,6326+100), (7060,7060+100)]),
     ("eigen_mm_sil6.5n2_18kph.log", [(2928,2928+100),(4308,4308+100),(5508,5508+100),(6931,6931+100),(8232,8232+100),(10043,10043+100),(14193,14193+100),(15348,15348+100)])
 ]
 experiments = [ #file,speed[km/h],start&end in file, initial values    
