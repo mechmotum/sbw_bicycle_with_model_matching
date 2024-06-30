@@ -84,9 +84,9 @@ K_SIL_H = 0.7
 SPEED_EIGEN_SPEEDRANGE = np.linspace(0.01, 10 , num=int(1 + (10-0)/0.01))
 FREQ_RANGE = np.logspace(-3,3,1000)
 EPS = 1e-6 # Turning near 0 poles and zeros to 0. For numerical accuracy
-BODE_SPEED = 10 #[m/s]
+BODE_SPEED = 4 #[m/s]
 BODE_OUTPUT = {"fork_angle": 0,"lean_rate": 1}
-BODE_INPUT = {"lean_torque": 0, "hand_torque": 1}
+BODE_INPUT = {"hand_torque": 1}#{"lean_torque": 0, "hand_torque": 1}
 
 
 def create_system(np_matrices,C_matrix,ctrl_fun_dict:dict):
@@ -118,28 +118,77 @@ bode_mags_ref = s2s.get_bode(system_ref,BODE_SPEED,FREQ_RANGE,EPS)
 
 
 
-plt.figure()
-plt.title("Bicycle eigenvalues vs speed", fontsize=24)
-plt.ylabel("Eigenvalue [-]", fontsize=16)
-plt.xlabel("Speed [m/s]", fontsize=16)
-plt.scatter(speed_axis_plant, eigenvals_plant["real"],s=1, label="Real plant")
-plt.scatter(speed_axis_plant, eigenvals_plant["imag"],s=1, label="Imag plant")
-plt.scatter(speed_axis_ref, eigenvals_ref["real"],s=1, label="Real ref")
-plt.scatter(speed_axis_ref, eigenvals_ref["imag"],s=1, label="Imag ref")
-plt.legend(fontsize=14)
-plt.grid()
-plt.axis((0,10,-12,12))
+fig = plt.figure(figsize=(10,5), dpi=125)
+fig.suptitle("Eigenvalues vs speed - Model Matching Applied to Perturbed System",fontsize=24)
+by_label = dict()
+
+ax = dict()
+ax["real"] = fig.add_subplot(121)
+ax["real"].axis((0,6,-10,3))
+ax["real"].set_title("Real part", fontsize=20)
+ax["real"].set_ylabel("Eigenvalue [-]", fontsize=16)
+ax["real"].set_xlabel("Speed [m/s]", fontsize=16)
+
+ax["imag"] = fig.add_subplot(122)
+ax["imag"].axis((0,6,0,10))
+ax["imag"].set_title("Imaginary part", fontsize=20)
+ax["imag"].set_xlabel("Speed [m/s]", fontsize=16)
+
+for type, axs in ax.items():
+    # Theoretic
+    axs.scatter(speed_axis_plant, eigenvals_plant[type], s=4, label="Model Matching on Perturbed System")
+    axs.scatter(speed_axis_ref, eigenvals_ref[type],s=4, label="Reference System")
+    axs.grid()
+    axs.tick_params(axis='x', labelsize=14)
+    axs.tick_params(axis='y', labelsize=14)
+    handles, labels = axs.get_legend_handles_labels()
+    by_label.update(zip(labels, handles))
+fig.subplots_adjust(left=0.07, bottom=0.175, right=0.99, top=0.85, wspace=0.12, hspace=None)
+fig.legend(by_label.values(), by_label.keys(), ncols= 4, scatterpoints = 50, fontsize=14, loc='lower center', bbox_to_anchor=(0.52, 0))
 plt.show()
 
+fig = plt.figure(figsize=(14,5), dpi=125)
+fig.suptitle(f"Bode gain - Model Matching Applied to Perturbed System",fontsize=24)
+by_label = dict()
+axs = dict()
+axs["lean_rate"] = fig.add_subplot(121)
+axs["lean_rate"].set_title("Hand Torque to Lean Rate", fontsize=20)
+axs["lean_rate"].set_xlabel("Frequency [Hz]", fontsize=16)
+axs["lean_rate"].set_ylabel("Gain [dB]", fontsize=16)
+axs["lean_rate"].set_xscale('log')
+axs["lean_rate"].axis([0.5,5,-40,0])
+axs["lean_rate"].tick_params(axis='x', labelsize=14)
+axs["lean_rate"].tick_params(axis='y', labelsize=14)
+
+axs["fork_angle"] = fig.add_subplot(122)
+axs["fork_angle"].set_title("Hand Torque to Fork Angle", fontsize=20)
+axs["fork_angle"].set_xlabel("Frequency [Hz]", fontsize=16)
+axs["fork_angle"].set_xscale('log')
+axs["fork_angle"].axis([0.5,5,-40,0])
+axs["fork_angle"].tick_params(axis='x', labelsize=14)
+axs["fork_angle"].tick_params(axis='y', labelsize=14)
+
 for in_key, in_value in BODE_INPUT.items():
-        for out_key, out_value in BODE_OUTPUT.items():
-            plt.figure()
-            plt.title(f"{in_key} to {out_key}",fontsize=24)
-            plt.xlabel("Frequency [Hz]", fontsize=16)
-            plt.ylabel("Gain [dB]", fontsize=16)
-            plt.xscale('log')
-            plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:], label="Perturbed")
-            plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:], '--', label="Reference")
-            plt.legend(fontsize=14)
-            plt.grid()
+    for out_key, out_value in BODE_OUTPUT.items():
+        #---[plot the theoretic bode
+        axs[out_key].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],linewidth=4, label="Model Matching on Perturbed System")
+        axs[out_key].plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:],'--',linewidth=4, label="Reference system")
+        axs[out_key].grid()
+        handles, labels = axs[out_key].get_legend_handles_labels()
+        by_label.update(zip(labels, handles))
+fig.subplots_adjust(left=0.07, bottom=None, right=0.99, top=0.785, wspace=0.14, hspace=None)
+fig.legend(by_label.values(), by_label.keys(), ncols=2, fontsize=14, loc='upper center', bbox_to_anchor=(0.52, 0.93))
 plt.show()
+
+# for in_key, in_value in BODE_INPUT.items():
+#         for out_key, out_value in BODE_OUTPUT.items():
+#             plt.figure()
+#             plt.title(f"{in_key} to {out_key}",fontsize=24)
+#             plt.xlabel("Frequency [Hz]", fontsize=16)
+#             plt.ylabel("Gain [dB]", fontsize=16)
+#             plt.xscale('log')
+#             plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:], label="Perturbed")
+#             plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:], '--', label="Reference")
+#             plt.legend(fontsize=14)
+#             plt.grid()
+# plt.show()
