@@ -278,8 +278,8 @@ repl_params = {
     x_B     : 0.462, # [m]
     z_B     : -0.698, # [m]
     m_B     : 20.9, # [kg]
-    I_Bxx   : 1.64, # [kg*(m**2)]
-    I_Bzz   : 1.94, # [kg*(m**2)]
+    I_Bxx   : 1.64, # [kg*(m**2)] # (better fitting the experiment -> 2  )
+    I_Bzz   : 1.94, # [kg*(m**2)] # (better fitting the experiment -> 2.7)
     I_Bxz   : 0.654, # [kg*(m**2)]
 
     x_H     : 0.944, # [m]
@@ -292,7 +292,7 @@ repl_params = {
     r_F     : 0.3498, # [m]
     m_F     : 1.780, # [kg]
     I_Fxx   : 0.0644, # [kg*(m**2)]
-    I_Fyy   : 0.1289, # [kg*(m**2)]
+    I_Fyy   : 0.1189, # [kg*(m**2)] (better fitting the experiment -> 0.1189)
     }
 
 repl_params_ref = {
