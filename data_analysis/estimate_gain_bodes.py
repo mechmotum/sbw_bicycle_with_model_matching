@@ -387,7 +387,7 @@ CHECK_VISUALLY = False
 PLOT_TYPE = "nominal" #nominal, friction, params, speed, motor
 MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
 ALT_PARAM_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_estimated_error_parameters"
-FRICTION_IN_STEER_FILE = ".\\ss_cw_friction-0.2_viscous"# ".\\ss_cw_friction-0.02_sigmoid"
+FRICTION_IN_STEER_FILE = "bike_models_n_friction\\ss_cw_friction-0.2_viscous"# ".\\ss_cw_friction-0.02_sigmoid"
 FREQ_RANGE = np.logspace(-3,3,1000) # [rad/s]
 SIL_PARAMETERS = {
     'avg_speed' : 6.5,
