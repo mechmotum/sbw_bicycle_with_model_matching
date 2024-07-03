@@ -60,13 +60,12 @@ def extract_data(full_path,start,stop,time_step,vars2extract,filter_type):
     
     return time, extraction
 
-def plot_eigenvals(results,plant_ref_file,friction_file,plant_type,start,stop,step):
+def plot_eigenvals(results,speedrange,ss_file1,ss_file2,plot_type):
     #Theoretical
-    speedrange = np.linspace(start , stop , num=int(1 + (stop-start)/step))
-    speed_ax_plant, eig_theory_plant = get_eigen_vs_speed(plant_ref_file,'plant',speedrange,SIL_PARAMETERS)
-    speed_ax_ref, eig_theory_ref = get_eigen_vs_speed(plant_ref_file,'ref',speedrange,SIL_PARAMETERS)
-    speed_ax_fric, eig_theory_fric = get_eigen_vs_speed(friction_file,'plant',speedrange,SIL_PARAMETERS)
-    speed_ax_fric_mm, eig_theory_fric_mm = get_eigen_vs_speed(friction_file,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
+    speed_ax_plant, eig_theory_plant = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS)
+    speed_ax_ref, eig_theory_ref = get_eigen_vs_speed(ss_file1,'ref',speedrange,SIL_PARAMETERS)
+    speed_ax_fric, eig_theory_fric = get_eigen_vs_speed(ss_file2,'plant',speedrange,SIL_PARAMETERS)
+    speed_ax_fric_mm, eig_theory_fric_mm = get_eigen_vs_speed(ss_file2,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
     
     ## REAL PART
     plt.figure(figsize=(11, 5), dpi=125)
@@ -91,7 +90,7 @@ def plot_eigenvals(results,plant_ref_file,friction_file,plant_type,start,stop,st
 
     plt.legend(fontsize=14,loc='lower right')
     plt.grid()
-    plt.axis((start,stop,-10,5))
+    plt.axis((speedrange[0],speedrange[-1],-10,5))
 
 
     ## IMAG PART
@@ -117,25 +116,34 @@ def plot_eigenvals(results,plant_ref_file,friction_file,plant_type,start,stop,st
     
     plt.legend(fontsize=14,loc='lower right')
     plt.grid()
-    plt.axis((start,stop,0,10))
+    plt.axis((speedrange[0],speedrange[-1],0,10))
     plt.show()
 
-def plot_eigenvals_paper(results,plant_ref_file,friction_file,plant_type,start,stop,step):
+def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,plot_type):
     #Theoretical
-    speedrange = np.linspace(start , stop , num=int(1 + (stop-start)/step))
-    speed_ax_plant, eig_theory_plant       = get_eigen_vs_speed(plant_ref_file,'plant',speedrange,SIL_PARAMETERS)
-    speed_ax_ref, eig_theory_ref           = get_eigen_vs_speed(plant_ref_file,'ref',  speedrange,SIL_PARAMETERS)
-    speed_ax_fric, eig_theory_fric         = get_eigen_vs_speed(friction_file, 'plant',speedrange,SIL_PARAMETERS)
-    speed_ax_fric_mm, eig_theory_fric_mm   = get_eigen_vs_speed(friction_file, 'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
-    speed_ax_param_mm, eig_theory_param_mm = get_eigen_vs_speed(plant_ref_file,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
-    speed_ax_speed, eig_theory_speed       = get_eigen_vs_speed(plant_ref_file,'plant',speedrange,SIL_PARAMETERS,isWrongSpeed=True)
-    speed_ax_speed_mm, eig_theory_speed_mm = get_eigen_vs_speed(plant_ref_file,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True, isWrongSpeed=True)
-    speed_ax_mtr, eig_theory_mtr           = get_eigen_vs_speed(plant_ref_file,'plant',speedrange,SIL_PARAMETERS,cmd2trq_gain=0.9)
-    speed_ax_mtr_mm, eig_theory_mtr_mm     = get_eigen_vs_speed(plant_ref_file,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True,cmd2trq_gain=0.9)
-
     fig = plt.figure(figsize=(14,5), dpi=125)
-    fig.suptitle("Bicycle eigenvalues vs speed",fontsize=24)
     by_label = dict()
+
+    if   plot_type == "nominal":
+        fig.suptitle("Bicycle Eigenvalues vs Speed - Nominal",fontsize=24)
+        speed_ax_plant, eig_theory_plant       = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS)
+        speed_ax_ref, eig_theory_ref           = get_eigen_vs_speed(ss_file1,'ref',  speedrange,SIL_PARAMETERS)
+    elif plot_type == "friction":
+        fig.suptitle("Bicycle Eigenvalues vs Speed - Friction in Steer",fontsize=24)
+        speed_ax_fric, eig_theory_fric         = get_eigen_vs_speed(ss_file2, 'plant',speedrange,SIL_PARAMETERS)
+        speed_ax_fric_mm, eig_theory_fric_mm   = get_eigen_vs_speed(ss_file2, 'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
+    elif plot_type == "params":
+        fig.suptitle("Bicycle Eigenvalues vs Speed - Corrected Parameters",fontsize=24)
+        speed_ax_plant, eig_theory_plant       = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS)
+        speed_ax_param_mm, eig_theory_param_mm = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
+    elif plot_type == "speed":
+        fig.suptitle("Bicycle Eigenvalues vs Speed - Corrected Speed Sensor",fontsize=24)
+        speed_ax_speed, eig_theory_speed       = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,isWrongSpeed=True)
+        speed_ax_speed_mm, eig_theory_speed_mm = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True, isWrongSpeed=True)
+    elif plot_type == "motor":
+        fig.suptitle("Bicycle Eigenvalues vs Speed - Corrected Motor Torque",fontsize=24)
+        speed_ax_mtr, eig_theory_mtr           = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,cmd2trq_gain=0.9)
+        speed_ax_mtr_mm, eig_theory_mtr_mm     = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True,cmd2trq_gain=0.9)
     
     ax = dict()
     ax["real"] = fig.add_subplot(121)
@@ -151,15 +159,23 @@ def plot_eigenvals_paper(results,plant_ref_file,friction_file,plant_type,start,s
 
     for type, axs in ax.items():
         # Theoretic
-        axs.scatter(speed_ax_plant, eig_theory_plant[type], s=4, label="Theoretical Plant")
-        axs.scatter(speed_ax_ref, eig_theory_ref[type],s=4, label="Theoretical Reference")
-        # axs.scatter(speed_ax_fric, eig_theory_fric[type],s=4, label="Friction Plant")
-        # axs.scatter(speed_ax_fric_mm, eig_theory_fric_mm[type],s=4, label="Friction Reference")
-        # axs.scatter(speed_ax_param_mm, eig_theory_param_mm[type],s=4, label="Corrected Reference")
-        # axs.scatter(speed_ax_speed, eig_theory_speed[type],s=4, label="Corrected Speed Plant")
-        # axs.scatter(speed_ax_speed_mm, eig_theory_speed_mm[type],s=4, label="Corrected Speed Reference")
-        # axs.scatter(speed_ax_mtr, eig_theory_mtr[type],s=4, label="Corrected Motor Plant")
-        # axs.scatter(speed_ax_mtr_mm, eig_theory_mtr_mm[type],s=4, label="Corrected Motor Reference")
+        if   plot_type == "nominal":
+            axs.scatter(speed_ax_plant   , eig_theory_plant[type]   , s=4, label="Theoretical Plant")
+            axs.scatter(speed_ax_ref     , eig_theory_ref[type]     , s=4, label="Theoretical Reference")
+        elif plot_type == "friction":
+            axs.scatter(speed_ax_fric    , eig_theory_fric[type]    , s=4, label="Friction Plant")
+            axs.scatter(speed_ax_fric_mm , eig_theory_fric_mm[type] , s=4, label="Friction Reference")
+        elif plot_type == "params":
+            axs.scatter(speed_ax_plant   , eig_theory_plant[type]   , s=4, label="Corrected Parameters Plant")
+            axs.scatter(speed_ax_param_mm, eig_theory_param_mm[type], s=4, label="Corrected Parameters Reference")
+        elif plot_type == "speed":
+            axs.scatter(speed_ax_speed   , eig_theory_speed[type]   , s=4, label="Corrected Speed Plant")
+            axs.scatter(speed_ax_speed_mm, eig_theory_speed_mm[type], s=4, label="Corrected Speed Reference")
+        elif plot_type == "motor":
+            axs.scatter(speed_ax_mtr     , eig_theory_mtr[type]     , s=4, label="Corrected Motor Plant")
+            axs.scatter(speed_ax_mtr_mm  , eig_theory_mtr_mm[type]  , s=4, label="Corrected Motor Reference")
+        else:
+            print("wrong method")
 
         # Emperical speed-eigen
         for method in results:
@@ -197,7 +213,6 @@ def plot_uncut_data(path,file,vars2extract):
 #=====START=====#
 #---[Constants
 PATH = "..\\teensy\\logs\\"
-# TO_ANALYSE = "raw" # "raw" or "filtered"
 BUTTER_ORDER = 2
 BUTTER_CUT_OFF = 10
 HIGH_PASS_Wc_FREQ = 1
@@ -207,14 +222,14 @@ VISUAL_CHECK_FIT = False # If true, show graph for visually checking the kooijma
 MAX_FUN_EVAL = 5000
 
 #Theoretical model parameters
-PLANT_TYPE = "ref" #"plant" or "reference"
-SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
-# SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_estimated_error_parameters"
-FRICTION_IN_STEER_FILE = ".\\ss_cw_friction-0.02_sigmoid"
-# FRICTION_IN_STEER_FILE = ".\\ss_cw_friction-0.2_viscous"
+METHOD = "nominal" #nominal, friction, params, speed, motor
+MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
+ALT_PARAM_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_estimated_error_parameters"
+FRICTION_IN_STEER_FILE =".\\ss_cw_friction-0.2_viscous"# ".\\ss_cw_friction-0.02_sigmoid"
 SPEED_START = 0.1
 SPEED_STOP = 8
 SPEED_STEP = 0.01
+SPEED_RANGE = np.linspace(SPEED_START , SPEED_STOP , num=int(1 + (SPEED_STOP-SPEED_START)/SPEED_STEP))
 SIL_PARAMETERS = {
     'avg_speed' : 6.5,
     'L_gain': 2,
@@ -507,7 +522,7 @@ if(PHASE == "calculate_eig"):
             time, extraction = extract_data(PATH+file,start_stop[0],start_stop[1],TIME_STEP,vars2extract,filter_type)
             sigmas[i], omegas[i] = extract_eigenvals(time,extraction,par0,speeds[i])
         results.append({"name":name,"style":style,"real":sigmas,"imag":omegas,"speeds":speeds})
-    plot_eigenvals_paper(results, SPEED_DEP_MODEL_FILE, FRICTION_IN_STEER_FILE, PLANT_TYPE, SPEED_START, SPEED_STOP, SPEED_STEP)
+    plot_eigenvals_paper(results, SPEED_RANGE, MODEL_FILE, FRICTION_IN_STEER_FILE, METHOD)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:
@@ -520,7 +535,7 @@ elif(PHASE == "cut_data"):
 
 
 # -- [ Frist real test (but with false sil controller)
-# SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices"
+# MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices"
 # # ("eigenvaltest_08kph_6bar_error_in_sil.log", 8, (4527,4626), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
 # # ("eigenvaltest_08kph_6bar_error_in_sil.log", 8, (5431,5533), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
 # ("eigenvaltest_08kph_6bar_error_in_sil.log", 8, (6373,6485), (-1.0, 3.0, -1.0, 1.0, 1.0)),

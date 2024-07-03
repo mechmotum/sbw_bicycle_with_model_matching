@@ -219,11 +219,11 @@ def analyse_bode_data(bode_points, filename,vars2extract, start, stop, tune_par,
 
     return
 
-def plot_results(results):
-    bode_mags_plant = get_bode(SPEED_DEP_MODEL_FILE,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
-    bode_mags_ref = get_bode(SPEED_DEP_MODEL_FILE,"ref",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
-    bode_mags_fric = get_bode(FRICTION_IN_STEER_FILE,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
-    bode_mags_fric_mm = get_bode(FRICTION_IN_STEER_FILE,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True) # frequency in rad/s, magnitude in dB
+def plot_results(results,ss_file1,ss_file2,plot_type):
+    bode_mags_plant = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+    bode_mags_ref = get_bode(ss_file1,"ref",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+    bode_mags_fric = get_bode(ss_file2,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+    bode_mags_fric_mm = get_bode(ss_file2,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True) # frequency in rad/s, magnitude in dB
     
     for in_key, in_value in INPUT.items():
         for out_key, out_value in OUTPUT.items():
@@ -258,22 +258,43 @@ def plot_results(results):
             plt.legend(fontsize=12, loc='lower left')
     plt.show()
 
-def plot_results_paper(results):
-    bode_mags_plant    = get_bode(SPEED_DEP_MODEL_FILE,  "plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
-    bode_mags_ref      = get_bode(SPEED_DEP_MODEL_FILE,  "ref",  EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
-    bode_mags_fric     = get_bode(FRICTION_IN_STEER_FILE,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
-    bode_mags_fric_mm  = get_bode(FRICTION_IN_STEER_FILE,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True) # frequency in rad/s, magnitude in dB
-    bode_mags_param_mm = get_bode(SPEED_DEP_MODEL_FILE,  "plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True) # frequency in rad/s, magnitude in dB
-    bode_mags_speed    = get_bode(SPEED_DEP_MODEL_FILE,  "plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isWrongSpeed=True) # frequency in rad/s, magnitude in dB
-    bode_mags_speed_mm = get_bode(SPEED_DEP_MODEL_FILE,  "plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True,isWrongSpeed=True) # frequency in rad/s, magnitude in dB
-    bode_mags_mtr      = get_bode(SPEED_DEP_MODEL_FILE,  "plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,cmd2trq_gain=0.9) # frequency in rad/s, magnitude in dB
-    bode_mags_mtr_mm   = get_bode(SPEED_DEP_MODEL_FILE,  "plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True,cmd2trq_gain=0.9) # frequency in rad/s, magnitude in dB
+def plot_results_paper(results,ss_file1,ss_file2,plot_type):
+    if   plot_type == "nominal":
+        bode_mags_plant    = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+        bode_mags_ref      = get_bode(ss_file1,"ref"  ,EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+    elif plot_type == "friction":
+        bode_mags_fric     = get_bode(ss_file2,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+        bode_mags_fric_mm  = get_bode(ss_file2,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True) # frequency in rad/s, magnitude in dB
+    elif plot_type == "params":
+        bode_mags_plant    = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+        bode_mags_param_mm = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True) # frequency in rad/s, magnitude in dB
+    elif plot_type == "speed":
+        bode_mags_speed    = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isWrongSpeed=True) # frequency in rad/s, magnitude in dB
+        bode_mags_speed_mm = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True,isWrongSpeed=True) # frequency in rad/s, magnitude in dB
+    elif plot_type == "motor":
+        bode_mags_mtr      = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,cmd2trq_gain=0.9) # frequency in rad/s, magnitude in dB
+        bode_mags_mtr_mm   = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True,cmd2trq_gain=0.9) # frequency in rad/s, magnitude in dB
     
     for in_key, in_value in INPUT.items():
         for out_key, out_value in OUTPUT.items():
             fig = plt.figure(figsize=(14,5), dpi=125)
-            fig.suptitle(f"{in_key} to {out_key}",fontsize=24)
             by_label = dict()
+
+            if in_key == "hand_torque":
+                inpt = "Steer Torque"
+            elif in_key == "lean_torque":
+                inpt = "Lean Torque"
+            else:
+                inpt = "Unknown"
+                print("Bode input unknown")
+
+            if out_key == "fork_angle":
+                outpt = "Fork Angle"
+            elif out_key == "lean_rate":
+                outpt = "Lean Rate"
+            else:
+                outpt = "Unknown"
+                print("Bode output unknown")
             
             axs = dict()
             axs["left"] = fig.add_subplot(121)
@@ -292,17 +313,28 @@ def plot_results_paper(results):
             axs["right"].tick_params(axis='y', labelsize=14)
                 
             for trial in results:
-                #---[plot the theoretic bode
-                axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],linewidth=4, label="Theoretical Gain Plant")
-                axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:],'--',linewidth=4, label="Theoretical Gain Reference")
-                # axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_fric[in_value,out_value,:],'-.',linewidth=4, label="Friction Gain Plant")
-                # axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_fric_mm[in_value,out_value,:],':',linewidth=4, label="Friction Gain Reference")
-                # axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_param_mm[in_value,out_value,:],linewidth=4, label="Theoretical Gain Plant")
-                # axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_speed[in_value,out_value,:],linewidth=4, label="Corrected Speed Plant")
-                # axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_speed_mm[in_value,out_value,:],linewidth=4, label="Corrected Speed Reference")
-                axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_mtr[in_value,out_value,:],linewidth=4, label="Corrected Motor Plant")
-                axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_mtr_mm[in_value,out_value,:],linewidth=4, label="Corrected Motor Reference")
                 bode_points[in_key][out_key] = np.array(trial["bode_points"][in_key][out_key])
+
+                if   plot_type == "nominal":
+                    fig.suptitle(f"Bode Gain of {inpt} to {outpt} - Nominal",fontsize=24)
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],     linewidth=4, label="Theoretical Plant")
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:]  ,'--',linewidth=4, label="Theoretical Reference")
+                elif plot_type == "friction":
+                    fig.suptitle(f"Bode Gain of {inpt} to {outpt} - Friction in Steer",fontsize=24)
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_fric[in_value,out_value,:]   ,'-.',linewidth=4, label="Friction Plant")
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_fric_mm[in_value,out_value,:],':' ,linewidth=4, label="Friction Reference")
+                elif plot_type == "params":
+                    fig.suptitle(f"Bode Gain of {inpt} to {outpt} - Corrected Parameters",fontsize=24)
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],   linewidth=4, label="Corrected Parameters Plant")
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_param_mm[in_value,out_value,:],linewidth=4, label="Corrected Parameters Reference")
+                elif plot_type == "speed":
+                    fig.suptitle(f"Bode Gain of {inpt} to {outpt} - Corrected Speed Sensor",fontsize=24)
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_speed[in_value,out_value,:]   ,linewidth=4, label="Corrected Speed Plant")
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_speed_mm[in_value,out_value,:],linewidth=4, label="Corrected Speed Reference")
+                elif plot_type == "motor":
+                    fig.suptitle(f"Bode Gain of {inpt} to {outpt} - Corrected Motor Torque",fontsize=24)
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_mtr[in_value,out_value,:]   ,linewidth=4, label="Corrected Motor Plant")
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_mtr_mm[in_value,out_value,:],linewidth=4, label="Corrected Motor Reference")
 
                 [axs[trial["style"]["place"]].plot(tmp[0],20*np.log10(tmp[1]),linestyle=':',color=trial["style"]["FFT_color"]) for tmp in trial["FRF"][in_key][out_key]]
                 axs[trial["style"]["place"]].plot(bode_points[in_key][out_key][:,0], 20*np.log10(bode_points[in_key][out_key][:,1]),
@@ -352,11 +384,10 @@ EXPERIMENT_SPEED = 4 #[m/s]
 CHECK_VISUALLY = False
 
 #Theoretical model parameters
-# PLANT_TYPE = "ref" #"plant" or "ref"
-SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
-# SPEED_DEP_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_estimated_error_parameters"
-# FRICTION_IN_STEER_FILE = ".\\ss_cw_friction-0.2_viscous"
-FRICTION_IN_STEER_FILE = ".\\ss_cw_friction-0.02_sigmoid"
+PLOT_TYPE = "nominal" #nominal, friction, params, speed, motor
+MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
+ALT_PARAM_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_estimated_error_parameters"
+FRICTION_IN_STEER_FILE = ".\\ss_cw_friction-0.2_viscous"# ".\\ss_cw_friction-0.02_sigmoid"
 FREQ_RANGE = np.logspace(-3,3,1000) # [rad/s]
 SIL_PARAMETERS = {
     'avg_speed' : 6.5,
@@ -550,7 +581,7 @@ if(PHASE=="calculate_bode"):
             get_single_bode_point(bode_points, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par, FRF) # frequency in Hz, magnitude in [-]. Bode points is passed by reference
         
         results.append({"name":name, "style":style, "bode_points":copy.deepcopy(bode_points), "FRF":copy.deepcopy(FRF)})
-    plot_results_paper(results)
+    plot_results_paper(results,MODEL_FILE,FRICTION_IN_STEER_FILE,PLOT_TYPE)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:
