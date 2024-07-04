@@ -1,0 +1,125 @@
+# =============== [For validating the replacement dictionairy codes] ================ # 
+# From this point: temp for testing. Remove when done
+# repl_params_ref = {
+#     w_r : 1.02,        # m
+#     c_r : 0.08,        # m
+#     lamb_r : sm.pi/10, # rad
+#     g_r : 9.81,        # m/(s**2)
+#     v_r : 1,           # m/s
+#     r_R_r : 0.3,       # m
+#     m_R_r : 2,         # kg
+#     I_Rxx_r : 0.0603,  # kg*(m**2)
+#     I_Ryy_r : 0.12,    # kg*(m**2)
+#     x_B_r : 0.3,       # m
+#     z_B_r : -0.9,      # m
+#     m_B_r : 85,        # kg
+#     I_Bxx_r : 9.2,     # kg*(m**2)
+#     # I_Byy_r : 11,      # kg*(m**2)
+#     I_Bzz_r : 2.8,     # kg*(m**2)
+#     I_Bxz_r : 2.4,     # kg*(m**2)
+#     x_H_r : 0.9,       # m
+#     z_H_r : -0.7,      # m
+#     m_H_r : 4,         # kg
+#     I_Hxx_r : 0.05892, # kg*(m**2)
+#     # I_Hyy_r : 0.06,    # kg*(m**2)
+#     I_Hzz_r : 0.00708, # kg*(m**2)
+#     I_Hxz_r : -0.00756,# kg*(m**2)
+#     r_F_r : 0.35,      # m
+#     m_F_r : 3,         # kg
+#     I_Fxx_r : 0.1405,  # kg*(m**2)
+#     I_Fyy_r : 0.28     # kg*(m**2)
+#     }
+
+# M_test00 = M[0,0].xreplace(repl_to_comp_ref).xreplace(repl_ref_comp)
+# M_test01 = M[0,1].xreplace(repl_to_comp_ref).xreplace(repl_ref_comp)
+# M_test10 = M[1,0].xreplace(repl_to_comp_ref).xreplace(repl_ref_comp)
+# M_test11 = M[1,1].xreplace(repl_to_comp_ref).xreplace(repl_ref_comp)
+
+# K0_test00 = K0[0,0].xreplace(repl_to_comp_ref).xreplace(repl_ref_comp)
+# K0_test01 = K0[0,1].xreplace(repl_to_comp_ref).xreplace(repl_ref_comp)
+# K0_test10 = K0[1,0].xreplace(repl_to_comp_ref).xreplace(repl_ref_comp)
+# K0_test11 = K0[1,1].xreplace(repl_to_comp_ref).xreplace(repl_ref_comp)
+
+# K2_test00 = K2[0,0].xreplace(repl_to_comp_ref).xreplace(repl_ref_comp)
+# K2_test01 = K2[0,1].xreplace(repl_to_comp_ref).xreplace(repl_ref_comp)
+# K2_test10 = K2[1,0].xreplace(repl_to_comp_ref).xreplace(repl_ref_comp)
+# K2_test11 = K2[1,1].xreplace(repl_to_comp_ref).xreplace(repl_ref_comp)
+
+# C1_test00 = C1[0,0].xreplace(repl_to_comp_ref).xreplace(repl_ref_comp)
+# C1_test01 = C1[0,1].xreplace(repl_to_comp_ref).xreplace(repl_ref_comp)
+# C1_test10 = C1[1,0].xreplace(repl_to_comp_ref).xreplace(repl_ref_comp)
+# C1_test11 = C1[1,1].xreplace(repl_to_comp_ref).xreplace(repl_ref_comp)
+
+
+# sm.pprint(M_test00.evalf(8,subs=repl_params_ref))
+# sm.pprint(M_test01.evalf(8,subs=repl_params_ref))
+# sm.pprint(M_test10.evalf(8,subs=repl_params_ref))
+# sm.pprint(M_test11.evalf(8,subs=repl_params_ref))
+
+# sm.pprint(-1)
+
+# sm.pprint(K0_test00.evalf(8,subs=repl_params_ref))
+# sm.pprint(K0_test01.evalf(8,subs=repl_params_ref))
+# sm.pprint(K0_test10.evalf(8,subs=repl_params_ref))
+# sm.pprint(K0_test11.evalf(8,subs=repl_params_ref))
+
+# sm.pprint(-1)
+
+# sm.pprint(K2_test00.evalf(8,subs=repl_params_ref))
+# sm.pprint(K2_test01.evalf(8,subs=repl_params_ref))
+# sm.pprint(K2_test10.evalf(8,subs=repl_params_ref))
+# sm.pprint(K2_test11.evalf(8,subs=repl_params_ref))
+
+# sm.pprint(-1)
+
+# sm.pprint(C1_test00.evalf(8,subs=repl_params_ref))
+# sm.pprint(C1_test01.evalf(8,subs=repl_params_ref))
+# sm.pprint(C1_test10.evalf(8,subs=repl_params_ref))
+# sm.pprint(C1_test11.evalf(8,subs=repl_params_ref))
+
+# M_test00 = M[0,0].xreplace(repl_comp)
+# M_test01 = M[0,1].xreplace(repl_comp)
+# M_test10 = M[1,0].xreplace(repl_comp)
+# M_test11 = M[1,1].xreplace(repl_comp)
+
+# K0_test00 = K0[0,0].xreplace(repl_comp)
+# K0_test01 = K0[0,1].xreplace(repl_comp)
+# K0_test10 = K0[1,0].xreplace(repl_comp)
+# K0_test11 = K0[1,1].xreplace(repl_comp)
+
+# K2_test00 = K2[0,0].xreplace(repl_comp)
+# K2_test01 = K2[0,1].xreplace(repl_comp)
+# K2_test10 = K2[1,0].xreplace(repl_comp)
+# K2_test11 = K2[1,1].xreplace(repl_comp)
+
+# C1_test00 = C1[0,0].xreplace(repl_comp)
+# C1_test01 = C1[0,1].xreplace(repl_comp)
+# C1_test10 = C1[1,0].xreplace(repl_comp)
+# C1_test11 = C1[1,1].xreplace(repl_comp)
+
+
+# sm.pprint(M_test00.evalf(8,subs=repl_params))
+# sm.pprint(M_test01.evalf(8,subs=repl_params))
+# sm.pprint(M_test10.evalf(8,subs=repl_params))
+# sm.pprint(M_test11.evalf(8,subs=repl_params))
+
+# sm.pprint(-1)
+
+# sm.pprint(K0_test00.evalf(8,subs=repl_params))
+# sm.pprint(K0_test01.evalf(8,subs=repl_params))
+# sm.pprint(K0_test10.evalf(8,subs=repl_params))
+# sm.pprint(K0_test11.evalf(8,subs=repl_params))
+
+# sm.pprint(-1)
+
+# sm.pprint(K2_test00.evalf(8,subs=repl_params))
+# sm.pprint(K2_test01.evalf(8,subs=repl_params))
+# sm.pprint(K2_test10.evalf(8,subs=repl_params))
+# sm.pprint(K2_test11.evalf(8,subs=repl_params))
+
+# sm.pprint(-1)
+
+# sm.pprint(C1_test00.evalf(8,subs=repl_params))
+# sm.pprint(C1_test01.evalf(8,subs=repl_params))
+# sm.pprint(C1_test10.evalf(8,subs=repl_params))
+# sm.pprint(C1_test11.evalf(8,subs=repl_params))

@@ -1,0 +1,10 @@
+sil_single_wobbles_both_dir_multi_speed_5gain
+and
+sill_single_wobbles_both_dir_mult_speed_2gain
+
+Here the sil controller was on.
+Bike was brought to the middle,
+waited a bit, 
+then disturbance at the saddle, first in one direction then the other
+let it ride untill off treadmill
+bring to center and wait again

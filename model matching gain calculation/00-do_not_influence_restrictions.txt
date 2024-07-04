@@ -1,0 +1,26 @@
+Solving for r_R
+
+{I_Fxx_r, I_Hxx_r,          I_Rxx_r,         m_B_r, m_F_r, m_H_r, m_R_r, r_F_r,                   z_B_r, z_H_r} I_Bxx_r, I_Bxz_r, I_Fyy_r, I_Ryy_r, r_R_r
+{I_Fxx_r, I_Hxx_r, I_Hxz_r,          cᵣ, λᵣ, m_B_r, m_F_r, m_H_r,        r_F_r, wᵣ, x_B_r, x_H_r, z_B_r, z_H_r}
+{I_Fxx_r, I_Hxx_r, I_Hxz_r,          cᵣ, λᵣ, m_B_r, m_F_r, m_H_r,        r_F_r, wᵣ, x_B_r, x_H_r,        z_H_r}
+{I_Fxx_r, I_Hxx_r, I_Hxz_r,          cᵣ, λᵣ, m_B_r, m_F_r, m_H_r, m_R_r, r_F_r, wᵣ, x_B_r, x_H_r, z_B_r, z_H_r}
+{                                            m_B_r, m_F_r, m_H_r, m_R_r, r_F_r,                   z_B_r, z_H_r}
+
+Parameters that will not influence the restriction
+g : g_r,
+v : v_r,
+I_Bzz : I_Bzz_r
+I_Hzz : I_Hzz_r
+
+Solving for z_B
+{I_Fxx_r, I_Hxx_r,          I_Rxx_r,         m_B_r, m_F_r, m_H_r, m_R_r, r_F_r, r_R_r,                   z_H_r} I_Bxx_r, I_Bxz_r, I_Fyy_r, I_Ryy_r, z_B_r
+{I_Fxx_r, I_Hxx_r, I_Hxz_r,          cᵣ, λᵣ,        m_F_r, m_H_r, m_R_r, r_F_r, r_R_r, wᵣ, x_B_r, x_H_r, z_H_r}
+{I_Fxx_r, I_Hxx_r, I_Hxz_r,          cᵣ, λᵣ, m_B_r, m_F_r, m_H_r,        r_F_r,        wᵣ, x_B_r, x_H_r, z_H_r}
+{I_Fxx_r, I_Hxx_r, I_Hxz_r,          cᵣ, λᵣ, m_B_r, m_F_r, m_H_r,        r_F_r, r_R_r, wᵣ, x_B_r, x_H_r, z_H_r}
+{                                            m_B_r, m_F_r, m_H_r, m_R_r, r_F_r, r_R_r,                   z_H_r}
+
+Parameters that will not influence the restriction
+g : g_r,
+v : v_r,
+I_Bzz : I_Bzz_r
+I_Hzz : I_Hzz_r
