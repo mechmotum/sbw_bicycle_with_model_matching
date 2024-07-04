@@ -1,6 +1,19 @@
+'''
+When there are multiple inputs, pole placement can be achieved
+with different feedback gains.
+So one needs an extra condition to make the feedback gain 
+have a unique solutions.
+This script showed that principle
+'''
+
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.signal as sign
+
+## Choose example
+# Pole placement has multiple options : 1
+# Pole placement has only one option  : 2
+exmp = 1
 
 ## Setup Matrices
  # Dimensions
@@ -15,46 +28,56 @@ T_r = np.linalg.inv(S_r)
 A_r = S_r*D_r*T_r
 
  # Uncontrolled system
-# A_n = np.matrix([[2,-4],[0.2,-3]])
-# B_n = np.matrix([[1,2],[2,3]])
-A_n = np.matrix([[0.9,0],[2.5,-1.1]])
-B_n = np.matrix([[1],[1.5]])
+if exmp == 1:
+    A_n = np.matrix([[2,-4],[0.2,-3]])
+    B_n = np.matrix([[1,2],[2,3]])
+if exmp == 2:
+    A_n = np.matrix([[0.9,0],[2.5,-1.1]])
+    B_n = np.matrix([[1],[1.5]])
 print(f"\n(A_n,B_n) controllable: {n==np.linalg.matrix_rank(np.hstack((B_n,A_n*B_n)))}")
 print(f"\nEigenvalues uncontrolled: {np.linalg.eigvals(A_n)}\n")
  
- # Controlled System
+ # Controlled System: Pole placement 
 F = sign.place_poles(A_n,B_n,poles=[-0.1,-0.6])
 A_c = (A_n - B_n*F.gain_matrix)
 
-# F_mm = np.linalg.inv(B_n)*(A_r - A_n)
-# A_mm = (A_n + B_n*F_mm)
-F_mm = (A_r[0] - A_n[0])
-A_mm = (A_n + B_n*F_mm)
+ # Controlled System: Model matching 
+if exmp == 1:
+    F_mm = np.linalg.inv(B_n)*(A_r - A_n)
+    A_mm = (A_n + B_n*F_mm)
+elif exmp == 2:
+    F_mm = (A_r[0] - A_n[0])/B_n[0]
+    A_mm = (A_n + B_n*F_mm)
 
-print(f"Eigenvalues controlled (pp): {np.linalg.eigvals(A_c)}")
-print(f"Eigenvectors controlled (pp):\n{np.linalg.eig(A_c).eigenvectors}")
-print(f"Eigenvalues controlled (mm): {np.linalg.eigvals(A_mm)}")
-print(f"Eigenvectors controlled (mm):\n{np.linalg.eig(A_mm).eigenvectors}")
-print(f"Eigenvalues reference: {np.linalg.eigvals(A_r)}")
-print(f"Eigenvectors reference:\n{np.linalg.eig(A_r).eigenvectors}")
-
-print(f"\nA matrix controlled (pp):\n {A_c}")
-print(f"\nA matrix controlled (mm):\n {A_mm}")
+ # Show A matrix systems
 print(f"\nA matrix reference:\n {A_r}")
+print(f"\nA matrix controlled (mm):\n {A_mm}")
+print(f"\nA matrix controlled (pp):\n {A_c}")
+
+ # Calculate eigenvalues of all systems
+print(f"\nEigenvalues reference: {np.linalg.eigvals(A_r)}")
+print(f"Eigenvectors reference:\n{np.linalg.eig(A_r).eigenvectors}")
+print(f"\nEigenvalues controlled (mm): {np.linalg.eigvals(A_mm)}")
+print(f"Eigenvectors controlled (mm):\n{np.linalg.eig(A_mm).eigenvectors}")
+print(f"\nEigenvalues controlled (pp): {np.linalg.eigvals(A_c)}")
+print(f"Eigenvectors controlled (pp):\n{np.linalg.eig(A_c).eigenvectors}")
+
 
 ## Simulate
- # Setup
+ # Setup Matrices
 B = np.zeros((n,m))
 C = np.zeros((p,n))
 D = np.zeros((p,m))
 
+ # Setup initial Values
 x0 = np.matrix([2,1])
 time = np.arange(start=0,stop=50,step=0.01)
 u_vec = np.zeros_like(time)
 
-T_r,y_r,x_r = sign.lsim((A_r,B,C,D),u_vec,time,x0,interp=True)
-T_c,y_c,x_c = sign.lsim((A_c,B,C,D),u_vec,time,x0,interp=True)
-T_mm,y_mm,x_mm = sign.lsim((A_mm,B,C,D),u_vec,time,x0,interp=True)
+ # Simulate
+T_r,  y_r,  x_r  = sign.lsim((A_r,B,C,D) ,u_vec,time,x0,interp=True)
+T_c,  y_c,  x_c  = sign.lsim((A_c,B,C,D) ,u_vec,time,x0,interp=True)
+T_mm, y_mm, x_mm = sign.lsim((A_mm,B,C,D),u_vec,time,x0,interp=True)
 
 
 ## Plot

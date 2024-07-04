@@ -56,7 +56,7 @@ class TeensySimSerial:
     def sim_rx(self, data_type):
         '''
         read the commands calculated by the controller.
-        Check what kind of endline command the hardware sends.
+        Note: Check what kind of endline command the hardware sends.
         For teensy (and most likely arduino) it is b'\\r\\n'.
         Make sure the data sent by the teensy is indeed 'data_type'.
         ''' #Should be b'\r\n' (escapes are used for vscode documentation features purposes.)

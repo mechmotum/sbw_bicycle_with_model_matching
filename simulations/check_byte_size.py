@@ -1,3 +1,7 @@
+'''
+Code to see what the byte sizes are for all values send to 
+and from the teensy.
+'''
 import numpy as np
 
 print(np.iinfo(np.int8).bits)
