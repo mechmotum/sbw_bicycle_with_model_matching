@@ -1,0 +1,3 @@
+wheel encoder:
+send ticks
+if tiks > integer overflow --> reset to zero
