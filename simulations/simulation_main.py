@@ -49,7 +49,7 @@ def sensor_matrix_bike():
 
 ###--------[INITIALIZATION
 ##----Set up the matrices (created by [...].py)
-with open("00-bike_and_ref_variable_dependend_system_matrices","rb") as inf:
+with open("..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected","rb") as inf:
     sys_mtrx = dill.load(inf)
 sys_mtrx["plant"]["C"] = sensor_matrix_bike
 sys_mtrx["ref"]["C"] = sensor_matrix_bike
@@ -61,7 +61,7 @@ bike_plant_alt = VariableStateSpaceSystem(
 
 ##----Set up controllers 
 # Model matching (created by [...].py)
-with open("00-model_matching_gains", "rb") as inf:
+with open("..\\model matching gain calculation\\model_matching_gains_measured_parameters", "rb") as inf:
     mm_gain_fun = dill.load(inf)
 mm_sim_funs = {
     "F": mm_gain_fun["F"],
@@ -126,10 +126,10 @@ zero_ctrl = VariableController(zero_funs)
 
 ###--------[SIMULATE
 ##--Simulate eigenvalues over speed
-sim_eigen_vs_speed(SPEEDRANGE,{"plant": bike_plant, "ref": bike_ref},{"pp": pp_ctrl_theory, "mm": mm_ctrl_theory, "sil": sil_ctrl_theory})
+# sim_eigen_vs_speed(SPEEDRANGE,{"plant": bike_plant, "ref": bike_ref},{"pp": pp_ctrl_theory, "mm": mm_ctrl_theory, "sil": sil_ctrl_theory})
 
 ##--Simulate bode plots
-sim_bode(bike_plant, bike_ref, mm_ctrl_theory, sil_ctrl_theory, pp_ctrl_theory)
+# sim_bode(bike_plant, bike_ref, mm_ctrl_theory, sil_ctrl_theory, pp_ctrl_theory)
 
 ##--Simulate dynamic behaviour 
 u_ext_fun = create_external_input
@@ -150,9 +150,9 @@ theory_controller = {
 controller_ref = {
     # "mm": mm_ctrl_sim
     # "place": pp_ctrl_sim
-    # "sil" : sil_ctrl_sim
+    "sil" : sil_ctrl_sim
     # "mm+sil" : mm_sil_ctrl_sim
-    "zero" : zero_ctrl
+    # "zero" : zero_ctrl
 }
 
 controller_alt = {
@@ -177,10 +177,26 @@ phi_kalman_alt = KalmanSanjurjo( #TODO: initialize initial states inside the fun
 # #So if the impuls is not dt long, the lengt the controller gives an impuls and the length external impuls lasts is not equal --> leading to separate ...
 # #Furtermore, for some reason, taking the steer torque input with mm control will lead to the wrong FRF... why? --> mm control is part of the system. It is not the external input (u_bar)
 time, output, states, calc_states, tot_input, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
-compare_bode_frf(SIM_PAR_PLANT,bike_plant,theory_controller,{"input": ext_input[:,:2],"output": output})
+# compare_bode_frf(SIM_PAR_PLANT,bike_plant,theory_controller,{"input": ext_input[:,:2],"output": output})
 
 time_ref, output_ref, states_ref, calc_states_ref, tot_input_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman_ref)
 
-
 # # altered sil control (including integral action)
-time_alt, output_alt, states_alt, calc_states_alt, tot_input_alt, ext_input_alt = simulate(SIM_PAR_ALT,bike_plant_alt,controller_alt,u_ext_fun,phi_kalman_alt)
+# time_alt, output_alt, states_alt, calc_states_alt, tot_input_alt, ext_input_alt = simulate(SIM_PAR_ALT,bike_plant_alt,controller_alt,u_ext_fun,phi_kalman_alt)
+
+fig = plt.figure()
+ax = fig.add_subplot()
+ax.set_title("",fontsize=24)
+ax.set_xlabel("",fontsize=16)
+ax.set_ylabel("",fontsize=16)
+ax.tick_params("x",labelsize=12)
+ax.tick_params("y",labelsize=12)
+
+ax.plot(time, states[:,2], label="Lean Rate Controlled")#["phi","delta","d_phi", "d_delta"])
+ax.plot(time_ref, states_ref[:,2], '--', label="Lean Rate Reference")# label=["phi_r","delta_r","d_phi_r", "d_delta_r"])
+ax.axvline(1)
+
+ax.legend(fontsize=14)
+ax.axis(((0,2,-1.1,1.1)))
+ax.grid()
+plt.show()

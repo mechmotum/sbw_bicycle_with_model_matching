@@ -41,7 +41,7 @@ def filter_bad_coefs(coefs):
     lst = []
     for c in coefs:
         if (abs(c)>EPS):
-            lst.append(c)
+            lst.append(round(c, int(-log10(EPS)))) #Precision after some point caused large mismatch between mm+plant and ref while in their matrices had very small (<1E-8) differences.
             isNotFirst = True
         elif(isNotFirst):
             lst.append(0)

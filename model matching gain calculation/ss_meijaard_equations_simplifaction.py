@@ -292,7 +292,7 @@ repl_params = {
     r_F     : 0.3498, # [m]
     m_F     : 1.780, # [kg]
     I_Fxx   : 0.0644, # [kg*(m**2)]
-    I_Fyy   : 0.1189, # [kg*(m**2)] (better fitting the experiment -> 0.1189)
+    I_Fyy   : 0.1289, # [kg*(m**2)] (better fitting the experiment -> 0.1189)
     }
 
 repl_params_ref = {

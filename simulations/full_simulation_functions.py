@@ -69,12 +69,12 @@ def create_external_input(par):
         offset = offset + par["dt"]
     
     # Create external input vector
-    # u_ext[:,STEER_T_POS] = 0.1*sin(time)
-    # u_ext[100:,STEER_T_POS] = 0.1*ones_like(u_ext[100:,STEER_T_POS])
-    u_ext[0:11,INPUT_PARS["steer_t_pos"]] = 0.1/par["dt"] #long impulse
-    u_ext[:,INPUT_PARS["lean_t_pos"]] = 5
-    # u_ext[0,STEER_T_POS] = (0.01/par["h"]) #true impulse
-    # u_ext[:,LEAN_T_POS] = 5*sin((time/2*pi)*time)
+    # u_ext[:,INPUT_PARS["steer_t_pos"]] = 0.1*sin(time)
+    # u_ext[100:,INPUT_PARS["steer_t_pos"]] = 0.1*ones_like(u_ext[100:,INPUT_PARS["steer_t_pos"]])
+    # u_ext[0:11,INPUT_PARS["lean_t_pos"]] = 2/par["dt"] #long impulse
+    # u_ext[:,INPUT_PARS["lean_t_pos"]] = 5
+    # u_ext[1,INPUT_PARS["steer_t_pos"]] = 100*(0.01/par["h"]) #true impulse
+    # u_ext[:,INPUT_PARS["lean_t_pos"]] = 5*sin((time/2*pi)*time)
     return u_ext
 
 def sim_post_process(par,signal):
@@ -232,7 +232,7 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
         So we zoh the conrol input for dt time and 
         add it to the dt slice of the continuous input
 
-        Q represents a selection matrix with two modes
+        'par["bike_mode"]' represents a selection matrix with two modes
         > sbw -> The handlebar is decoupled from the fork. 
           steer torque will have no direct continuous effect, 
           but instead be used to calculate the discreet 
