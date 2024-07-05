@@ -3,11 +3,6 @@ import inspect
 import dill
 import scipy.signal as sign
 
-# Steer into lean conroller
-SIL_AVG_SPEED = 5.5
-K_SIL_L = 2
-K_SIL_H = 0.7
-
 # Plant sensors
 C_MATRIX_BIKE = np.array([[0,1,0,0],[0,0,1,0]])
 
@@ -74,37 +69,26 @@ class VariableController:
 def sensor_matrix_bike():
     return C_MATRIX_BIKE
 
-def get_plant_n_ctrl(bike_plant_file,plant_type):
-    #Input sanitation
-    if(plant_type != "plant" and plant_type != "reference"):
-        print('input variable plant_type must either be "plant" or "reference"')
-        return
-    
-    #load in the plant of which the eigenvalues will be calculated
-    with open(bike_plant_file,"rb") as inf:
-        sys_mtrx = dill.load(inf)
-    sys_mtrx[plant_type]["C"] = sensor_matrix_bike
-    plant = VariableStateSpaceSystem(sys_mtrx[plant_type])
-
-    # Create SiL controller
-    ctrl = VariableController({"F": sil_gain_F_fun, "G": sil_gain_G_fun})
-    return plant, ctrl
-
-def sil_gain_F_fun(speed):
-    '''
-    Feedback part of the SiL controller.
-    See Schwab et al., 'Some Recent Developments in Bicycle Dynamics and Control', 2008
-    Dimensions: A-4x4, B-4x2
-    State vector: [phi, delta, dphi, ddelta],
-    Input vector: [Tphi, Tdelta]
-    TODO: remove magic numbers (2,4) and [2][1]?
-    '''
-    gain = np.zeros((2,4))
-    if speed < SIL_AVG_SPEED:
-        gain[1][2] = K_SIL_L*(SIL_AVG_SPEED - speed) # *dphi
-    else:
-        gain[1][0] = K_SIL_H*(speed - SIL_AVG_SPEED) # *phi
-    return gain
+def get_sil_gain_F_fun(sil_parameters):
+    SIL_AVG_SPEED = sil_parameters['avg_speed']
+    K_SIL_L = sil_parameters['L_gain']
+    K_SIL_H = sil_parameters['H_gain']
+    def sil_gain_F_fun(speed):
+        '''
+        Feedback part of the SiL controller.
+        See Schwab et al., 'Some Recent Developments in Bicycle Dynamics and Control', 2008
+        Dimensions: A-4x4, B-4x2
+        State vector: [phi, delta, dphi, ddelta],
+        Input vector: [Tphi, Tdelta]
+        TODO: remove magic numbers (2,4) and [2][1]?
+        '''
+        gain = np.zeros((2,4))
+        if speed < SIL_AVG_SPEED:
+            gain[1][2] = K_SIL_L*(SIL_AVG_SPEED - speed) # *dphi
+        else:
+            gain[1][0] = K_SIL_H*(speed - SIL_AVG_SPEED) # *phi
+        return gain
+    return sil_gain_F_fun
 
 def sil_gain_G_fun():
     '''
@@ -120,9 +104,42 @@ def sil_gain_G_fun():
     '''
     return np.eye(2)
 
+def get_mm_sil_gain_F(mm_funs,sil_parameters):
+    sil_F_fun = get_sil_gain_F_fun(sil_parameters)
+    def mm_gain_fun(speed):
+        return (mm_funs["F"](speed) + mm_funs["G"]()@sil_F_fun(speed))
+    return mm_gain_fun
+
+def get_mm_sil_gain_G(mm_funs):
+    def mm_gain_fun():
+        return (mm_funs["G"]()@sil_gain_G_fun())
+    return mm_gain_fun
+
+def get_plant_n_ctrl(bike_plant_file, plant_type, sil_parameters, isAppliedMM=False):
+    #Input sanitation
+    if(plant_type != "plant" and plant_type != "ref"):
+        print('input variable plant_type must either be "plant" or "ref"')
+        return
+    
+    #load in the plant of which the eigenvalues will be calculated
+    with open(bike_plant_file,"rb") as inf:
+        sys_mtrx = dill.load(inf)
+    sys_mtrx[plant_type]["C"] = sensor_matrix_bike
+    plant = VariableStateSpaceSystem(sys_mtrx[plant_type])
+
+    if isAppliedMM:
+        with open("..\\model matching gain calculation\\model_matching_gains_measured_parameters", "rb") as inf:
+            mm_gain_fun = dill.load(inf)
+        ctrl = VariableController({"F": get_mm_sil_gain_F(mm_gain_fun,sil_parameters), "G": get_mm_sil_gain_G(mm_gain_fun)})
+    else:
+        ctrl = VariableController({"F": get_sil_gain_F_fun(sil_parameters), "G": sil_gain_G_fun})
+
+    return plant, ctrl
+
+
 
 #---[ Get the theoretical speed-eigenvalue plot
-def get_eigen_vs_speed(bike_plant_file,plant_type,speedrange):
+def get_eigen_vs_speed(bike_plant_file,plant_type,speedrange,sil_parameters, isAppliedMM=False,isWrongSpeed=False,cmd2trq_gain=1):
     '''
     bike_plant_file:    (String) File that contains the speed depended A,B,C and D matrix of the plant and reference bicycle
     plant_type:         (String) "plant" or "reference"
@@ -131,15 +148,17 @@ def get_eigen_vs_speed(bike_plant_file,plant_type,speedrange):
     step:               stepsize [m/s]
     '''
     # initialize plant and controller
-    plant, ctrl = get_plant_n_ctrl(bike_plant_file,plant_type)
+    plant, ctrl = get_plant_n_ctrl(bike_plant_file,plant_type,sil_parameters,isAppliedMM)
 
     eigenvals = [None for k in range(len(speedrange))]
     for idx, speed in enumerate(speedrange):
         # calculate speed depenend matrices
+        if isWrongSpeed:
+            speed = speed*1.0661904761904761 - 0.12761904761904752
         plant.calc_mtrx(speed)
-        ctrl.calc_gain(speed-0.1)
+        ctrl.calc_gain(speed)
         # calculate eigenvalues
-        eigenvals[idx] = np.linalg.eigvals(plant.mat["A"] + plant.mat["B"]@ctrl.gain["F"]) # plant-> dx = Ax + Bu
+        eigenvals[idx] = np.linalg.eigvals(plant.mat["A"] + plant.mat["B"]@ctrl.gain["F"]*cmd2trq_gain) # plant-> dx = Ax + Bu
 
     # Reorganize results for plotting
     eigenvals = {
@@ -181,23 +200,25 @@ def calc_bode_mag(A,B,C,D,freq_range):
                 plant_bodes[nbr_in,nbr_out,:] = mag
     return plant_bodes
 
-def get_bode(bike_plant_file,plant_type,speed,freq_range):
+def get_bode(bike_plant_file,plant_type,speed,freq_range,sil_parameters,isAppliedMM=False,isWrongSpeed=False,cmd2trq_gain=1):
     '''
     start_frq,stop_frq are in rad/s
     '''
      #--[Initialize plant and controller
-    plant, ctrl = get_plant_n_ctrl(bike_plant_file,plant_type)
+    plant, ctrl = get_plant_n_ctrl(bike_plant_file,plant_type,sil_parameters,isAppliedMM)
     
     #--[Calculating bode magnitudes for all input to output combos
     # Initialize objects at correct speed
+    if isWrongSpeed:
+        speed = speed*1.0661904761904761 - 0.12761904761904752    
     plant.calc_mtrx(speed)
-    ctrl.calc_gain(speed-0.1)
+    ctrl.calc_gain(speed)
 
     bode_mags = calc_bode_mag(
-        plant.mat["A"] + plant.mat["B"]@ctrl.gain["F"],
-        plant.mat["B"]@ctrl.gain["G"],
-        plant.mat["C"] + plant.mat["D"]@ctrl.gain["F"],
-        plant.mat["D"]@ctrl.gain["G"],
+        plant.mat["A"] + plant.mat["B"]@ctrl.gain["F"]*cmd2trq_gain,
+        plant.mat["B"]@ctrl.gain["G"]*cmd2trq_gain,
+        plant.mat["C"] + plant.mat["D"]@ctrl.gain["F"]*cmd2trq_gain,
+        plant.mat["D"]@ctrl.gain["G"]*cmd2trq_gain,
         freq_range
     )
     return bode_mags

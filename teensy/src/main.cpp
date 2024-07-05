@@ -62,6 +62,10 @@ class BikeMeasurements{
     float m_lean_angle_meas; // [rad]
     float m_omega_x_old;     // [rad/s]
 
+    // Variables that will be used as data markers during testing
+    float m_accel_x;         // [m/s^2]
+    float m_accel_y;         // [m/s^2]
+
     // Variables needed for derivarion/intergration calculation
     uint32_t m_dt_bike_speed_meas; // [us] Time between two consecutive measurements of the bike speed in microseconds
     uint32_t m_dt_steer_meas; // [us] Time between two consecutive measurements of the steer angle in microseconds
@@ -90,6 +94,10 @@ class BikeMeasurements{
       m_lean_angle_meas = 0;
       m_omega_x_old = 0;
 
+      // Variables that will be used as data markers during testing
+      m_accel_x = 0;
+      m_accel_y = 0;
+
       // Variables needed for derivarion/intergration calculation
       m_dt_bike_speed_meas = 0;
       m_dt_IMU_meas = 0;
@@ -113,6 +121,9 @@ class BikeMeasurements{
     #if USE_PEDAL_CADANCE
     float get_pedal_cadance(){return m_pedal_cadance;}
     #endif
+    // Variables that will be used as data markers during testing
+    float get_accel_x(){return m_accel_x;}
+    float get_accel_y(){return m_accel_y;}
     // Variables needed for derivarion/intergration calculation
     uint32_t get_dt_steer_meas(){return m_dt_steer_meas;}
 
@@ -134,11 +145,47 @@ class BikeMeasurements{
     #if USE_PEDAL_CADANCE
     void calculate_pedal_cadance();
     #endif
+    // Variables that will be used as data markers during testing
+    void calculate_accelarations();
     // Sanjurjo kalman filter variables
     void calc_lean_angle_meas(float omega_x, float omega_y, float omega_z);
 };
 
 
+class Trq_sensor_logic_filter{
+  private:
+    uint8_t in_bounds_cntr;
+    uint8_t out_bounds_cntr;
+
+    uint8_t in_bounds_cntr_limit;
+    uint8_t out_bounds_cntr_limit;
+
+    float bounds;
+
+  public:
+    Trq_sensor_logic_filter(){
+      in_bounds_cntr = 0;
+      out_bounds_cntr = 0;
+
+      in_bounds_cntr_limit = 50;
+      out_bounds_cntr_limit = 5;
+
+      bounds = 0.5;
+    };
+
+    Trq_sensor_logic_filter(float bounds, uint8_t in_bounds_cntr_lim, uint8_t out_bounds_cntr_lim){
+      in_bounds_cntr = 0;
+      out_bounds_cntr = 0;
+
+      in_bounds_cntr_limit = in_bounds_cntr_lim;
+      out_bounds_cntr_limit = out_bounds_cntr_lim;
+
+      bounds = bounds;
+    };
+
+
+    float filter_trq_sensor(float meas_force);
+};
 
 //=========================== Function declarations ===========================//
 //---[Controllers
@@ -173,7 +220,7 @@ void print_to_serial(BikeMeasurements& bike, double command_fork, double command
 #endif
 #if USE_IMU
 void imu_setup();
-void get_IMU_data(uint32_t& dt_IMU_meas);
+void update_IMU_data(uint32_t& dt_IMU_meas);
 #endif
 #if USE_SD
 void sd_setup();
@@ -242,7 +289,7 @@ const uint16_t INITIAL_STEER_PWM = 16384;
 // Motor encoders
 const uint32_t ENCODER_CLK_FREQ = 225000; //clock frequency for the encoders SPI protocol
 const float HAND_ENC_BIAS = 153.65 * DEG_TO_RAD + 0.0203;
-const float FORK_ENC_BIAS = 100.65 * DEG_TO_RAD - 0.0564;
+const float FORK_ENC_BIAS = 100.65 * DEG_TO_RAD + 0.00357;
 const float HAND_ENC_MAX_VAL = 8192.0; //ticks go from 0 to 8191. At the 8192th tick encoder_tick/HAND_ENC_MAX_VAL = 1 --> 2*pi == 0
 const float FORK_ENC_MAX_VAL = 8192.0;
 
@@ -265,7 +312,7 @@ for lower speeds. In short: Lower WHEEL_COUNTS_LENGTH means faster respons to sp
 change, but higher WHEEL_COUNTS_LENGTH means better resolution*/
 const uint16_t WHEEL_COUNTS_LENGTH = 500; 
 const uint8_t WHEEL_COUNTS_PER_REV = 192;
-const float WHEEL_RADIUS = 0.33f; //[m]
+const float WHEEL_RADIUS = 0.3498f; //[m]
 #if USE_PEDAL_CADANCE
 /*NOTE: there is currently no sensor to measure the encoder ticks*/
 const uint16_t PEDAL_COUNTS_LENGTH = 500;
@@ -313,20 +360,20 @@ const float KD_H = 0.012f * RAD_TO_DEG; // Handlebar
 // Steer into lean gains (see 'Some recent developments in bicycle dynamics and control', A. L. Schwab et al., 2008)
 const uint8_t K_SIL1 = 2; // [Ns^2/rad] gain for the steer into lean controller when below stable speed range
 const float K_SIL2 = 0.7; // [Ns/rad] gain for the steer into lean controller when above stable speed range
-const float V_AVERAGE = 5.5; // [m/s] value somewhere in the stable speed range. (take the average of min and max stable speed)
+const float V_AVERAGE = 6.5; // [m/s] value somewhere in the stable speed range. (take the average of min and max stable speed)
 const float FORK_TRQ_REDUCTION_RATIO = 0.3; //The fork is free to rotate -> no friction. So it will rotate much harder.
 
 // Model matching gains: The "_Vx" indicates that the coefficient
 //  is multiplied with speed to the power of x.
-const float K_MM_PHI_V0 = 0.840841241252; // lean angle
-const float K_MM_DELT_V0 = 0.120254094656; // steer/fork angle
-const float K_MM_DELT_V2 = -0.183092924965; // steer/fork angle
-const float K_MM_DPHI_V1 = 0.373289545485; // lean rate
-const float K_MM_DPHI_VMIN1 = -2.53819533238e-13; // lean rate
-const float K_MM_DDELT_V1 = -0.041905112053; // steer/fork rate
-const float K_MM_DDELT_VMIN1 = -6.82478414984e-14; // steer/fork rate
-const float K_MM_TPHI_V0 = 0.00203761694971; // lean torque
-const float K_MM_TDELT_V0 = 0.940050621145; // steer/hand torque
+const float K_MM_PHI_V0 = -0.348543214119; // lean angle
+const float K_MM_DELT_V2 = 0.11782139859; // steer/fork angle
+const float K_MM_DELT_V0 = -0.0267476413381; // steer/fork angle
+const float K_MM_DPHI_V1 = -0.278924665158; // lean rate
+const float K_MM_DPHI_VMIN1 = 1.47458334668e-14; // lean rate
+const float K_MM_DDELT_V1 = 0.016087729532; // steer/fork rate
+const float K_MM_DDELT_VMIN1 = 3.00789730414e-15; // steer/fork rate
+const float K_MM_TPHI_V0 = -0.00183940976797; // lean torque
+const float K_MM_TDELT_V0 = 1.03764578291; // steer/hand torque
 
 
 //-------------------------------- Pins --------------------------------------//
@@ -420,6 +467,8 @@ auto butter_filt = butter<BUTTER_ORDER>(BUTTER_NATURAL_FREQ);
 AH::Array<float, 2> b_coefs {0.99968594, -0.99968594};
 AH::Array<float, 2> a_coefs {1.        , -0.99937188};
 auto high_pass_filt = IIRFilter<2,2,float>(b_coefs,a_coefs);
+
+Trq_sensor_logic_filter logic_filt{};
 
 //------------------------------ Loop timing ----------------------------------//
 // elapsedMicros looptime = 0;
@@ -539,6 +588,7 @@ void loop(){
     sbw_bike.calculate_roll_states();
     sbw_bike.measure_steer_angles();
     sbw_bike.calculate_fork_rate(); //also calculates moving average of fork angle and sets it
+    sbw_bike.calculate_accelarations();
     sbw_bike.measure_hand_torque();
     sbw_bike.measure_lat_perturbation();
 
@@ -547,9 +597,9 @@ void loop(){
       calc_pd_errors(sbw_bike, error, derror_dt);
       calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
     } else {
-      calc_sil_control(sbw_bike, command_fork, command_hand);
-      command_fork += relay_measured_hand_torque(sbw_bike.get_hand_torque());
-      // calc_mm_sil_control(sbw_bike, command_fork, command_hand);
+      // calc_sil_control(sbw_bike, command_fork, command_hand);
+      // command_fork += logic_filt.filter_trq_sensor(sbw_bike.get_hand_torque());
+      calc_mm_sil_control(sbw_bike, command_fork, command_hand);
     }
     // apply_friction_compensation(command_fork);
     actuate_steer_motors(command_fork, command_hand);
@@ -683,7 +733,7 @@ void BikeMeasurements::calculate_roll_states(){
   //Get gyro measurements
   Eigen::Matrix<float,3,1> omega_vec;
   
-  get_IMU_data(m_dt_IMU_meas);
+  update_IMU_data(m_dt_IMU_meas);
   omega_vec(0,0) = IMU.gyro_x_radps();
   omega_vec(1,0) = IMU.gyro_y_radps();
   omega_vec(2,0) = IMU.gyro_z_radps();
@@ -821,6 +871,13 @@ void BikeMeasurements::calculate_pedal_cadance(){
 }
 #endif //USE_PEDAL_CADANCE
 
+void BikeMeasurements::calculate_accelarations(){
+  Vector3f IMU_acc = {IMU.accel_x_mps2(),IMU.accel_y_mps2(),IMU.accel_z_mps2()};
+  Vector3f bike_acc = B_ROT_IMU*IMU_acc;
+  m_accel_x = -bike_acc(0);
+  m_accel_y = -bike_acc(1);
+  
+}
 
 //=======================-========= [IMU setup] ================================//
 #if USE_IMU
@@ -928,28 +985,49 @@ void apply_friction_compensation(double& fork_command){
 
 
 //======================== [Relay measured hand torque] ========================//
-float relay_measured_hand_torque(float meas_force){
+float Trq_sensor_logic_filter::filter_trq_sensor(float meas_force){
   float force_relayed = 0;
-  static uint8_t in_bounds_cntr = 0;
-  static uint8_t out_bounds_cntr = 5; //start out of bounds
 
-  if(-0.5<meas_force && meas_force<0.5){      // If in bounds
-    if(in_bounds_cntr >= 50){                 //   for at least 50 loop cycles
-      out_bounds_cntr = 0;                    //     then ignore the measured hand torque --> most likely noise
+  if(-bounds<meas_force && meas_force<bounds){    // If in bounds
+    if(in_bounds_cntr >= in_bounds_cntr_limit){   //   for at least 50 loop cycles
+      out_bounds_cntr = 0;                        //     then ignore the measured hand torque --> most likely noise
     }else{
       in_bounds_cntr++;
-      force_relayed = meas_force;             // else, relay the measured torque --> most likely a passing through bounds
+      force_relayed = meas_force;                 // else, relay the measured torque --> most likely a passing through bounds
     }
-  }else{                                      // If out of bounds
-    if(out_bounds_cntr >= 5){                 //   for longer than 5 cycles (aka not a spike of noise that became out of bounds)
-      force_relayed = meas_force;             //      relay the measured torque
+  }else{                                          // If out of bounds
+    if(out_bounds_cntr >= out_bounds_cntr_limit){ //   for longer than 5 cycles (aka not a spike of noise that became out of bounds)
+      force_relayed = meas_force;                 //      relay the measured torque
       in_bounds_cntr = 0;
     }else{
-      out_bounds_cntr++;                      // else, ignore measured hand torque --> most likely still noise.
+      out_bounds_cntr++;                          // else, ignore measured hand torque --> most likely still noise.
     }
   }
   return force_relayed;
 }
+
+// float relay_measured_hand_torque(float meas_force){
+//   float force_relayed = 0;
+//   static uint8_t in_bounds_cntr = 0;
+//   static uint8_t out_bounds_cntr = 5; //start out of bounds
+
+//   if(-0.5<meas_force && meas_force<0.5){      // If in bounds
+//     if(in_bounds_cntr >= 50){                 //   for at least 50 loop cycles
+//       out_bounds_cntr = 0;                    //     then ignore the measured hand torque --> most likely noise
+//     }else{
+//       in_bounds_cntr++;
+//       force_relayed = meas_force;             // else, relay the measured torque --> most likely a passing through bounds
+//     }
+//   }else{                                      // If out of bounds
+//     if(out_bounds_cntr >= 5){                 //   for longer than 5 cycles (aka not a spike of noise that became out of bounds)
+//       force_relayed = meas_force;             //      relay the measured torque
+//       in_bounds_cntr = 0;
+//     }else{
+//       out_bounds_cntr++;                      // else, ignore measured hand torque --> most likely still noise.
+//     }
+//   }
+//   return force_relayed;
+// }
 
 
 //=========================== [Calculate Sil control] ==========================//
@@ -980,6 +1058,8 @@ void calc_mm_sil_control(BikeMeasurements& bike, double& command_fork, double& c
   float k_phi, k_delta, k_dphi, k_ddelta, k_tphi, k_tdelta;
   double sil_command;
   calc_mm_gains(k_phi, k_delta, k_dphi, k_ddelta, k_tphi, k_tdelta, bike.get_bike_speed());
+
+  float hand_torque = logic_filt.filter_trq_sensor(bike.get_hand_torque());
   
   if (bike.get_bike_speed() < V_AVERAGE)
   {
@@ -993,7 +1073,7 @@ void calc_mm_sil_control(BikeMeasurements& bike, double& command_fork, double& c
                     + (k_dphi + k_tdelta*(K_SIL1 * (V_AVERAGE - bike.get_bike_speed())))*bike.get_lean_rate() 
                     + k_ddelta*bike.get_fork_rate()
                     + k_tphi*bike.get_lean_torque()
-                    + k_tdelta*bike.get_hand_torque();
+                    + k_tdelta*hand_torque;
     }
   }
   else
@@ -1008,11 +1088,12 @@ void calc_mm_sil_control(BikeMeasurements& bike, double& command_fork, double& c
                     + k_dphi*bike.get_lean_rate() 
                     + k_ddelta*bike.get_fork_rate() 
                     + k_tphi*bike.get_lean_torque()
-                    + k_tdelta*bike.get_hand_torque();
+                    + k_tdelta*hand_torque;
     }
   }
 
   // command_hand = -sil_command * FORK_TRQ_REDUCTION_RATIO; //Different signs as the motor shafts are facing opposite directions, but are controlled the same.
+  Serial.print(sil_command,5);
   return;
 }
 
@@ -1058,7 +1139,7 @@ void actuate_steer_motors(double command_fork, double command_hand){
 
 //=============================== [Read the IMU] ===============================//
 #if USE_IMU
-void get_IMU_data(uint32_t& dt_IMU_meas){
+void update_IMU_data(uint32_t& dt_IMU_meas){
   // TODO: error handling
   //------[Read out data via I2C
   if(!IMU.Read()){ //Calling IMU.Read() will update the measurements. (even if called inside an if statement)
@@ -1132,6 +1213,8 @@ void serial_setup(){
   Serial.print("fork_rate,");
   Serial.print("lean_torque,");
   Serial.print("hand_torque,");
+  Serial.print("x_acceleration,");
+  Serial.print("y_acceleration,");
   Serial.print("command_fork,");
   Serial.print("command_hand");
   Serial.print("\n");
@@ -1157,6 +1240,10 @@ void print_to_serial(BikeMeasurements& bike, double command_fork, double command
   Serial.print(bike.get_lean_torque(),5);
   Serial.print(",");
   Serial.print(bike.get_hand_torque(),5);
+  Serial.print(",");
+  Serial.print(bike.get_accel_x(),5);
+  Serial.print(",");
+  Serial.print(bike.get_accel_y(),5);
   Serial.print(",");
   Serial.print(command_fork,5);
   Serial.print(",");

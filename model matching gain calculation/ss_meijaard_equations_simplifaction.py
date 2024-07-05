@@ -225,67 +225,138 @@ S_A_c = m_A_c*u_A_c + mu_c*m_T_c*x_T_c
 
 
 ##--[replacement dictionaries
-# numerical values for plant parameters (Davis intrumented bicycle values) #(Meijaard values)
+# numerical values for plant parameters 
+# Initial estimated values used (Davis intrumented bicycle values) #(Meijaard values)
+# repl_params = {
+#     w : 1.064,#1.02,           # m
+#     c : 0.06,#0.08,            # m
+#     lamb : sm.pi/10,#sm.pi/10, # rad
+#     g : 9.81,#9.81,            # m/(s**2)
+#     v : 5,#5,                  # m/s
+#     r_R : 0.333,#0.3,          # m
+#     m_R : 4.9,#2,              # kg
+#     I_Rxx : 0.0701, #0.0603,   # kg*(m**2)
+#     I_Ryy : 0.1293, #0.12,     # kg*(m**2)
+#     x_B : 0.335, #0.3,         # m
+#     z_B : -0.736, #-0.9,       # m
+#     m_B : 22.9,#85,            # kg
+#     I_Bxx : 2.6375, #9.2,      # kg*(m**2)
+#     # I_Byy : 11,              # kg*(m**2)
+#     I_Bzz : 1.9428, #2.8,      # kg*(m**2)
+#     I_Bxz : 0.6536,#2.4,       # kg*(m**2)
+#     x_H : 0.818,#0.9,          # m
+#     z_H : -0.986,#-0.7,        # m
+#     m_H : 5.4,#4,              # kg
+#     I_Hxx : 0.3439,#0.05892,   # kg*(m**2)
+#     # I_Hyy : 0.06,            # kg*(m**2)
+#     I_Hzz : 0.1031,#0.00708,   # kg*(m**2)
+#     I_Hxz : -0.0919,#-0.00756, # kg*(m**2)
+#     r_F : 0.336,#0.35,         # m
+#     m_F : 1.6,#3,              # kg
+#     I_Fxx : 0.0524,#0.1405,    # kg*(m**2)
+#     I_Fyy : 0.0984#0.28        # kg*(m**2)
+#     }
+
+# Measured parameters:
+# All geometric, and wheel parameters are measured.
+# Mass and center of mass is measured for rear frame & front essembly combined.
+#   The seperate values are estimated from this measuerment
+# The pink and green intrumented bicycle and the the Bianchi Pista are used 
+#   to estimate rear frame and the front assembly inertias respectively.
 repl_params = {
-    w : 1.064,#1.02,           # m
-    c : 0.06,#0.08,            # m
-    lamb : sm.pi/10,#sm.pi/10, # rad
-    g : 9.81,#9.81,            # m/(s**2)
-    v : 5,#5,                  # m/s
-    r_R : 0.333,#0.3,          # m
-    m_R : 4.9,#2,              # kg
-    I_Rxx : 0.0701, #0.0603,   # kg*(m**2)
-    I_Ryy : 0.1293, #0.12,     # kg*(m**2)
-    x_B : 0.335, #0.3,         # m
-    z_B : -0.736, #-0.9,       # m
-    m_B : 22.9,#85,            # kg
-    I_Bxx : 2.6375, #9.2,      # kg*(m**2)
-    # I_Byy : 11,              # kg*(m**2)
-    I_Bzz : 1.9428, #2.8,      # kg*(m**2)
-    I_Bxz : 0.6536,#2.4,       # kg*(m**2)
-    x_H : 0.818,#0.9,          # m
-    z_H : -0.986,#-0.7,        # m
-    m_H : 5.4,#4,              # kg
-    I_Hxx : 0.3439,#0.05892,   # kg*(m**2)
-    # I_Hyy : 0.06,            # kg*(m**2)
-    I_Hzz : 0.1031,#0.00708,   # kg*(m**2)
-    I_Hxz : -0.0919,#-0.00756, # kg*(m**2)
-    r_F : 0.336,#0.35,         # m
-    m_F : 1.6,#3,              # kg
-    I_Fxx : 0.0524,#0.1405,    # kg*(m**2)
-    I_Fyy : 0.0984#0.28        # kg*(m**2)
+    w       : 1.036, # [m]
+    c       : 0.0803, # [m]
+    lamb    : (18.2)*(sm.pi/180), # [rad]
+    g       : 9.81, # [m/(s**2)]
+    v       : 5, # [m/s]
+
+    r_R     : 0.3498, # [m]
+    m_R     : 10.12, # [kg]
+    I_Rxx   : 0.1040, # [kg*(m**2)]
+    I_Ryy   : 0.1641, # [kg*(m**2)]
+
+    x_B     : 0.462, # [m]
+    z_B     : -0.698, # [m]
+    m_B     : 20.9, # [kg]
+    I_Bxx   : 1.64, # [kg*(m**2)] # (better fitting the experiment -> 2  )
+    I_Bzz   : 1.94, # [kg*(m**2)] # (better fitting the experiment -> 2.7)
+    I_Bxz   : 0.654, # [kg*(m**2)]
+
+    x_H     : 0.944, # [m]
+    z_H     : -0.595, # [m]
+    m_H     : 0.6, # [kg]
+    I_Hxx   : 0.00980, # 0.0980, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hzz   : 0.00396, # 0.0396, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hxz   : -0.00044, # -0.0044, # [kg*(m**2)] # corrected:Bianchi Pista
+
+    r_F     : 0.3498, # [m]
+    m_F     : 1.780, # [kg]
+    I_Fxx   : 0.0644, # [kg*(m**2)]
+    I_Fyy   : 0.1189, # [kg*(m**2)] (better fitting the experiment -> 0.1189)
     }
 
-# numerical values for reference parameters (increased trail by 1cm)
 repl_params_ref = {
-    w_r : 1.064, #1.02,         # m
-    c_r : 0.08, #0.08,          # m
-    lamb_r : (sm.pi/10 - (sm.pi/10)/100),#(sm.pi/10 - (sm.pi/10)/10), # rad
-    g_r : 9.81,#9.81,           # m/(s**2)
-    v_r : 5,#5,                 # m/s
-    r_R_r : 0.333,#0.3,         # m
-    m_R_r : 4.9,#2,             # kg
-    I_Rxx_r : 0.0701, #0.0603,  # kg*(m**2)
-    I_Ryy_r : 0.1293, #0.12,    # kg*(m**2) <---
-    x_B_r : 0.335, #0.3,        # m
-    z_B_r : -0.736, #-0.9,      # m
-    m_B_r : 22.9,#85,           # kg
-    I_Bxx_r : 2.6375, #9.2,     # kg*(m**2)
-    #_r I_Byy : 11,             # kg*(m**2)
-    I_Bzz_r : 1.9428, # 2.8,    # kg*(m**2)
-    I_Bxz_r : 0.6536,#2.4,      # kg*(m**2) <---
-    x_H_r : 0.818,#0.9,         # m
-    z_H_r : -0.986,#-0.7,       # m
-    m_H_r : 5.4,#4,             # kg
-    I_Hxx_r : 0.3439,#0.05892,  # kg*(m**2)
-    #_r I_Hyy : 0.06,           # kg*(m**2)
-    I_Hzz_r : 0.1031,#0.00708,  # kg*(m**2)
-    I_Hxz_r : -0.0919,#-0.00756,# kg*(m**2)
-    r_F_r : 0.336,#0.35,        # m
-    m_F_r : 1.6,#3,             # kg
-    I_Fxx_r : 0.0524,#0.1405,   # kg*(m**2)
-    I_Fyy_r : 0.0984#0.28       # kg*(m**2) <---
+    w_r       : 1.036, # [m]
+    c_r       : 0.0763, # [m]
+    lamb_r    : (18.2)*(sm.pi/180), # [rad]
+    g_r       : 9.81, # [m/(s**2)]
+    v_r       : 5, # [m/s]
+
+    r_R_r     : 0.3498, # [m]
+    m_R_r     : 10.12, # [kg]
+    I_Rxx_r   : 0.1040, # [kg*(m**2)]
+    I_Ryy_r   : 0.1641, # [kg*(m**2)]
+
+    x_B_r     : 0.462, # [m]
+    z_B_r     : -0.698, # [m]
+    m_B_r     : 20.9, # [kg]
+    I_Bxx_r   : 1.64, # 2.64, # [kg*(m**2)] # corrected:instrumented bicycle
+    I_Bzz_r   : 1.94, # [kg*(m**2)]
+    I_Bxz_r   : 0.654, # [kg*(m**2)]
+
+    x_H_r     : 0.944, # [m]
+    z_H_r     : -0.595, # [m]
+    m_H_r     : 0.6, # [kg]
+    I_Hxx_r   : 0.00980, # 0.0980, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hzz_r   : 0.00396, # 0.0396, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hxz_r   : -0.00044, # -0.0044, # [kg*(m**2)] # corrected:Bianchi Pista
+
+    r_F_r     : 0.3498, # [m]
+    m_F_r     : 1.780, # [kg]
+    I_Fxx_r   : 0.0644, # [kg*(m**2)]
+    I_Fyy_r   : 0.1289, # [kg*(m**2)]
     }
+
+# # numerical values for reference parameters Original use
+# repl_params_ref = {
+#     w_r : 1.064, #1.02,         # m
+#     c_r : 0.08, #0.08,          # m
+#     lamb_r : (sm.pi/10 - (sm.pi/10)/100),#(sm.pi/10 - (sm.pi/10)/10), # rad
+#     g_r : 9.81,#9.81,           # m/(s**2)
+#     v_r : 5,#5,                 # m/s
+#     r_R_r : 0.333,#0.3,         # m
+#     m_R_r : 4.9,#2,             # kg
+#     I_Rxx_r : 0.0701, #0.0603,  # kg*(m**2)
+#     I_Ryy_r : 0.1293, #0.12,    # kg*(m**2) <---
+#     x_B_r : 0.335, #0.3,        # m
+#     z_B_r : -0.736, #-0.9,      # m
+#     m_B_r : 22.9,#85,           # kg
+#     I_Bxx_r : 2.6375, #9.2,     # kg*(m**2)
+#     #_r I_Byy : 11,             # kg*(m**2)
+#     I_Bzz_r : 1.9428, # 2.8,    # kg*(m**2)
+#     I_Bxz_r : 0.6536,#2.4,      # kg*(m**2) <---
+#     x_H_r : 0.818,#0.9,         # m
+#     z_H_r : -0.986,#-0.7,       # m
+#     m_H_r : 5.4,#4,             # kg
+#     I_Hxx_r : 0.3439,#0.05892,  # kg*(m**2)
+#     #_r I_Hyy : 0.06,           # kg*(m**2)
+#     I_Hzz_r : 0.1031,#0.00708,  # kg*(m**2)
+#     I_Hxz_r : -0.0919,#-0.00756,# kg*(m**2)
+#     r_F_r : 0.336,#0.35,        # m
+#     m_F_r : 1.6,#3,             # kg
+#     I_Fxx_r : 0.0524,#0.1405,   # kg*(m**2)
+#     I_Fyy_r : 0.0984#0.28       # kg*(m**2) <---
+#     }
 
 #Convert primal parameter in terms of plant to terms of reference
 repl_to_ref = {
@@ -467,10 +538,10 @@ for key, value in mm_gains.items():
 
 
 # save matrices and gains
-# with open("bike_and_ref_variable_dependend_system_matrices", "wb") as outf:
-#     dill.dump(plant_and_ref_mtrxs, outf)
+with open("bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected", "wb") as outf:
+    dill.dump(plant_and_ref_mtrxs, outf)
 
-# with open("model_matching_gains", "wb") as outf:
+# with open("model_matching_gains_measured_parameters", "wb") as outf:
 #     dill.dump(mm_gains, outf)
 
 # #================================[Validation and Other Checks]================================#
