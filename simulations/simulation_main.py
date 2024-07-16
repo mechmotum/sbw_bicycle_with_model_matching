@@ -200,3 +200,6 @@ ax.legend(fontsize=14)
 ax.axis(((0,2,-1.1,1.1)))
 ax.grid()
 plt.show()
+
+# with open("00-impulse_response_5mps", "wb") as outf:
+#     dill.dump({"time": time, "plant": states, "ref": states_ref}, outf)

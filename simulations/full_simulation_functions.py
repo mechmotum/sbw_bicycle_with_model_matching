@@ -5,7 +5,7 @@ from numpy import linspace
 from numpy import cos, sin
 from numpy import float64
 
-from simulation_constants import INPUT_PARS, BICYCLE_PARS
+from simulation_constants import INPUT_PARS
 from artifacts import *
 from hw_virtual_sensors import *
 
