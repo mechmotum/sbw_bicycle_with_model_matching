@@ -144,6 +144,12 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,plot_type):
         fig.suptitle("Bicycle Eigenvalues vs Speed - Corrected Motor Torque",fontsize=24)
         speed_ax_mtr, eig_theory_mtr           = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,cmd2trq_gain=0.9)
         speed_ax_mtr_mm, eig_theory_mtr_mm     = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True,cmd2trq_gain=0.9)
+    elif plot_type == "encoder":
+        fig.suptitle("Bicycle Eigenvalues vs Speed - Corrected Encoder Measurement",fontsize=24)
+        # speed_ax_plant, eig_theory_plant       = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS)
+        # speed_ax_ref, eig_theory_ref           = get_eigen_vs_speed(ss_file1,'ref',  speedrange,SIL_PARAMETERS)
+        speed_ax_enc, eig_theory_enc           = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,enc_true2meas=0.8)
+        speed_ax_enc_mm, eig_theory_enc_mm     = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True,enc_true2meas=0.8)
     
     ax = dict()
     ax["real"] = fig.add_subplot(121)
@@ -174,6 +180,11 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,plot_type):
         elif plot_type == "motor":
             axs.scatter(speed_ax_mtr     , eig_theory_mtr[type]     , s=4, label="Corrected Motor Plant")
             axs.scatter(speed_ax_mtr_mm  , eig_theory_mtr_mm[type]  , s=4, label="Corrected Motor Reference")
+        elif plot_type == "encoder":
+            # axs.scatter(speed_ax_plant   , eig_theory_plant[type]   , s=4, label="Theoretical Plant")
+            # axs.scatter(speed_ax_ref     , eig_theory_ref[type]     , s=4, label="Theoretical Reference")
+            axs.scatter(speed_ax_enc     , eig_theory_enc[type]     , s=4, label="Corrected Encoder Plant")
+            axs.scatter(speed_ax_enc_mm  , eig_theory_enc_mm[type]  , s=4, label="Corrected Encoder Reference")
         else:
             print("wrong method")
 
@@ -222,7 +233,7 @@ VISUAL_CHECK_FIT = False # If true, show graph for visually checking the kooijma
 MAX_FUN_EVAL = 5000
 
 #Theoretical model parameters
-METHOD = "nominal" #nominal, friction, params, speed, motor
+METHOD = "encoder" #nominal, friction, params, speed, motor, encoder
 MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
 ALT_PARAM_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_estimated_error_parameters"
 FRICTION_IN_STEER_FILE ="bike_models_n_friction\\ss_cw_friction-0.2_viscous"# ".\\ss_cw_friction-0.02_sigmoid"
