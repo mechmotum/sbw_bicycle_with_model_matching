@@ -294,3 +294,103 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
     u_vec = sim_post_process(par,u_vec)
     u_ext = sim_post_process(par,u_ext)
     return T_vec, y_vec, x_vec, y0_vec, u_vec, u_ext #TODO: ALSO OUPUT THE ACTUAL INPUT TO THE MODEL -> u_vec_sim
+
+def sim_setup_with_drift(par,system,ctrl):
+    if len(ctrl.keys()) == 1:
+        for name in ctrl.keys():
+            ctrl[name].calc_gain(par["vel"])
+            F = ctrl[name].gain["F"]
+            G = ctrl[name].gain["G"]
+    else: 
+        F = zeros((par["m"],par["n"])) # u = F*x
+        G = zeros((par["m"],par["m"])) # u = G*u_ext
+        print("Simulation: None, or multiple controllers picked. Only chose one\nZero control used instead")
+    par["F"] = F
+    par["G"] = G
+
+    system.calc_mtrx(par["vel"])
+
+    par["n"] = system.mat["A"].shape[0]
+    par["m"] = system.mat["B"].shape[1]
+    par["p"] = system.mat["C"].shape[0]
+    
+    B_extended = hstack((system.mat["B"], eye(par["n"]), zeros((par["n"],par["p"]))))
+    D_extended = hstack((system.mat["D"], zeros((par["p"],par["n"])), eye(par["p"])))
+
+    par["m_ext"] = B_extended.shape[1]
+
+    par["ss_model"] = StateSpace(
+        system.mat["A"] + system.mat["B"]@F,
+        B_extended,
+        system.mat["C"],
+        D_extended
+        )
+
+    return par
+
+def simulate_with_drift(par,system,ctrlrs,drift_torque):
+    #--[Get all parameters
+    par = sim_setup(par,system,ctrlrs)
+
+    #--[Assign for shorter notation
+    dt = par["dt"]
+    time = par["time"]
+    sim_steps = par["sim_steps"]
+    step_num = par["step_num"]
+    
+    ss_model = par["ss_model"]
+    n = par["n"]
+    m = par["m"]
+    m_ext = par["m_ext"]
+    p = par["p"]
+
+    F = par["F"]
+    G = par["G"]
+
+    #--[Prealocate return values for speed
+    T_vec = empty((step_num*sim_steps,))
+    y_vec = empty((step_num*sim_steps, p))
+    x_vec = empty((step_num*sim_steps, n))
+    u_vec = empty((step_num*sim_steps, m_ext))
+
+    #--[Initialize lsim input
+    # Time and state
+    time_vec = linspace(0, dt, sim_steps)
+    x0 = par["x0"]
+
+    # Input
+        # Prealocate 'continuous' simulation input
+    u_vec_sim = zeros((sim_steps, m_ext))
+        # Calculate external input
+    # Pre allocate vectors
+    u_ext = zeros((par["sim_steps"] * par["step_num"], par["m"]))
+    u_ext[:,INPUT_PARS["lean_t_pos"]] = drift_torque
+
+    # Run simulation
+    for k in range(step_num):
+        # Discreet time control input 'u'
+        u = F@x0 + G@u_ext[k*sim_steps,:]
+        
+        # Continuous time input 'u_vec_sim'
+        u_vec_sim[:,:m] = u * ones((sim_steps, m)) + (par["bike_mode"] @ u_ext[k*sim_steps:(k+1)*sim_steps,:].T).T
+
+        #--[Simulate ODE
+        T,y,x = lsim(ss_model,u_vec_sim,time_vec,x0,interp=True)
+        
+        #--[Store values
+        T_vec[k*sim_steps:(k+1)*sim_steps] = T + time
+        y_vec[k*sim_steps:(k+1)*sim_steps, :] = y.reshape((sim_steps,p))
+        x_vec[k*sim_steps:(k+1)*sim_steps, :] = x
+        u_vec[k*sim_steps:(k+1)*sim_steps, :] = u_vec_sim
+
+        #--[Update current state, and time
+        x0 = x[-1,:]
+        time = time + dt
+
+    #end of loop
+    T_vec = sim_post_process(par,T_vec)
+    y_vec = sim_post_process(par,y_vec)
+    x_vec = sim_post_process(par,x_vec)
+    u_vec = sim_post_process(par,u_vec)
+    u_ext = sim_post_process(par,u_ext)
+    return T_vec, y_vec, x_vec, u_vec, u_ext

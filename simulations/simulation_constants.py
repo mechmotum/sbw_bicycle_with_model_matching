@@ -47,6 +47,9 @@ CONTROL_PARS = {
 
 
 ##-----------[ SIMULATION SPECIFIC PARAMETERS ]
+DRIFT_TORQUE = 20
+DRIFT_SPEEDS = np.arange(1.5,6,0.25)
+
 sim_range = {       # zero can not be in the range. Due to the mm fixed variables, A_ref is dependent on v via 1/v. So v=0 causes inf/nan.
     "start": 0.01, 
     "stop":10, 
@@ -100,10 +103,10 @@ SIM_PAR_PLANT = {
     "wheelbase" : BICYCLE_PARS["wheelbase_plant"], # [m] wheelbase of the bicycle
     "steer_tilt": BICYCLE_PARS["steer_tilt_plant"], #[rad] Steer tilt of the bicycle
     "trail": BICYCLE_PARS["trail_plant"], #[m] trail of the bicycle
-    "dt" : 0.01, # [s] Time step of the micro controller
-    "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
+    "dt" : 0.001, # [s] Time step of the micro controller
+    "h" : 0.0001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
-    "x0" : np.array([0,0,0.8,0],dtype=np.float64), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
+    "x0" : np.array([0,0,1,0],dtype=np.float64), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
     "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
     "step_num" : 250, # number of times the continious plant is simulatied for dt time. (total sim time = dt*step_num)
     "torque_noise_gain": 0.0, # size of the torque * gain = noise on the torque (larger torque = higher noise)
@@ -117,10 +120,10 @@ SIM_PAR_REF = {
     "wheelbase" : BICYCLE_PARS["wheelbase_ref"], # [m] wheelbase of the bicycle
     "steer_tilt": BICYCLE_PARS["steer_tilt_ref"], #[rad] Steer tilt of the bicycle
     "trail": BICYCLE_PARS["trail_ref"], #[m] trail of the bicycle
-    "dt" : 0.01, # [s] Time step of the micro controller
-    "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
+    "dt" : 0.001, # [s] Time step of the micro controller
+    "h" : 0.0001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
-    "x0" : np.array([0,0,0.935,0],dtype=np.float64), # initial state (phi, delta, d_phi, d_delta)
+    "x0" : np.array([0,0,1,0],dtype=np.float64), # initial state (phi, delta, d_phi, d_delta)
     "d_delta0" : 0, #Initial guess of steer rate for the y0 vector
     "step_num" : 250, # number of times the continious plant is simulatied for dt time. total sim time = dt*step_num)
     "torque_noise_gain": 0.0, # size of the torque * gain = noise on the torque (larger torque = higher noise)

@@ -184,6 +184,7 @@ time_ref, output_ref, states_ref, calc_states_ref, tot_input_ref, ext_input_ref 
 # # altered sil control (including integral action)
 # time_alt, output_alt, states_alt, calc_states_alt, tot_input_alt, ext_input_alt = simulate(SIM_PAR_ALT,bike_plant_alt,controller_alt,u_ext_fun,phi_kalman_alt)
 
+# Impulse response functions:
 fig = plt.figure()
 ax = fig.add_subplot()
 ax.set_title("",fontsize=24)
