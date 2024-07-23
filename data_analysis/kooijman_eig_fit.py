@@ -120,7 +120,7 @@ def plot_eigenvals(results,speedrange,ss_file1,ss_file2,plot_type):
     plt.axis((speedrange[0],speedrange[-1],0,10))
     plt.show()
 
-def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,plot_type):
+def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type):
     #Theoretical
     fig = plt.figure(figsize=(14,5), dpi=125)
     by_label = dict()
@@ -135,8 +135,8 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,plot_type):
         speed_ax_fric_mm, eig_theory_fric_mm   = get_eigen_vs_speed(ss_file2, 'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
     elif plot_type == "params":
         fig.suptitle("Bicycle Eigenvalues vs Speed - Corrected Parameters",fontsize=24)
-        speed_ax_plant, eig_theory_plant       = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS)
-        speed_ax_param_mm, eig_theory_param_mm = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
+        speed_ax_param, eig_theory_param       = get_eigen_vs_speed(ss_file3,'plant',speedrange,SIL_PARAMETERS)
+        speed_ax_param_mm, eig_theory_param_mm = get_eigen_vs_speed(ss_file3,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
     elif plot_type == "speed":
         fig.suptitle("Bicycle Eigenvalues vs Speed - Corrected Speed Sensor",fontsize=24)
         speed_ax_speed, eig_theory_speed       = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,isWrongSpeed=True)
@@ -189,7 +189,7 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,plot_type):
             axs.scatter(speed_ax_fric    , eig_theory_fric[type]    , s=4, label="Friction Plant")
             axs.scatter(speed_ax_fric_mm , eig_theory_fric_mm[type] , s=4, label="Friction Reference")
         elif plot_type == "params":
-            axs.scatter(speed_ax_plant   , eig_theory_plant[type]   , s=4, label="Corrected Parameters Plant")
+            axs.scatter(speed_ax_param   , eig_theory_param[type]   , s=4, label="Corrected Parameters Plant")
             axs.scatter(speed_ax_param_mm, eig_theory_param_mm[type], s=4, label="Corrected Parameters Reference")
         elif plot_type == "speed":
             axs.scatter(speed_ax_speed   , eig_theory_speed[type]   , s=4, label="Corrected Speed Plant")
@@ -555,7 +555,7 @@ if(PHASE == "calculate_eig"):
             time, extraction = extract_data(PATH+file,start_stop[0],start_stop[1],TIME_STEP,vars2extract,filter_type)
             sigmas[i], omegas[i] = extract_eigenvals(time,extraction,par0,speeds[i])
         results.append({"name":name,"style":style,"real":sigmas,"imag":omegas,"speeds":speeds})
-    plot_eigenvals_paper(results, SPEED_RANGE, MODEL_FILE, FRICTION_IN_STEER_FILE, METHOD)
+    plot_eigenvals_paper(results, SPEED_RANGE, MODEL_FILE, FRICTION_IN_STEER_FILE,ALT_PARAM_MODEL_FILE, METHOD)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:

@@ -5,6 +5,8 @@ import scipy.signal as sign
 
 # Turning near 0 poles and zeros to 0. For numerical accuracy
 EPS = 1e-6 
+TREADMILL2ENC_GAIN = 1.0661904761904761
+TREADMILL2ENC_BIAS = 0.12761904761904752
 
 #---[ Create plant and controller object
 class VariableStateSpaceSystem:
@@ -161,9 +163,9 @@ def get_eigen_vs_speed(bike_plant_file,plant_type,speedrange,sil_parameters, isA
     eigenvals = [None for k in range(len(speedrange))]
     for idx, speed in enumerate(speedrange):
         # calculate speed depenend matrices
-        if isWrongSpeed:
-            speed = speed*1.0661904761904761 - 0.12761904761904752
-        plant.calc_mtrx(speed)
+        plant.calc_mtrx(speed) # The plant is always at treadmill speed
+        if isWrongSpeed:       # But the controller is at encoder's measured speed
+            speed = speed*TREADMILL2ENC_GAIN - TREADMILL2ENC_BIAS
         ctrl.calc_gain(speed)
         # calculate eigenvalues
         eigenvals[idx] = np.linalg.eigvals(plant.mat["A"] + plant.mat["B"]@ctrl.gain["F"]*cmd2trq_gain) # plant-> dx = Ax + Bu
