@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from data_parsing import logfile2array
 import simulated_runtime_filter as filt
 from theoretical_plotting import get_bode
+import dill
 
 def find_sinosoid_peaks(sig,start,stop,tune):
     peak_height = np.max((sig[start:stop]))
@@ -219,6 +220,35 @@ def analyse_bode_data(bode_points, filename,vars2extract, start, stop, tune_par,
 
     return
 
+def get_sim_drift_points(plnt_type):
+    drift_points = {}
+    for in_key in INPUT.keys():
+        drift_points[in_key] = {}
+        for out_key in OUTPUT.keys():
+            drift_points[in_key][out_key] = []
+    
+    for freq in np.arange(1.0,3.2,0.2):
+        with open(f"..\\data_analysis\\drift_sim_data\\no_drift_bode_data_{freq}Hz",'rb') as inf:
+            sim_data = dill.load(inf)
+        drift_timestep = sim_data[plnt_type][3]
+        drift_sig = {"fork_angle": sim_data[plnt_type][2][:,1],"lean_rate": sim_data[plnt_type][2][:,2], 
+                    "hand_torque": sim_data[plnt_type][1][:,1],"lean_torque": sim_data[plnt_type][1][:,0]}
+
+        for key_in in INPUT.keys():
+            for key_out in OUTPUT.keys():
+                input_frq = np.fft.rfft(drift_sig[key_in]) # magnitude [-]
+                output_frq = np.fft.rfft(drift_sig[key_out]) # magnitude [-]
+                freq_bins= np.fft.rfftfreq(len(drift_sig[key_out]),drift_timestep) # [Hz]
+
+                freq_in = freq_bins[np.argmax(abs(input_frq))]
+                freq_out = freq_bins[np.argmax(abs(output_frq[10:]))+10] #ignore the DC content
+                magnitude_in = np.max(abs(input_frq))
+                magnitude_out = np.max(abs(output_frq[10:]))
+
+                print(f"---{key_in} to {key_out}---\nfrequency input:\t{freq_in:.3}\ndifference (in-out):\t{freq_in-freq_out}\n")
+                drift_points[key_in][key_out].append([freq_in,magnitude_out/magnitude_in])
+    return drift_points
+
 def plot_results(results,ss_file1,ss_file2,plot_type):
     bode_mags_plant = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
     bode_mags_ref = get_bode(ss_file1,"ref",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
@@ -279,7 +309,11 @@ def plot_results_paper(results,ss_file1,ss_file2,plot_type):
         # bode_mags_ref      = get_bode(ss_file1,"ref"  ,EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
         bode_mags_enc      = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,enc_true2meas=0.8) # frequency in rad/s, magnitude in dB
         bode_mags_enc_mm   = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True,enc_true2meas=0.8) # frequency in rad/s, magnitude in dB
-    
+    elif plot_type == "drift":
+        bode_mags_plant    = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+        bode_mags_ref      = get_bode(ss_file1,"ref"  ,EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+        drift_points ={"plant": get_sim_drift_points("plant"), "ref": get_sim_drift_points("ref")}
+
     for in_key, in_value in INPUT.items():
         for out_key, out_value in OUTPUT.items():
             fig = plt.figure(figsize=(14,5), dpi=125)
@@ -346,6 +380,17 @@ def plot_results_paper(results,ss_file1,ss_file2,plot_type):
                     # axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:]  ,'--',linewidth=4, label="Theoretical Reference")
                     axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_enc[in_value,out_value,:]   ,linewidth=4, label="Corrected Encoder Plant")
                     axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_enc_mm[in_value,out_value,:],linewidth=4, label="Corrected Encoder Reference")
+                elif plot_type == "drift":
+                    fig.suptitle(f"Bode Gain of {inpt} to {outpt} - Simulated drift behaviour",fontsize=24)
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],     linewidth=4, label="Theoretical Plant")
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:]  ,'--',linewidth=4, label="Theoretical Reference")
+                    for plnt_type in ["plant", "ref"]:
+                        if plnt_type == "plant":
+                            lbl = "Plant"
+                        else:
+                            lbl = "Reference"
+                        drift_points[plnt_type][in_key][out_key] = np.array(drift_points[plnt_type][in_key][out_key])
+                        axs[trial["style"]["place"]].plot(drift_points[plnt_type][in_key][out_key][:,0], 20*np.log10(drift_points[plnt_type][in_key][out_key][:,1]),'X',label=f"Drift {lbl}")
 
                 [axs[trial["style"]["place"]].plot(tmp[0],20*np.log10(tmp[1]),linestyle=':',color=trial["style"]["FFT_color"]) for tmp in trial["FRF"][in_key][out_key]]
                 axs[trial["style"]["place"]].plot(bode_points[in_key][out_key][:,0], 20*np.log10(bode_points[in_key][out_key][:,1]),
@@ -395,7 +440,7 @@ EXPERIMENT_SPEED = 4 #[m/s]
 CHECK_VISUALLY = False
 
 #Theoretical model parameters
-PLOT_TYPE = "encoder" #nominal, friction, params, speed, motor, encoder
+PLOT_TYPE = "drift" #nominal, friction, params, speed, motor, encoder, drift
 MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
 ALT_PARAM_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_estimated_error_parameters"
 FRICTION_IN_STEER_FILE = "bike_models_n_friction\\ss_cw_friction-0.2_viscous"# ".\\ss_cw_friction-0.02_sigmoid"

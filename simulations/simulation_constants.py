@@ -47,7 +47,10 @@ CONTROL_PARS = {
 
 
 ##-----------[ SIMULATION SPECIFIC PARAMETERS ]
-DRIFT_TORQUE = 20
+ID_TYPE_DRIFT = "bode" # eigen, bode
+BODE_EXPERIMENT_SPEED = 4
+DRIFT_TORQUE = 0#20
+DRIFT_FREQS = np.arange(1.0,3.2,0.2)
 DRIFT_SPEEDS = np.arange(1.5,6,0.25)
 
 sim_range = {       # zero can not be in the range. Due to the mm fixed variables, A_ref is dependent on v via 1/v. So v=0 causes inf/nan.

@@ -2,8 +2,8 @@ from scipy.signal import StateSpace, lsim
 from numpy import hstack, vstack
 from numpy import ones_like, zeros_like, eye, ones, zeros, empty, array
 from numpy import linspace
-from numpy import cos, sin
 from numpy import float64
+from numpy import cos as np_cos
 
 from simulation_constants import INPUT_PARS
 from artifacts import *
@@ -69,12 +69,12 @@ def create_external_input(par):
         offset = offset + par["dt"]
     
     # Create external input vector
-    # u_ext[:,INPUT_PARS["steer_t_pos"]] = 0.1*sin(time)
+    u_ext[:,INPUT_PARS["steer_t_pos"]] = np_cos(par["input_freq"]*2*np.pi*time)
     # u_ext[100:,INPUT_PARS["steer_t_pos"]] = 0.1*ones_like(u_ext[100:,INPUT_PARS["steer_t_pos"]])
     # u_ext[0:11,INPUT_PARS["lean_t_pos"]] = 2/par["dt"] #long impulse
     # u_ext[:,INPUT_PARS["lean_t_pos"]] = 5
     # u_ext[1,INPUT_PARS["steer_t_pos"]] = 100*(0.01/par["h"]) #true impulse
-    # u_ext[:,INPUT_PARS["lean_t_pos"]] = 5*sin((time/2*pi)*time)
+    # u_ext[:,INPUT_PARS["lean_t_pos"]] = 5*np_cos((time/2*pi)*time)
     return u_ext
 
 def sim_post_process(par,signal):
@@ -132,8 +132,8 @@ def make_meas_state_vec(par,x0,y0,phi,delta,d_phi,d_delta):
         is measured, and integrated once for heading angle. then 
         integrated again for the area under the heading angle curve.
         '''
-        d_psi = (delta * par["vel"]*cos(par["steer_tilt"])/par["wheelbase"]\
-                + d_delta * par["trail"]*cos(par["steer_tilt"])/par["wheelbase"])
+        d_psi = (delta * par["vel"]*np_cos(par["steer_tilt"])/par["wheelbase"]\
+                + d_delta * par["trail"]*np_cos(par["steer_tilt"])/par["wheelbase"])
         
         y0[:4] = array([phi,delta,d_phi,d_delta], dtype=float64)
         y0[5] = y0[5] + y0[4]*par["dt"] #Riemann integration: dummy = dummy + psi * dt (done before updating psi)
@@ -328,7 +328,7 @@ def sim_setup_with_drift(par,system,ctrl):
 
     return par
 
-def simulate_with_drift(par,system,ctrlrs,drift_torque):
+def simulate_with_drift(par,system,ctrlrs,drift_torque,id_type):
     #--[Get all parameters
     par = sim_setup(par,system,ctrlrs)
 
@@ -365,6 +365,8 @@ def simulate_with_drift(par,system,ctrlrs,drift_torque):
     # Pre allocate vectors
     u_ext = zeros((par["sim_steps"] * par["step_num"], par["m"]))
     u_ext[:,INPUT_PARS["lean_t_pos"]] = drift_torque
+    if id_type == "bode":
+        u_ext[:,INPUT_PARS["steer_t_pos"]] = create_external_input(par)[:,INPUT_PARS["steer_t_pos"]]
 
     # Run simulation
     for k in range(step_num):
