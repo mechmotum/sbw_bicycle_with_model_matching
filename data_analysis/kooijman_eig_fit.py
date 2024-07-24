@@ -31,12 +31,39 @@ def fit_kooijman(time,data,par0):
 
     return p_opt[0], p_opt[1], r_squared
 
+def do_log_decrement(time, data):
+    x1 = data[0]
+    t1 = time[0]
+    if x1>0:
+        x2 = -np.min(data)
+        t2 = time[np.argmin(data)]
+    else:
+        x2 = -np.max(data)
+        t2 = time[np.argmax(data)]
+    sigma = np.log(x1/x2)/(t1-t2)
+    # omega = np.pi/(t2-t1)
+    if(VISUAL_CHECK_FIT):
+        plt.figure()
+        plt.title("Kooijman eigenvalue fit on experimental data",fontsize=24)
+        plt.ylabel("State [?]",fontsize=16)
+        plt.xlabel("Duration [s]",fontsize=16)
+        plt.plot(time, x1*np.exp(sigma*time), color="C0", label="Kooijman fit")
+        plt.plot(time,-x1*np.exp(sigma*time), color="C0")
+        plt.plot(time,np.abs(data),color="C1",label="Experimental data")
+        plt.plot([t1,t2],[x1,-x2],'Xr')
+        plt.grid()
+        plt.legend(fontsize=14)
+        plt.show()
+    return sigma#, omega
+
 def extract_eigenvals(time,data,par0,speed):
     sigma_vec = np.empty((len(data.keys()),))
     omega_vec = np.empty((len(data.keys()),))
     for i,value in enumerate(data.values()):
         sigma_vec[i], omega_vec[i] , r_squared = fit_kooijman(time,value,par0)
         print(f"R-squared value of sigma({sigma_vec[i]:.4f}) & omega({omega_vec[i]:.4f}) (going {speed} m/s):\t{r_squared:.4f}")
+        if speed == 1.5:
+            sigma_vec[i] = do_log_decrement(time, value)
     sigma = np.average(sigma_vec)
     omega = np.average(omega_vec)
     return sigma, omega
@@ -163,8 +190,8 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type
         for i, speed in enumerate(speed_points):
             with open(f'drift_sim_data\\drift_eigen_data_{speed}mps','rb') as inf:
                 tmp = dill.load(inf)
-            sigma_plnt[i], omega_plnt[i] = extract_eigenvals(tmp["plant"][0],{"lean_rate":tmp["plant"][1]},(-2, 5, 0, 1, 0),speed*3.6)
-            sigma_ref[i],  omega_ref[i]  = extract_eigenvals(tmp["ref"][0],{"lean_rate":tmp["ref"][1]},(-2, 5, 0, 1, 0),speed*3.6)
+            sigma_plnt[i], omega_plnt[i] = extract_eigenvals(tmp["plant"][0],{"lean_rate":tmp["plant"][1]},(-2, 5, 0, 1, 0),speed)
+            sigma_ref[i],  omega_ref[i]  = extract_eigenvals(tmp["ref"][0],{"lean_rate":tmp["ref"][1]},(-2, 5, 0, 1, 0),speed)
         data_plnt={"real":sigma_plnt, "imag":omega_plnt}
         data_ref ={"real":sigma_ref, "imag":omega_ref}
         
@@ -487,7 +514,7 @@ experiments = [ #file,speed[km/h],start&end in file, initial values
     ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (7349,7349+100), (-3.0, 5.5, -0.4, 1.0, 1.0)), #(7349,7532)
     ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (8984,8984+100), (-3.0, 5.5, 0.3, 1.0, 1.0)), #(8984,9214)
     ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (9750,9750+100), (-3.0, 5.5, -0.25, 1.0, 1.0)), #(9750,9925)
-    ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (10600,10700), (-3.0, 5.5, 0.2, 1.0, 1.0)), #(10600,10845)
+    ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (10603,10603+100), (-3.0, 5.5, 0.2, 1.0, 1.0)), #(10600,10845)
     ("eigen_normal_sil6.5n2_7.2kph.log", 2, (9870,9870+100), (-3.0, 7.5, -0.25, 1.0, 1.0)),#(9870,10039)
     ("eigen_normal_sil6.5n2_7.2kph.log", 2, (11024,11024+100), (-3.0, 7.5, -0.4, 1.0, 1.0)),#(11024,11137)
     ("eigen_normal_sil6.5n2_7.2kph.log", 2, (12689,12689+100), (-3.0, 7.5, -0.25, 1.0, 1.0)),#(12689,12854)
@@ -671,8 +698,8 @@ if(PHASE == "calculate_eig"):
             time, extraction = extract_data(PATH+file,start_stop[0],start_stop[1],TIME_STEP,vars2extract,filter_type)
             sigmas[i], omegas[i] = extract_eigenvals(time,extraction,par0,speeds[i])
         results.append({"name":name,"style":style,"real":sigmas,"imag":omegas,"speeds":speeds})
-    # plot_eigenvals_paper(results, SPEED_RANGE, MODEL_FILE, FRICTION_IN_STEER_FILE, ALT_PARAM_MODEL_FILE, METHOD)
-    calc_distance_measure(results, MODEL_FILE, FRICTION_IN_STEER_FILE, ALT_PARAM_MODEL_FILE, DISTANCE_MEASURE_SPEEDS)
+    plot_eigenvals_paper(results, SPEED_RANGE, MODEL_FILE, FRICTION_IN_STEER_FILE, ALT_PARAM_MODEL_FILE, METHOD)
+    # calc_distance_measure(results, MODEL_FILE, FRICTION_IN_STEER_FILE, ALT_PARAM_MODEL_FILE, DISTANCE_MEASURE_SPEEDS)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:
