@@ -251,15 +251,34 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3,speedrange):
 
     avg_abs_error = {}
     for model in eig_theory.keys():
-        for method in results:
-            if method["style"]["mm_state"] == model:
+        avg_abs_error[model] = {}
+        for expermnt in results:
+            if expermnt["style"]["mm_state"] == model:
                 for err_type in eig_theory[model].keys():
                     tmp = 0
+                    length = 0
                     for domain in ["real","imag"]:
-                        for i in range(len(method[domain])):
-                            j = np.where(method["speeds"][i] - speedrange == 0)[0][0]
-                            tmp = tmp + (method[domain][i]   - eig_theory[model][err_type][domain][j,1]) # the 0 is for now arbitrary, it should be the 'weave' mode
-                    avg_abs_error[err_type] = tmp
+                        #Select column from the theory eigenvalues that corresponds to 'weave'.
+                        if domain == "real": 
+                            k = 1
+                        elif domain == "imag":
+                            k = -1
+
+                        # Sort the eigenvalues such that the 'weave' eigenvalue stays in one column
+                        # (Only for (ref, speed, real) the weave eigenvalue switches column.
+                        #  TODO: implement a generalized version of this quick fix. )
+                        if model == "ref" and err_type == "speed" and domain == "real": 
+                            weave_eig = np.sort(eig_theory[model][err_type][domain])[:,k]
+                            weave_eig[-1] = np.sort(eig_theory[model][err_type][domain])[-1,k+1]
+                        else:
+                            weave_eig = np.sort(eig_theory[model][err_type][domain])[:,k]
+                        
+                        #Calculate the average absulute error
+                        for i in range(len(expermnt[domain])):
+                            j = np.where(expermnt["speeds"][i] - speedrange == 0)[0][0]
+                            tmp = tmp + np.abs(expermnt[domain][i]   - weave_eig[j])
+                        length = length + len(expermnt[domain])
+                    avg_abs_error[model][err_type] = tmp/length
 
     # Visual check
     for model in eig_theory.keys():
@@ -277,22 +296,42 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3,speedrange):
         ax["imag"].set_xlabel("Speed [m/s]", fontsize=16)
 
         for domain, axs in ax.items():
-            for method in results:
-                if method["style"]["mm_state"] == model:
-                    axs.plot(method["speeds"], method[domain],
-                            color=method["style"]["color"][0],
-                            marker=method["style"]["marker"][0],
-                            fillstyle=method["style"]["fillstyle"][0],
+            #Select correct column from the theory eigenvalues that corresponds to 'weave'.
+            if domain == "real": 
+                k = 1
+            elif domain == "imag":
+                k = -1
+
+            for expermnt in results:
+                # Make sure both theory and experiment plot the same model (plant/ref)
+                if expermnt["style"]["mm_state"] == model:
+                    # plot the experimental eigenvalues
+                    axs.plot(expermnt["speeds"], expermnt[domain],
+                            color=expermnt["style"]["color"][0],
+                            marker=expermnt["style"]["marker"][0],
+                            fillstyle=expermnt["style"]["fillstyle"][0],
                             linestyle='',
                             markersize=10,
-                            label=method["name"])
+                            label=expermnt["name"])
+
             for err_type in eig_theory[model].keys():
-                axs.scatter(speed_axis,eig_theory[model][err_type][domain])
-                for method in results:
-                    if method["style"]["mm_state"] == model:
-                        for i in range(len(method[domain])):
-                            j = np.where(method["speeds"][i] - speedrange == 0)[0][0]
-                            axs.plot(2*[speedrange[j]],[method[domain][i],eig_theory[model][err_type][domain][j,1]],'r') # the 0 is for now arbitrary, it should be the 'weave' mode
+                # Sort the eigenvalues such that the 'weave' eigenvalue stays in one column
+                # (Only for (ref, speed, real) the weave eigenvalue switches column.
+                #  TODO: implement a generalized version of this quick fix. )
+                if model == "ref" and err_type == "speed" and domain == "real": 
+                    weave_eig = np.sort(eig_theory[model][err_type][domain])[:,k]
+                    weave_eig[-1] = np.sort(eig_theory[model][err_type][domain])[-1,k+1]
+                else:
+                    weave_eig = np.sort(eig_theory[model][err_type][domain])[:,k]
+                # plot theoretic eigenvalues
+                axs.plot(speedrange,weave_eig)
+                
+                #plot the distances between experimental and theoretical
+                for expermnt in results:
+                    if expermnt["style"]["mm_state"] == model:
+                        for i in range(len(expermnt[domain])):
+                            j = np.where(expermnt["speeds"][i] - speedrange == 0)[0][0] # Select the correct speed index, as there are multiple experiments for one speed.
+                            axs.plot(2*[speedrange[j]],[expermnt[domain][i],weave_eig[j]],'r')
             
             axs.grid()
             axs.tick_params(axis='x', labelsize=14)
@@ -632,7 +671,7 @@ if(PHASE == "calculate_eig"):
             time, extraction = extract_data(PATH+file,start_stop[0],start_stop[1],TIME_STEP,vars2extract,filter_type)
             sigmas[i], omegas[i] = extract_eigenvals(time,extraction,par0,speeds[i])
         results.append({"name":name,"style":style,"real":sigmas,"imag":omegas,"speeds":speeds})
-    plot_eigenvals_paper(results, SPEED_RANGE, MODEL_FILE, FRICTION_IN_STEER_FILE, ALT_PARAM_MODEL_FILE, METHOD)
+    # plot_eigenvals_paper(results, SPEED_RANGE, MODEL_FILE, FRICTION_IN_STEER_FILE, ALT_PARAM_MODEL_FILE, METHOD)
     calc_distance_measure(results, MODEL_FILE, FRICTION_IN_STEER_FILE, ALT_PARAM_MODEL_FILE, DISTANCE_MEASURE_SPEEDS)
 
 elif(PHASE == "cut_data"):

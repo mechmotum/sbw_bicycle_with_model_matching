@@ -452,7 +452,7 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3):
             tmp = 0
             for in_key, in_value in INPUT.items():
                     for out_key, out_value in OUTPUT.items():
-                        tmp = tmp + np.sum(np.abs(theory_points[in_value,out_value,:] - 20*np.log10(experiments_points[model][in_key][out_key][:,1])))
+                        tmp = tmp + np.average(np.abs(theory_points[in_value,out_value,:] - 20*np.log10(experiments_points[model][in_key][out_key][:,1])))
                         # print(freqs[model] - experiments_points[model][in_key][out_key][:,0])
             avg_abs_error[model][err_key] = tmp
     
