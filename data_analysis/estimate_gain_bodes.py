@@ -288,7 +288,7 @@ def plot_results(results,ss_file1,ss_file2,plot_type):
             plt.legend(fontsize=12, loc='lower left')
     plt.show()
 
-def plot_results_paper(results,ss_file1,ss_file2,plot_type):
+def plot_results_paper(results,ss_file1,ss_file2,ss_file3,plot_type):
     if   plot_type == "nominal":
         bode_mags_plant    = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
         bode_mags_ref      = get_bode(ss_file1,"ref"  ,EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
@@ -296,8 +296,8 @@ def plot_results_paper(results,ss_file1,ss_file2,plot_type):
         bode_mags_fric     = get_bode(ss_file2,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
         bode_mags_fric_mm  = get_bode(ss_file2,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True) # frequency in rad/s, magnitude in dB
     elif plot_type == "params":
-        bode_mags_plant    = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
-        bode_mags_param_mm = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True) # frequency in rad/s, magnitude in dB
+        bode_mags_plant    = get_bode(ss_file3,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+        bode_mags_param_mm = get_bode(ss_file3,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True) # frequency in rad/s, magnitude in dB
     elif plot_type == "speed":
         bode_mags_speed    = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isWrongSpeed=True) # frequency in rad/s, magnitude in dB
         bode_mags_speed_mm = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True,isWrongSpeed=True) # frequency in rad/s, magnitude in dB
@@ -408,6 +408,87 @@ def plot_results_paper(results,ss_file1,ss_file2,plot_type):
             fig.subplots_adjust(left=0.07, bottom=None, right=0.99, top=0.74, wspace=0.14, hspace=None) #for 125% screen zoom
             fig.legend(by_label.values(), by_label.keys(), ncols=2, fontsize=14, loc='upper center', bbox_to_anchor=(0.52, 0.93))
     plt.show()
+
+def calc_distance_measure(results,ss_file1,ss_file2,ss_file3):
+    experiments_points = {}
+    freqs = {}
+    for run in results:
+        experiments_points[run["style"]["mm_state"]] = {}
+        for in_key in INPUT.keys():
+            experiments_points[run["style"]["mm_state"]][in_key] = {}
+
+    for run in results: #a run is mm control being ON or OFF
+        for in_key in INPUT.keys():
+            for out_key in OUTPUT.keys():
+                experiments_points[run["style"]["mm_state"]][in_key][out_key] = np.array(run["bode_points"][in_key][out_key])
+        freqs[run["style"]["mm_state"]] = experiments_points[run["style"]["mm_state"]][in_key][out_key][:,0]
+    
+
+    bode_mags = {"plant":{}, "ref":{}}
+    #nominal
+    bode_mags["plant"]["nominal"]   = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,2*np.pi*freqs["plant"],SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+    bode_mags["ref"]["nominal"]     = get_bode(ss_file1,"ref"  ,EXPERIMENT_SPEED,2*np.pi*freqs["ref"],SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+    #friction
+    bode_mags["plant"]["fric"]      = get_bode(ss_file2,"plant",EXPERIMENT_SPEED,2*np.pi*freqs["plant"],SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+    bode_mags["ref"]["fric"]        = get_bode(ss_file2,"plant",EXPERIMENT_SPEED,2*np.pi*freqs["ref"],SIL_PARAMETERS,isAppliedMM=True) # frequency in rad/s, magnitude in dB
+    #params
+    bode_mags["plant"]["param"]     = get_bode(ss_file3,"plant",EXPERIMENT_SPEED,2*np.pi*freqs["plant"],SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
+    bode_mags["ref"]["param"]       = get_bode(ss_file3,"plant",EXPERIMENT_SPEED,2*np.pi*freqs["ref"],SIL_PARAMETERS,isAppliedMM=True) # frequency in rad/s, magnitude in dB
+    #speed
+    bode_mags["plant"]["speed"]     = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,2*np.pi*freqs["plant"],SIL_PARAMETERS,isWrongSpeed=True) # frequency in rad/s, magnitude in dB
+    bode_mags["ref"]["speed"]       = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,2*np.pi*freqs["ref"],SIL_PARAMETERS,isAppliedMM=True,isWrongSpeed=True) # frequency in rad/s, magnitude in dB
+    #motor
+    bode_mags["plant"]["mtr"]       = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,2*np.pi*freqs["plant"],SIL_PARAMETERS,cmd2trq_gain=0.9) # frequency in rad/s, magnitude in dB
+    bode_mags["ref"]["mtr"]         = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,2*np.pi*freqs["ref"],SIL_PARAMETERS,isAppliedMM=True,cmd2trq_gain=0.9) # frequency in rad/s, magnitude in dB
+    #encoder
+    bode_mags["plant"]["enc"]       = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,2*np.pi*freqs["plant"],SIL_PARAMETERS,enc_true2meas=0.8) # frequency in rad/s, magnitude in dB
+    bode_mags["ref"]["enc"]         = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,2*np.pi*freqs["ref"],SIL_PARAMETERS,isAppliedMM=True,enc_true2meas=0.8) # frequency in rad/s, magnitude in dB
+    
+    avg_abs_error = {}
+    for model, err_types in bode_mags.items():
+        avg_abs_error[model] = {}
+        for err_key, theory_points in err_types.items():
+            avg_abs_error[model][err_key] = 0
+            tmp = 0
+            for in_key, in_value in INPUT.items():
+                    for out_key, out_value in OUTPUT.items():
+                        tmp = tmp + np.sum(np.abs(theory_points[in_value,out_value,:] - 20*np.log10(experiments_points[model][in_key][out_key][:,1])))
+                        # print(freqs[model] - experiments_points[model][in_key][out_key][:,0])
+            avg_abs_error[model][err_key] = tmp
+    
+    # visual check
+    for in_key, in_value in INPUT.items():
+        for out_key, out_value in OUTPUT.items():
+            fig = plt.figure(figsize=(14,5), dpi=125)
+
+            axs = dict()
+            axs["plant"] = fig.add_subplot(121)
+            axs["plant"].set_xlabel("Frequency [Hz]", fontsize=16)
+            axs["plant"].set_ylabel("Gain [dB]", fontsize=16)
+            axs["plant"].set_xscale('log')
+            axs["plant"].axis([0.5,5,-40,0])
+            axs["plant"].tick_params(axis='x', labelsize=14)
+            axs["plant"].tick_params(axis='y', labelsize=14)
+
+            axs["ref"] = fig.add_subplot(122)
+            axs["ref"].set_xlabel("Frequency [Hz]", fontsize=16)
+            axs["ref"].set_xscale('log')
+            axs["ref"].axis([0.5,5,-40,0])
+            axs["ref"].tick_params(axis='x', labelsize=14)
+            axs["ref"].tick_params(axis='y', labelsize=14)
+
+            for model, err_types in bode_mags.items():
+                for theory_points in err_types.values():
+                    axs[model].plot(freqs[model],theory_points[in_value,out_value,:],'x')
+                    axs[model].plot(experiments_points[model][in_key][out_key][:,0], 20*np.log10(experiments_points[model][in_key][out_key][:,1]),'o')
+                    for i in range(len(freqs[model])):
+                        axs[model].plot(2*[freqs[model][i]], [theory_points[in_value,out_value,i],20*np.log10(experiments_points[model][in_key][out_key][i,1])],'r')
+                axs[model].grid()
+            
+            fig.subplots_adjust(left=0.07, bottom=None, right=0.99, top=0.74, wspace=0.14, hspace=None) #for 125% screen zoom
+    plt.show()
+
+    return avg_abs_error
 
 def plot_uncut_data(path,file,vars2extract):
     extraction = logfile2array(path,file,vars2extract)
@@ -535,7 +616,8 @@ experiments = [
       "FFT_color":'salmon',
       "marker":'d', 
       "fillstyle":'full',
-      "place": "left"}, 
+      "place": "left",
+      "mm_state": "plant"}, 
     (
     #--Plotting for normal
     # ("MM OFF", 
@@ -583,7 +665,8 @@ experiments = [
       "FFT_color":'k',
       "marker":'o', 
       "fillstyle":'full',
-      "place": "right"}, 
+      "place": "right",
+      "mm_state": "ref"}, 
     (
     #--Plotting for normal
 #    ("MM ON", 
@@ -637,7 +720,8 @@ if(PHASE=="calculate_bode"):
             get_single_bode_point(bode_points, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par, FRF) # frequency in Hz, magnitude in [-]. Bode points is passed by reference
         
         results.append({"name":name, "style":style, "bode_points":copy.deepcopy(bode_points), "FRF":copy.deepcopy(FRF)})
-    plot_results_paper(results,MODEL_FILE,FRICTION_IN_STEER_FILE,PLOT_TYPE)
+    # plot_results_paper(results,MODEL_FILE,FRICTION_IN_STEER_FILE,ALT_PARAM_MODEL_FILE,PLOT_TYPE)
+    calc_distance_measure(results,MODEL_FILE,FRICTION_IN_STEER_FILE,ALT_PARAM_MODEL_FILE)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:

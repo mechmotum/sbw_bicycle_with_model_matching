@@ -228,6 +228,80 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type
     fig.legend(by_label.values(), by_label.keys(), ncols= 4, scatterpoints = 50, fontsize=14, loc='lower center', bbox_to_anchor=(0.52, 0))
     plt.show()
 
+def calc_distance_measure(results,ss_file1,ss_file2,ss_file3,speedrange):
+    eig_theory = {"plant":{}, "ref":{}}
+    # nominal
+    speed_axis, eig_theory["plant"]["nominal"] = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS)
+    _, eig_theory["ref"]["nominal"]            = get_eigen_vs_speed(ss_file1,'ref',  speedrange,SIL_PARAMETERS)
+    # friction
+    _, eig_theory["plant"]["friction"]         = get_eigen_vs_speed(ss_file2,'plant',speedrange,SIL_PARAMETERS)
+    _, eig_theory["ref"]["friction"]           = get_eigen_vs_speed(ss_file2,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
+    # params
+    _, eig_theory["plant"]["params"]           = get_eigen_vs_speed(ss_file3,'plant',speedrange,SIL_PARAMETERS)
+    _, eig_theory["ref"]["params"]             = get_eigen_vs_speed(ss_file3,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
+    # speed
+    _, eig_theory["plant"]["speed"]            = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,isWrongSpeed=True)
+    _, eig_theory["ref"]["speed"]              = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True, isWrongSpeed=True)
+    # motor
+    _, eig_theory["plant"]["motor"]            = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,cmd2trq_gain=0.9)
+    _, eig_theory["ref"]["motor"]              = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True,cmd2trq_gain=0.9)
+    # encoder
+    _, eig_theory["plant"]["encoder"]          = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,enc_true2meas=0.8)
+    _, eig_theory["ref"]["encoder"]            = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True,enc_true2meas=0.8)
+
+    avg_abs_error = {}
+    for model in eig_theory.keys():
+        for method in results:
+            if method["style"]["mm_state"] == model:
+                for err_type in eig_theory[model].keys():
+                    tmp = 0
+                    for domain in ["real","imag"]:
+                        for i in range(len(method[domain])):
+                            j = np.where(method["speeds"][i] - speedrange == 0)[0][0]
+                            tmp = tmp + (method[domain][i]   - eig_theory[model][err_type][domain][j,1]) # the 0 is for now arbitrary, it should be the 'weave' mode
+                    avg_abs_error[err_type] = tmp
+
+    # Visual check
+    for model in eig_theory.keys():
+        fig = plt.figure(figsize=(14,5), dpi=125)
+        ax = dict()
+        ax["real"] = fig.add_subplot(121)
+        ax["real"].axis((0,6,-10,3))
+        ax["real"].set_title("Real part", fontsize=20)
+        ax["real"].set_ylabel("Eigenvalue [-]", fontsize=16)
+        ax["real"].set_xlabel("Speed [m/s]", fontsize=16)
+
+        ax["imag"] = fig.add_subplot(122)
+        ax["imag"].axis((0,6,0,10))
+        ax["imag"].set_title("Imaginary part", fontsize=20)
+        ax["imag"].set_xlabel("Speed [m/s]", fontsize=16)
+
+        for domain, axs in ax.items():
+            for method in results:
+                if method["style"]["mm_state"] == model:
+                    axs.plot(method["speeds"], method[domain],
+                            color=method["style"]["color"][0],
+                            marker=method["style"]["marker"][0],
+                            fillstyle=method["style"]["fillstyle"][0],
+                            linestyle='',
+                            markersize=10,
+                            label=method["name"])
+            for err_type in eig_theory[model].keys():
+                axs.scatter(speed_axis,eig_theory[model][err_type][domain])
+                for method in results:
+                    if method["style"]["mm_state"] == model:
+                        for i in range(len(method[domain])):
+                            j = np.where(method["speeds"][i] - speedrange == 0)[0][0]
+                            axs.plot(2*[speedrange[j]],[method[domain][i],eig_theory[model][err_type][domain][j,1]],'r') # the 0 is for now arbitrary, it should be the 'weave' mode
+            
+            axs.grid()
+            axs.tick_params(axis='x', labelsize=14)
+            axs.tick_params(axis='y', labelsize=14)
+        fig.subplots_adjust(left=0.07, bottom=0.175, right=0.99, top=0.85, wspace=0.12, hspace=None)
+    plt.show()
+
+    return avg_abs_error
+
 def plot_uncut_data(path,file,vars2extract):
     extraction = logfile2array(path,file,vars2extract)
 
@@ -255,7 +329,7 @@ VISUAL_CHECK_FIT = False # If true, show graph for visually checking the kooijma
 MAX_FUN_EVAL = 50000
 
 #Theoretical model parameters
-METHOD = "drift" #nominal, friction, params, speed, motor, encoder, drift
+METHOD = "nominal" #nominal, friction, params, speed, motor, encoder, drift
 MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
 ALT_PARAM_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_estimated_error_parameters"
 FRICTION_IN_STEER_FILE ="bike_models_n_friction\\ss_cw_friction-0.2_viscous"# ".\\ss_cw_friction-0.02_sigmoid"
@@ -263,6 +337,7 @@ SPEED_START = 0.1
 SPEED_STOP = 8
 SPEED_STEP = 0.01
 SPEED_RANGE = np.linspace(SPEED_START , SPEED_STOP , num=int(1 + (SPEED_STOP-SPEED_START)/SPEED_STEP))
+DISTANCE_MEASURE_SPEEDS = np.arange(1.5,5.5,0.5)
 SIL_PARAMETERS = {
     'avg_speed' : 6.5,
     'L_gain': 2,
@@ -558,6 +633,7 @@ if(PHASE == "calculate_eig"):
             sigmas[i], omegas[i] = extract_eigenvals(time,extraction,par0,speeds[i])
         results.append({"name":name,"style":style,"real":sigmas,"imag":omegas,"speeds":speeds})
     plot_eigenvals_paper(results, SPEED_RANGE, MODEL_FILE, FRICTION_IN_STEER_FILE, ALT_PARAM_MODEL_FILE, METHOD)
+    calc_distance_measure(results, MODEL_FILE, FRICTION_IN_STEER_FILE, ALT_PARAM_MODEL_FILE, DISTANCE_MEASURE_SPEEDS)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:
