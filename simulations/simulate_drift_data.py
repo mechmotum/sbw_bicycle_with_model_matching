@@ -20,8 +20,8 @@ def plt_response():
     ax.tick_params("x",labelsize=12)
     ax.tick_params("y",labelsize=12)
 
-    ax.plot(time, states[:,1], label="Lean Rate Controlled")#["phi","delta","d_phi", "d_delta"])
-    ax.plot(time_ref, states_ref[:,1], '--', label="Lean Rate Reference")# label=["phi_r","delta_r","d_phi_r", "d_delta_r"])
+    ax.plot(time, states[:,2], label="Lean Rate Controlled")#["phi","delta","d_phi", "d_delta"])
+    ax.plot(time_ref, states_ref[:,2], '--', label="Lean Rate Reference")# label=["phi_r","delta_r","d_phi_r", "d_delta_r"])
     ax.plot(time_ref, ext_input,':')
     # ax.plot(time, np.exp(-2.445 * time)))
     # ax.axvline(1)

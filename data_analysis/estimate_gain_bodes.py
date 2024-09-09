@@ -204,17 +204,25 @@ def analyse_bode_data(bode_points, filename,vars2extract, start, stop, tune_par,
             bode_points[key_in][key_out].append([freq_in,magnitude_out/magnitude_in])
 
             if(CHECK_VISUALLY):
-                plt.figure()
-                plt.xscale('log')
-                plt.title(f"Bode plot of {key_in} to {key_out}", fontsize=24)
-                plt.xlabel("Frequencies [Hz]", fontsize=16)
-                plt.ylabel("Magnitude [dB]", fontsize=16)
-                plt.plot(freq_bins,abs(input_frq),label="input")
-                plt.plot(freq_bins,abs(output_frq),label="output")
-                plt.plot(freq_in,np.max(abs(input_frq)),'o',label="input max")
-                # plt.plot(freq_out,np.max(abs(output_frq[tmp-2:tmp+5])),'o',label="output max")
-                plt.plot(freq_out,np.max(abs(output_frq)),'o',label="output max")
-                plt.legend(fontsize=14)
+                if key_out == "fork_angle":
+                    fancy_label = "Fork Angle"
+                elif key_out == "lean_rate":
+                    fancy_label = "Lean Rate"
+                fig, ax = plt.subplots()
+                ax.set_xscale('log')
+                ax.set_title(f"Output measurements of 1.3 Hz input at 4 m/s in the frequency domain", fontsize=30)
+                # ax.set_title(f"Bode plot of {key_in} to {key_out}", fontsize=24)
+                ax.set_xlabel("Frequencies (Hz)", fontsize=22)
+                ax.set_ylabel("Magnitude", fontsize=22)
+                ax.plot(freq_bins,abs(input_frq),linewidth=3,label="Steer torque Input")
+                ax.plot(freq_bins,abs(output_frq),linewidth=3,label="Lean rate Output")
+                ax.plot(freq_in,np.max(abs(input_frq)),'o',label="Input Maximum")
+                # ax.plot(freq_out,np.max(abs(output_frq[tmp-2:tmp+5])),'o',label="output max")
+                ax.plot(freq_out,np.max(abs(output_frq)),'o',label="Output Maximum")
+                ax.legend(fontsize=14)
+                ax.tick_params(axis='x', labelsize=20)
+                ax.tick_params(axis='y', labelsize=20)
+                ax.legend(fontsize=20)
     if(CHECK_VISUALLY):
         plt.show()
 
@@ -228,7 +236,7 @@ def get_sim_drift_points(plnt_type):
             drift_points[in_key][out_key] = []
     
     for freq in np.arange(1.0,3.2,0.2):
-        with open(f"..\\data_analysis\\drift_sim_data\\no_drift_bode_data_{freq}Hz",'rb') as inf:
+        with open(f"..\\data_analysis\\drift_sim_data\\drift_bode_data_{freq}Hz",'rb') as inf:
             sim_data = dill.load(inf)
         drift_timestep = sim_data[plnt_type][3]
         drift_sig = {"fork_angle": sim_data[plnt_type][2][:,1],"lean_rate": sim_data[plnt_type][2][:,2], 
@@ -337,56 +345,56 @@ def plot_results_paper(results,ss_file1,ss_file2,ss_file3,plot_type):
             
             axs = dict()
             axs["left"] = fig.add_subplot(121)
-            axs["left"].set_xlabel("Frequency [Hz]", fontsize=16)
-            axs["left"].set_ylabel("Gain [dB]", fontsize=16)
+            axs["left"].set_xlabel("Frequency (Hz)", fontsize=22)
+            axs["left"].set_ylabel("Gain (dB)", fontsize=22)
             axs["left"].set_xscale('log')
             axs["left"].axis([0.5,5,-40,0])
-            axs["left"].tick_params(axis='x', labelsize=14)
-            axs["left"].tick_params(axis='y', labelsize=14)
+            axs["left"].tick_params(axis='x', labelsize=20)
+            axs["left"].tick_params(axis='y', labelsize=20)
 
             axs["right"] = fig.add_subplot(122)
-            axs["right"].set_xlabel("Frequency [Hz]", fontsize=16)
+            axs["right"].set_xlabel("Frequency (Hz)", fontsize=22)
             axs["right"].set_xscale('log')
             axs["right"].axis([0.5,5,-40,0])
-            axs["right"].tick_params(axis='x', labelsize=14)
-            axs["right"].tick_params(axis='y', labelsize=14)
+            axs["right"].tick_params(axis='x', labelsize=20)
+            axs["right"].tick_params(axis='y', labelsize=20)
                 
             for trial in results:
                 bode_points[in_key][out_key] = np.array(trial["bode_points"][in_key][out_key])
 
                 if   plot_type == "nominal":
-                    fig.suptitle(f"Bode Gain of {inpt} to {outpt} - Nominal",fontsize=24)
-                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],     linewidth=4, label="Theoretical Plant")
+                    fig.suptitle(f"Bode Gain of {inpt} to {outpt} - Nominal",fontsize=30)
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],     linewidth=4, label="Theoretical Controlled")
                     axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:]  ,'--',linewidth=4, label="Theoretical Reference")
                 elif plot_type == "friction":
                     fig.suptitle(f"Bode Gain of {inpt} to {outpt} - Friction in Steer",fontsize=24)
-                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_fric[in_value,out_value,:]   ,'-.',linewidth=4, label="Friction Plant")
-                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_fric_mm[in_value,out_value,:],':' ,linewidth=4, label="Friction Reference")
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_fric[in_value,out_value,:]   ,      linewidth=4, label="Friction Controlled")
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_fric_mm[in_value,out_value,:],'--' ,linewidth=4, label="Friction Reference")
                 elif plot_type == "params":
                     fig.suptitle(f"Bode Gain of {inpt} to {outpt} - Corrected Parameters",fontsize=24)
-                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],   linewidth=4, label="Corrected Parameters Plant")
-                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_param_mm[in_value,out_value,:],linewidth=4, label="Corrected Parameters Reference")
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],        linewidth=4, label="Corrected Parameters Controlled")
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_param_mm[in_value,out_value,:],'--',linewidth=4, label="Corrected Parameters Reference")
                 elif plot_type == "speed":
                     fig.suptitle(f"Bode Gain of {inpt} to {outpt} - Corrected Speed Sensor",fontsize=24)
-                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_speed[in_value,out_value,:]   ,linewidth=4, label="Corrected Speed Plant")
-                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_speed_mm[in_value,out_value,:],linewidth=4, label="Corrected Speed Reference")
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_speed[in_value,out_value,:]   ,     linewidth=4, label="Corrected Speed Controlled")
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_speed_mm[in_value,out_value,:],'--',linewidth=4, label="Corrected Speed Reference")
                 elif plot_type == "motor":
                     fig.suptitle(f"Bode Gain of {inpt} to {outpt} - Corrected Motor Torque",fontsize=24)
-                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_mtr[in_value,out_value,:]   ,linewidth=4, label="Corrected Motor Plant")
-                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_mtr_mm[in_value,out_value,:],linewidth=4, label="Corrected Motor Reference")
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_mtr[in_value,out_value,:]   ,     linewidth=4, label="Corrected Motor Controlled")
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_mtr_mm[in_value,out_value,:],'--',linewidth=4, label="Corrected Motor Reference")
                 elif plot_type == "encoder":
-                    fig.suptitle(f"Bode Gain of {inpt} to {outpt} - Corrected Encoder Measurement",fontsize=24)
-                    # axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],     linewidth=4, label="Theoretical Plant")
+                    fig.suptitle(f"Bode Gain of {inpt} to {outpt} - Corrected Encoder",fontsize=24)
+                    # axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],     linewidth=4, label="Theoretical Controlled")
                     # axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:]  ,'--',linewidth=4, label="Theoretical Reference")
-                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_enc[in_value,out_value,:]   ,linewidth=4, label="Corrected Encoder Plant")
-                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_enc_mm[in_value,out_value,:],linewidth=4, label="Corrected Encoder Reference")
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_enc[in_value,out_value,:]   ,     linewidth=4, label="Corrected Encoder Controlled")
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_enc_mm[in_value,out_value,:],'--',linewidth=4, label="Corrected Encoder Reference")
                 elif plot_type == "drift":
                     fig.suptitle(f"Bode Gain of {inpt} to {outpt} - Simulated drift behaviour",fontsize=24)
-                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],     linewidth=4, label="Theoretical Plant")
+                    axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],     linewidth=4, label="Theoretical Controlled")
                     axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:]  ,'--',linewidth=4, label="Theoretical Reference")
                     for plnt_type in ["plant", "ref"]:
                         if plnt_type == "plant":
-                            lbl = "Plant"
+                            lbl = "Controlled"
                         else:
                             lbl = "Reference"
                         drift_points[plnt_type][in_key][out_key] = np.array(drift_points[plnt_type][in_key][out_key])
@@ -395,6 +403,7 @@ def plot_results_paper(results,ss_file1,ss_file2,ss_file3,plot_type):
                 [axs[trial["style"]["place"]].plot(tmp[0],20*np.log10(tmp[1]),linestyle=':',color=trial["style"]["FFT_color"]) for tmp in trial["FRF"][in_key][out_key]]
                 axs[trial["style"]["place"]].plot(bode_points[in_key][out_key][:,0], 20*np.log10(bode_points[in_key][out_key][:,1]),
                         color=trial["style"]["color"],
+                        markeredgecolor="k",
                         marker=trial["style"]["marker"],
                         fillstyle=trial["style"]["fillstyle"],
                         linestyle='',
@@ -406,7 +415,7 @@ def plot_results_paper(results,ss_file1,ss_file2,ss_file3,plot_type):
                 by_label.update(zip(labels, handles))
             # fig.subplots_adjust(left=0.07, bottom=None, right=0.99, top=0.785, wspace=0.14, hspace=None) #for 100% screen zoom
             fig.subplots_adjust(left=0.07, bottom=None, right=0.99, top=0.74, wspace=0.14, hspace=None) #for 125% screen zoom
-            fig.legend(by_label.values(), by_label.keys(), ncols=2, fontsize=14, loc='upper center', bbox_to_anchor=(0.52, 0.93))
+            fig.legend(by_label.values(), by_label.keys(), ncols=2, fontsize=20, loc='upper center', bbox_to_anchor=(0.52, 0.93))
     plt.show()
 
 def calc_distance_measure(results,ss_file1,ss_file2,ss_file3):
@@ -454,8 +463,12 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3):
                     for out_key, out_value in OUTPUT.items():
                         tmp = tmp + np.average(np.abs(theory_points[in_value,out_value,:] - 20*np.log10(experiments_points[model][in_key][out_key][:,1])))
                         # print(freqs[model] - experiments_points[model][in_key][out_key][:,0])
-            avg_abs_error[model][err_key] = tmp
+            avg_abs_error[model][err_key] = tmp/2
     
+    for plant_type,data in avg_abs_error.items():
+        for mode,error in data.items():
+            print(f"{plant_type}\t- {mode}:\t{error}")
+
     # visual check
     for in_key, in_value in INPUT.items():
         for out_key, out_value in OUTPUT.items():
@@ -494,15 +507,26 @@ def plot_uncut_data(path,file,vars2extract):
     extraction = logfile2array(path,file,vars2extract)
 
     fig, ax = plt.subplots()
-    ax.set_title("Output measurements of "+file, fontsize=24)
-    ax.set_ylabel("states [rad] or [rad/s]", fontsize=16)
-    ax.set_xlabel("index number [-]", fontsize=16)
+    # ax.set_title("Output measurements of "+file, fontsize=24)
+    ax.set_title("Output measurements of 1.3 Hz input at 4 m/s", fontsize=30)
+    ax.set_ylabel("Measurments", fontsize=22)
+    ax.set_xlabel("Index number", fontsize=22)
     for key, value in extraction.items():
         if key in ["x_acceleration", "y_acceleration"]: #The acceleration measurements need to be filtered to be useful
             value = filt.butter_running(  4  ,  2  , value, fs=1/TIME_STEP)
-        ax.plot(value,label=key)
+        
+        if key == "hand_torque":
+            fancy_label = "Steer Torque ($N$)"
+        elif key == "fork_angle":
+            fancy_label = "Fork Angle ($rad$)"
+        elif key == "lean_rate":
+            fancy_label = "Lean Rate ($rad/s$)"
+        
+        ax.plot(value,label=fancy_label,linewidth=3)
     ax.grid()
-    ax.legend(fontsize=14)
+    ax.tick_params(axis='x', labelsize=20)
+    ax.tick_params(axis='y', labelsize=20)
+    ax.legend(fontsize=20)
     return ax
 
 #=====START=====#
@@ -521,7 +545,7 @@ EXPERIMENT_SPEED = 4 #[m/s]
 CHECK_VISUALLY = False
 
 #Theoretical model parameters
-PLOT_TYPE = "drift" #nominal, friction, params, speed, motor, encoder, drift
+PLOT_TYPE = "nominal" #nominal, friction, params, speed, motor, encoder, drift
 MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
 ALT_PARAM_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_estimated_error_parameters"
 FRICTION_IN_STEER_FILE = "bike_models_n_friction\\ss_cw_friction-0.2_viscous"# ".\\ss_cw_friction-0.02_sigmoid"
@@ -612,7 +636,7 @@ experiments = [
     ## NEW BODE DATA (MORE POINTS AROUND PEAK) (4mps)
     #--Plotting for paper
     ("Model Matching OFF", 
-     {"color":'black',
+     {"color":'C0',
       "FFT_color":'salmon',
       "marker":'d', 
       "fillstyle":'full',
@@ -661,7 +685,7 @@ experiments = [
 
     #--Plotting for paper
     ("Model Matching ON", 
-     {"color":'green',
+     {"color":'C1',
       "FFT_color":'k',
       "marker":'o', 
       "fillstyle":'full',
@@ -720,8 +744,8 @@ if(PHASE=="calculate_bode"):
             get_single_bode_point(bode_points, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par, FRF) # frequency in Hz, magnitude in [-]. Bode points is passed by reference
         
         results.append({"name":name, "style":style, "bode_points":copy.deepcopy(bode_points), "FRF":copy.deepcopy(FRF)})
-    # plot_results_paper(results,MODEL_FILE,FRICTION_IN_STEER_FILE,ALT_PARAM_MODEL_FILE,PLOT_TYPE)
-    calc_distance_measure(results,MODEL_FILE,FRICTION_IN_STEER_FILE,ALT_PARAM_MODEL_FILE)
+    plot_results_paper(results,MODEL_FILE,FRICTION_IN_STEER_FILE,ALT_PARAM_MODEL_FILE,PLOT_TYPE)
+    # calc_distance_measure(results,MODEL_FILE,FRICTION_IN_STEER_FILE,ALT_PARAM_MODEL_FILE)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:

@@ -19,14 +19,16 @@ def fit_kooijman(time,data,par0):
     r_squared = (1 - (ss_res / ss_tot))
 
     if(VISUAL_CHECK_FIT):
-        plt.figure()
-        plt.title("Kooijman eigenvalue fit on experimental data",fontsize=24)
-        plt.ylabel("State [?]",fontsize=16)
-        plt.xlabel("Duration [s]",fontsize=16)
-        plt.plot(time,kooijman_func(time, *p_opt), label="Kooijman fit")
-        plt.plot(time,data,label="Experimental data")
-        plt.grid()
-        plt.legend(fontsize=14)
+        fig, ax = plt.subplots()
+        ax.set_title("Kooijman eigenvalue fit on experimental data",fontsize=30)
+        ax.set_ylabel("Lean rate ($rad/s$)",fontsize=22)
+        ax.set_xlabel("Duration ($s$)",fontsize=22)
+        ax.plot(time,data,linewidth=3,label="Experimental data")
+        ax.plot(time,kooijman_func(time, *p_opt), linewidth=2, label="Kooijman fit")
+        ax.grid()
+        ax.tick_params(axis='x', labelsize=20)
+        ax.tick_params(axis='y', labelsize=20)
+        ax.legend(fontsize=20)
         plt.show()
 
     return p_opt[0], p_opt[1], r_squared
@@ -199,24 +201,24 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type
     ax["real"] = fig.add_subplot(121)
     ax["real"].axis((0,6,-10,3))
     ax["real"].set_title("Real part", fontsize=20)
-    ax["real"].set_ylabel("Eigenvalue [-]", fontsize=16)
-    ax["real"].set_xlabel("Speed [m/s]", fontsize=16)
+    ax["real"].set_ylabel("Eigenvalue", fontsize=16)
+    ax["real"].set_xlabel("Speed ($m/s$)", fontsize=16)
 
     ax["imag"] = fig.add_subplot(122)
     ax["imag"].axis((0,6,0,10))
     ax["imag"].set_title("Imaginary part", fontsize=20)
-    ax["imag"].set_xlabel("Speed [m/s]", fontsize=16)
+    ax["imag"].set_xlabel("Speed ($m/s$)", fontsize=16)
 
     for type, axs in ax.items():
         # Theoretic
         if   plot_type == "nominal":
-            axs.scatter(speed_ax_plant   , eig_theory_plant[type]   , s=4, label="Theoretical Plant")
+            axs.scatter(speed_ax_plant   , eig_theory_plant[type]   , s=4, label="Theoretical Controlled")
             axs.scatter(speed_ax_ref     , eig_theory_ref[type]     , s=4, label="Theoretical Reference")
         elif plot_type == "friction":
             axs.scatter(speed_ax_fric    , eig_theory_fric[type]    , s=4, label="Friction Plant")
             axs.scatter(speed_ax_fric_mm , eig_theory_fric_mm[type] , s=4, label="Friction Reference")
         elif plot_type == "params":
-            axs.scatter(speed_ax_param   , eig_theory_param[type]   , s=4, label="Corrected Parameters Plant")
+            axs.scatter(speed_ax_param   , eig_theory_param[type]   , s=4, label="Corrected Parameters Controlled")
             axs.scatter(speed_ax_param_mm, eig_theory_param_mm[type], s=4, label="Corrected Parameters Reference")
         elif plot_type == "speed":
             axs.scatter(speed_ax_speed   , eig_theory_speed[type]   , s=4, label="Corrected Speed Plant")
@@ -241,6 +243,7 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type
         for method in results:
             axs.plot(method["speeds"]+method["style"]["offset"], method[type],
                     color=method["style"]["color"][0],
+                    markeredgecolor="k",
                     marker=method["style"]["marker"][0],
                     fillstyle=method["style"]["fillstyle"][0],
                     linestyle='',
@@ -251,8 +254,8 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type
         axs.tick_params(axis='y', labelsize=14)
         handles, labels = axs.get_legend_handles_labels()
         by_label.update(zip(labels, handles))
-    fig.subplots_adjust(left=0.07, bottom=0.175, right=0.99, top=0.85, wspace=0.12, hspace=None)
-    fig.legend(by_label.values(), by_label.keys(), ncols= 4, scatterpoints = 50, fontsize=14, loc='lower center', bbox_to_anchor=(0.52, 0))
+    fig.subplots_adjust(left=0.07, bottom=0.22, right=0.99, top=0.85, wspace=0.12, hspace=None)
+    fig.legend(by_label.values(), by_label.keys(), ncols= 2, scatterpoints = 50, fontsize=14, loc='lower center', bbox_to_anchor=(0.52, 0))
     plt.show()
 
 def calc_distance_measure(results,ss_file1,ss_file2,ss_file3,speedrange):
@@ -306,6 +309,10 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3,speedrange):
                             tmp = tmp + np.abs(expermnt[domain][i]   - weave_eig[j])
                         length = length + len(expermnt[domain])
                     avg_abs_error[model][err_type] = tmp/length
+    
+    for plant_type,data in avg_abs_error.items():
+        for mode,error in data.items():
+            print(f"{plant_type}\t- {mode}:\t{error}")
 
     # Visual check
     for model in eig_theory.keys():
@@ -372,15 +379,28 @@ def plot_uncut_data(path,file,vars2extract):
     extraction = logfile2array(path,file,vars2extract)
 
     fig, ax = plt.subplots()
-    ax.set_title("Output measurements of "+file, fontsize=24)
-    ax.set_ylabel("states [rad] or [rad/s]", fontsize=16)
-    ax.set_xlabel("index number [-]", fontsize=16)
+    # ax.set_title("Output measurements of "+file, fontsize=24)
+    ax.set_title("Output measurements at 5 m/s, with model matching on", fontsize=30)
+    ax.set_ylabel("Measurements", fontsize=22)
+    ax.set_xlabel("Index number", fontsize=22)
     for key, value in extraction.items():
         if key in ["x_acceleration","y_acceleration"]: #The acceleration measurements need to be filtered to be useful
             value = filt.butter_running(  2  ,  5  , value, fs=1/TIME_STEP)
-        ax.plot(value,label=key)
-    ax.grid()
-    ax.legend(fontsize=14)
+        
+        if key == "lean_rate":
+            fancy_label = "Lean rate ($rad/s$)"
+            zord=3
+        elif key == "x_acceleration":
+            fancy_label = "x acceleration ($m/s^2$)"
+            zord=1
+        elif key == "y_acceleration":
+            fancy_label = "y acceleration ($m/s^2$)"
+            zord=2
+        ax.plot(value,linewidth=3,label=fancy_label, zorder=zord)
+    ax.grid(axis='x')
+    ax.tick_params(axis='x', labelsize=20)
+    ax.tick_params(axis='y', labelsize=20)
+    ax.legend(fontsize=20)
     return ax
 
 #=====START=====#
@@ -502,10 +522,10 @@ experiments = [ #file,speed[km/h],start&end in file, initial values
     # ),
 
     ( 'Model Matching OFF',
-    {"color":('k', 'k'),
+    {"color":('C0', 'C0'),
      "marker":('<','<'), 
      "fillstyle":('full','full'),
-     "offset": +0.04,
+     "offset": -0.1,
      "mm_state":"plant"} ,
      'raw',(
     ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (4486,4486+100), (-3.0, 5.5, 0.3, 1.0, 1.0)), #(4486,4775)
@@ -573,9 +593,9 @@ experiments = [ #file,speed[km/h],start&end in file, initial values
     # # Model Matching ON
     # ( 'Model Matching ON - low pass filtered',
     # {"color":('g', 'g'),
-    #  "marker":('>','>'), 
+    #  "marker":('<','<'), 
     #  "fillstyle":('none','none'),
-    #  "offset": -0.04} ,
+    #  "offset": -0.1} ,
     #  'lp_filtered',(
     # ("eigen_mm_sil6.5n2_5.4kph.log", 1.5, (4047,4047+100), (-3, 5, 0.35, 1.0, 1.0)),#(4047,4240)
     # ("eigen_mm_sil6.5n2_5.4kph.log", 1.5, (4947,4947+100), (-3, 5, 0.45, 1.0, 1.0)),#(4947,5105)
@@ -629,7 +649,7 @@ experiments = [ #file,speed[km/h],start&end in file, initial values
 
     # Model Matching ON RAW
     ( 'Model Matching ON',
-    {"color":('g', 'g'),
+    {"color":('C1', 'C1'),
      "marker":('>','>'), 
      "fillstyle":('full','full'),
      "offset": -0.04,

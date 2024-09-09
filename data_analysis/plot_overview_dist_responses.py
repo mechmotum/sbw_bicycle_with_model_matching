@@ -2,7 +2,6 @@ from data_parsing import logfile2array
 import numpy as np
 import matplotlib.pyplot as plt
 import dill
-from operator import itemgetter 
 
 def theoretic_impulse_response(speed,plnt_type):
     with open(f"..\\simulations\\00-impulse_response_{speed}mps", "rb") as outf:
@@ -14,8 +13,8 @@ def theoretic_impulse_response(speed,plnt_type):
 def plot_disturbance_reactions(logfiles,vars2extract):
     for plnt_type, log_data in logfiles.items():
         # Set up figure window
-        fig = plt.figure(figsize=(14,5), dpi=125)
-        fig.suptitle("Impulse Response Autonomous Bicycle - Model matching On",fontsize=24)
+        fig = plt.figure(figsize=(12,7), dpi=125)
+        fig.suptitle("Impulse Response Autonomous Bicycle - Model matching Off",fontsize=24)
 
         rows = 2
         cols = int(np.ceil(len(log_data)/rows))
@@ -52,9 +51,12 @@ def plot_disturbance_reactions(logfiles,vars2extract):
                     ax.grid(visible=True, which='major')
                 time, response = theoretic_impulse_response(speed,plnt_type)
                 ax.plot(time, response,  linewidth=2, color='k', linestyle='--')
-        # fig.subplots_adjust(left=0.065, bottom=0.071, right=0.99, top=0.88, wspace=None, hspace=None) %100 screen zoom
-        fig.subplots_adjust(left=0.07, bottom=0.095, right=0.98, top=0.865, wspace=None, hspace=None) #125% screen zoom
+        # fig.subplots_adjust(left=0.08, bottom=0.1, right=0.98, top=0.85, wspace=0.14, hspace=None) #100% screen zoom
+        # fig.subplots_adjust(left=0.07, bottom=0.095, right=0.98, top=0.865, wspace=None, hspace=None) #125% screen zoom
+        plt.tight_layout()
+        fig.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.14, hspace=None)
         plt.show()
+        # plt.savefig(f'figure{plnt_type}.pdf') #screen independent, almost dpi independent (more dpi change resistant) --> tuning parameters are figure size and font sizes
 
 PATH = "..\\teensy\\logs\\"
 TIME_STEP = 0.01
