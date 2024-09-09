@@ -9,6 +9,10 @@ from calc_ouput_error import *
 from create_variable_ctrls import VariableController
 from np_matrices2variable_ss import numpy2variable_ss
 
+USE_ESTIMATED_ERROR = True
+FIXED_PERCENTAGE = 0.2
+
+
 # Bicycle Parameters
 repl_primal2num_plant = {
     w       : 1.036, # [m]
@@ -75,37 +79,42 @@ repl_primal2num_ref = {
     }
 
 # Expected errors in 
-param_expected_error = {
-    'w'       : 0.01, # [m]
-    'c'       : 0.01, # [m]
-    'lambda'  : 1*(np.pi/180), # [rad]
-    'g'       : 0.01, # [m/(s**2)]
-    'v'       : 0.01, # [m/s]
+if USE_ESTIMATED_ERROR:
+    param_expected_error = {
+        'w'       : 0.01, # [m]
+        'c'       : 0.01, # [m]
+        'lambda'  : 1*(np.pi/180), # [rad]
+        'g'       : 0.01, # [m/(s**2)]
+        'v'       : 0.01, # [m/s]
 
-    'r_R'     : 0.005, # [m]
-    'm_R'     : 0.1, # [kg]
-    'I_Rxx'   : 0.2* 0.1040, # [kg*(m**2)]
-    'I_Ryy'   : 0.2* 0.1641, # [kg*(m**2)]
+        'r_R'     : 0.005, # [m]
+        'm_R'     : 0.1, # [kg]
+        'I_Rxx'   : 0.2* 0.1040, # [kg*(m**2)]
+        'I_Ryy'   : 0.2* 0.1641, # [kg*(m**2)]
 
-    'x_B'     : 0.05, # [m]
-    'z_B'     : -0.05, # [m]
-    'm_B'     : 0.6, # [kg]
-    'I_Bxx'   : (-0.64,1.36), #(1-3) # [kg*(m**2)]
-    'I_Bzz'   : (-0.94,1.06), #(1-3) # [kg*(m**2)]
-    'I_Bxz'   : (-1.154, 0.346), #((-0.5)-(+1) # [kg*(m**2)]
+        'x_B'     : 0.05, # [m]
+        'z_B'     : -0.05, # [m]
+        'm_B'     : 0.6, # [kg]
+        'I_Bxx'   : (-0.64,1.36), #(1-3) # [kg*(m**2)]
+        'I_Bzz'   : (-0.94,1.06), #(1-3) # [kg*(m**2)]
+        'I_Bxz'   : (-1.154, 0.346), #((-0.5)-(+1) # [kg*(m**2)]
 
-    'x_H'     : 0.05, # [m]
-    'z_H'     : -0.05, # [m]
-    'm_H'     : 1* 0.6, # [kg]
-    'I_Hxx'   : (-0.00980, 0.0902), #(0-0.1) # [kg*(m**2)]
-    'I_Hzz'   : (-0.00396, 0.09604), #(0-0.1) # [kg*(m**2)]
-    'I_Hxz'   : (-0.00956, 0.01044), #((-0.01)-(+0.01))# [kg*(m**2)]
+        'x_H'     : 0.05, # [m]
+        'z_H'     : -0.05, # [m]
+        'm_H'     : 1* 0.6, # [kg]
+        'I_Hxx'   : (-0.00980, 0.0902), #(0-0.1) # [kg*(m**2)]
+        'I_Hzz'   : (-0.00396, 0.09604), #(0-0.1) # [kg*(m**2)]
+        'I_Hxz'   : (-0.00956, 0.01044), #((-0.01)-(+0.01))# [kg*(m**2)]
 
-    'r_F'     : 0.005, # [m]
-    'm_F'     : 0.1, # [kg]
-    'I_Fxx'   : 0.2* 0.0644, # [kg*(m**2)]
-    'I_Fyy'   : 0.2* 0.1289, # [kg*(m**2)]
-}
+        'r_F'     : 0.005, # [m]
+        'm_F'     : 0.1, # [kg]
+        'I_Fxx'   : 0.2* 0.0644, # [kg*(m**2)]
+        'I_Fyy'   : 0.2* 0.1289, # [kg*(m**2)]
+    }
+else:
+    param_percentage_error = {}
+    for key,value in repl_primal2num_plant.items():
+        param_percentage_error[key] = float(FIXED_PERCENTAGE*value)
 
 # Constants
 MM_SOLUTION_FILE = "10-primal_restriction_solution-Bxx-Bxz-Fyy-Ryy-z_B"
@@ -152,13 +161,17 @@ error_diff_eig = []
 error_diff_bode = []
 max_eig_error = []
 max_bode_error = []
-for param,value in [(x_H, 0.944),(I_Fyy, 0.1289),(I_Hzz, 0.00396)]:#repl_primal2num_plant.items():#[(I_Bxx, 1.64), (I_Bzz, 1.94), (I_Bxz, 0.654), (I_Hxx, 0.00980), (I_Hzz, 0.00396), (I_Hxz, -0.00044)]:# [(I_Hzz, 0.00396)]:# [(x_H, 0.944),(I_Fyy, 0.1289),(I_Hzz, 0.00396)]:#
+for param,value in repl_primal2num_plant.items():#[(I_Bxx, 1.64), (I_Bzz, 1.94), (I_Bxz, 0.654), (I_Hxx, 0.00980), (I_Hzz, 0.00396), (I_Hxz, -0.00044)]:# [(I_Hzz, 0.00396)]:# [(x_H, 0.944),(I_Fyy, 0.1289),(I_Hzz, 0.00396)]:#[(I_Hzz, 0.00396)]:#
     eig_error = []
     bode_error = []
-    if (str(param) in ['I_Bxx', 'I_Bzz', 'I_Bxz', 'I_Hxx', 'I_Hzz', 'I_Hxz']):
-        steps = np.arange(param_expected_error[str(param)][0],param_expected_error[str(param)][1]+(param_expected_error[str(param)][1] - param_expected_error[str(param)][0])/10, (param_expected_error[str(param)][1] - param_expected_error[str(param)][0])/10)
+
+    if USE_ESTIMATED_ERROR:
+        if (str(param) in ['I_Bxx', 'I_Bzz', 'I_Bxz', 'I_Hxx', 'I_Hzz', 'I_Hxz']):
+            steps = np.arange(param_expected_error[str(param)][0],param_expected_error[str(param)][1]+(param_expected_error[str(param)][1] - param_expected_error[str(param)][0])/10, (param_expected_error[str(param)][1] - param_expected_error[str(param)][0])/10)
+        else:
+            steps = np.arange(-param_expected_error[str(param)],+param_expected_error[str(param)]+(2*param_expected_error[str(param)])/10,(2*param_expected_error[str(param)])/10)
     else:
-        steps = np.arange(-param_expected_error[str(param)],+param_expected_error[str(param)]+(2*param_expected_error[str(param)])/10,(2*param_expected_error[str(param)])/10)
+        steps = np.linspace(-param_percentage_error[param],+param_percentage_error[param],11)
     for perturb in steps:
         repl_primal2num_sensitivity = copy.deepcopy(repl_primal2num_plant)
         repl_primal2num_sensitivity[param] = value + perturb
@@ -190,13 +203,13 @@ for param,value in [(x_H, 0.944),(I_Fyy, 0.1289),(I_Hzz, 0.00396)]:#repl_primal2
         ax["real"] = fig.add_subplot(121)
         ax["real"].axis((0,6,-10,3))
         ax["real"].set_title("Real part", fontsize=20)
-        ax["real"].set_ylabel("Eigenvalue [-]", fontsize=16)
-        ax["real"].set_xlabel("Speed [m/s]", fontsize=16)
+        ax["real"].set_ylabel("Eigenvalue", fontsize=16)
+        ax["real"].set_xlabel("Speed ($m/s$)", fontsize=16)
 
         ax["imag"] = fig.add_subplot(122)
         ax["imag"].axis((0,6,0,10))
         ax["imag"].set_title("Imaginary part", fontsize=20)
-        ax["imag"].set_xlabel("Speed [m/s]", fontsize=16)
+        ax["imag"].set_xlabel("Speed ($m/s$)", fontsize=16)
 
         for type, axs in ax.items():
             # Theoretic
@@ -235,8 +248,8 @@ for param,value in [(x_H, 0.944),(I_Fyy, 0.1289),(I_Hzz, 0.00396)]:#repl_primal2
         axs = dict()
         axs["lean_rate"] = fig.add_subplot(121)
         axs["lean_rate"].set_title("Hand Torque to Lean Rate", fontsize=20)
-        axs["lean_rate"].set_xlabel("Frequency [Hz]", fontsize=16)
-        axs["lean_rate"].set_ylabel("Gain [dB]", fontsize=16)
+        axs["lean_rate"].set_xlabel("Frequency (Hz)", fontsize=16)
+        axs["lean_rate"].set_ylabel("Gain (dB)", fontsize=16)
         axs["lean_rate"].set_xscale('log')
         axs["lean_rate"].axis([0.5,5,-40,0])
         axs["lean_rate"].tick_params(axis='x', labelsize=14)
@@ -244,7 +257,7 @@ for param,value in [(x_H, 0.944),(I_Fyy, 0.1289),(I_Hzz, 0.00396)]:#repl_primal2
 
         axs["fork_angle"] = fig.add_subplot(122)
         axs["fork_angle"].set_title("Hand Torque to Fork Angle", fontsize=20)
-        axs["fork_angle"].set_xlabel("Frequency [Hz]", fontsize=16)
+        axs["fork_angle"].set_xlabel("Frequency (Hz)", fontsize=16)
         axs["fork_angle"].set_xscale('log')
         axs["fork_angle"].axis([0.5,5,-40,0])
         axs["fork_angle"].tick_params(axis='x', labelsize=14)
@@ -295,13 +308,13 @@ if(VISUALIZE_ALL):
     ax["real"] = fig.add_subplot(121)
     ax["real"].axis((0,6,-10,3))
     ax["real"].set_title("Real part", fontsize=20)
-    ax["real"].set_ylabel("Eigenvalue [-]", fontsize=16)
-    ax["real"].set_xlabel("Speed [m/s]", fontsize=16)
+    ax["real"].set_ylabel("Eigenvalue", fontsize=16)
+    ax["real"].set_xlabel("Speed $m/s$", fontsize=16)
 
     ax["imag"] = fig.add_subplot(122)
     ax["imag"].axis((0,6,0,10))
     ax["imag"].set_title("Imaginary part", fontsize=20)
-    ax["imag"].set_xlabel("Speed [m/s]", fontsize=16)
+    ax["imag"].set_xlabel("Speed $m/s$", fontsize=16)
 
     for type, axs in ax.items():
         # Theoretic
@@ -323,8 +336,8 @@ if(VISUALIZE_ALL):
     axs = dict()
     axs["lean_rate"] = fig.add_subplot(121)
     axs["lean_rate"].set_title("Hand Torque to Lean Rate", fontsize=20)
-    axs["lean_rate"].set_xlabel("Frequency [Hz]", fontsize=16)
-    axs["lean_rate"].set_ylabel("Gain [dB]", fontsize=16)
+    axs["lean_rate"].set_xlabel("Frequency (Hz)", fontsize=16)
+    axs["lean_rate"].set_ylabel("Gain (dB)", fontsize=16)
     axs["lean_rate"].set_xscale('log')
     axs["lean_rate"].axis([0.5,5,-40,0])
     axs["lean_rate"].tick_params(axis='x', labelsize=14)
@@ -332,7 +345,7 @@ if(VISUALIZE_ALL):
 
     axs["fork_angle"] = fig.add_subplot(122)
     axs["fork_angle"].set_title("Hand Torque to Fork Angle", fontsize=20)
-    axs["fork_angle"].set_xlabel("Frequency [Hz]", fontsize=16)
+    axs["fork_angle"].set_xlabel("Frequency (Hz)", fontsize=16)
     axs["fork_angle"].set_xscale('log')
     axs["fork_angle"].axis([0.5,5,-40,0])
     axs["fork_angle"].tick_params(axis='x', labelsize=14)
@@ -346,7 +359,7 @@ if(VISUALIZE_ALL):
             axs[out_key].plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:],'--',linewidth=4, label="Reference system")
             axs[out_key].grid()
             handles, labels = axs[out_key].get_legend_handles_labels()
-            by_label.update(zip(labels, handles))q
+            by_label.update(zip(labels, handles))
     fig.subplots_adjust(left=0.07, bottom=0.225, right=0.99, top=0.85, wspace=0.12, hspace=None) #used with 125% zoom in screen resolution settings
     fig.legend(by_label.values(), by_label.keys(), ncols=2, fontsize=14, loc='lower center', bbox_to_anchor=(0.52, 0))
     plt.show()
@@ -400,8 +413,8 @@ for type, error in error_max.items():
     multiplier += 1
 
 # Plot styling
-ax.set_title('Sensitivity analysis - Maximal Average Error',fontsize=28)
-ax.set_ylabel('Absolute error [-]',fontsize=22)
+ax.set_title('Sensitivity analysis - Average Error with 20% perturbation',fontsize=28)
+ax.set_ylabel('Absolute error',fontsize=22)
 ax.set_xticks(x + 0.5*width, bike_param_names, fontsize=20)
 ax.legend(loc='upper left', ncol=2, fontsize=16)
 fig.subplots_adjust(left=0.075, bottom=0.06, right=0.99, top=0.95, wspace=None, hspace=None)
@@ -419,7 +432,7 @@ for type, error in error_diff.items():
 
 # Plot styling
 ax.set_title('Sensitivity analysis - Slope of Average Error',fontsize=28)
-ax.set_ylabel('Absolute error per change in variable [-]',fontsize=22)
+ax.set_ylabel('Absolute error per change in variable',fontsize=22)
 ax.set_xticks(x + 0.5*width, bike_param_names, fontsize=20)
 ax.legend(loc='upper left', ncol=2, fontsize=16)
 fig.subplots_adjust(left=0.075, bottom=0.06, right=0.99, top=0.95, wspace=None, hspace=None)
