@@ -177,7 +177,7 @@ phi_kalman_alt = KalmanSanjurjo( #TODO: initialize initial states inside the fun
 # #So if the impuls is not dt long, the lengt the controller gives an impuls and the length external impuls lasts is not equal --> leading to separate ...
 # #Furtermore, for some reason, taking the steer torque input with mm control will lead to the wrong FRF... why? --> mm control is part of the system. It is not the external input (u_bar)
 time, output, states, calc_states, tot_input, ext_input = simulate(SIM_PAR_PLANT,bike_plant,controller,u_ext_fun,phi_kalman)
-# compare_bode_frf(SIM_PAR_PLANT,bike_plant,theory_controller,{"input": ext_input[:,:2],"output": output})
+compare_bode_frf(SIM_PAR_PLANT,bike_plant,theory_controller,{"input": ext_input[:,:2],"output": output})
 
 time_ref, output_ref, states_ref, calc_states_ref, tot_input_ref, ext_input_ref = simulate(SIM_PAR_REF,bike_ref,controller_ref,u_ext_fun_ref,phi_kalman_ref)
 
