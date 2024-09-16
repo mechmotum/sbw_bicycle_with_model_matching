@@ -8,7 +8,6 @@ from math import floor
 
 from teensy_sim_serial import TeensySimSerial
 from simulation_constants import HW_IN_LOOP_PARS, BICYCLE_PARS
-from artifacts import *
 from hw_virtual_sensors import *
 
 def hw_in_the_loop_sim_setup(par,system):
@@ -74,14 +73,10 @@ def hw_in_the_loop_sim(par,system,u_ref):
     # Calculate initial control
     T_f = 0
     u = array([0,T_f]) + u_ref
-    u = control_artifacts(u)
     
     # go from discreet input to 'continuous' simulation input
     u_vec = u * ones((time_vec.shape[0], m)) 
     u_vec = hstack((u_vec, zeros((time_vec.shape[0], m_ext-m))))
-
-    # u_vec = measurement_artifacts(par,u_vec) # Implement 'continuous' measurement artifacts
-    u_vec = process_artifacts(par,u_vec) # Implement 'continuous' process artifacts
 
     # Run simulation
     for k in range(step_num):
@@ -144,18 +139,8 @@ def hw_in_the_loop_sim(par,system,u_ref):
         # print(hand_trq, fork_trq)
         u = array([0, fork_trq[0]])
 
-            # Controller artifacts
-        u = control_artifacts(u)
-        
         # Continuous time input 'u_vec'
         u_vec[:,:m] = u * ones((time_vec.shape[0], m))
-
-            # Sensor artifacts
-        # u_vec = measurement_artifacts(par,u_vec) #TODO: is this logical for my application? I measure delta and omega stuff.... 
-        #                                          #NOTE: While the motors are continuously on, the measurements are only taken at dt time intervals....
-
-            # Actuator artifacts
-        u_vec = process_artifacts(par,u_vec)
 
     #end of loop
 

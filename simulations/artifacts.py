@@ -1,22 +1,22 @@
+''' 
+___[ Artifacts.py ]___
+I insert artifacts to go from an ideal simulation to a 
+more realistic simulation. This script contains function 
+definitions for describing the effect of these artifacts. 
+In general they take a signal and transform/disturb it.
+'''
 from numpy.random import uniform
-
-def IMU_artifacts(par,u_vec):
-    # noise: np.random.normal(0,1,100)
-    return u_vec
 
 def torque_sens_artifact(par,torque):
     for i, val in enumerate(torque):
         torque[i] = val + (val*par["torque_noise_gain"])*uniform()
     return torque
 
-def encoder_artifacts(u):
-    return u
-
-def control_artifacts(u):
-    return u
-
-def measurement_artifacts(par,u_vec):
-    return u_vec
-
-def process_artifacts(par,u_vec):
-    return u_vec
+''' 
+Other possible artifacts could be:
+    > IMU artifacts
+    > encoder artifacts
+    > control artifacts
+    > measurement artifacts
+    > process artifacts 
+'''

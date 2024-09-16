@@ -6,7 +6,7 @@ from numpy import float64
 from numpy import cos as np_cos
 
 from simulation_constants import INPUT_PARS
-from artifacts import *
+from artifacts import torque_sens_artifact
 from hw_virtual_sensors import *
 
 
@@ -218,8 +218,6 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
         # Discreet time input 'u'
             # Controller input
         u = F@y0 + G@u_ext[k*sim_steps,:]
-            # Controller artifacts
-        u = control_artifacts(u)
         
         # Continuous time input 'u_vec_sim'
         '''
@@ -245,13 +243,6 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
           input.
         '''
         u_vec_sim[:,:m] = u * ones((sim_steps, m)) + (par["bike_mode"] @ u_ext[k*sim_steps:(k+1)*sim_steps,:].T).T
-
-            # Sensor artifacts
-        # u_vec_sim = measurement_artifacts(par,u_vec_sim) #TODO: is this logical for my application? I measure delta and omega stuff.... 
-        #                                          #NOTE: While the motors are continuously on, the measurements are only taken at dt time intervals....
-
-            # Actuator artifacts
-        u_vec_sim = process_artifacts(par,u_vec_sim)
 
         #--[Simulate ODE
         T,y,x = lsim(ss_model,u_vec_sim,time_vec,x0,interp=True)
