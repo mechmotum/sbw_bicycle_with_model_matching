@@ -106,8 +106,8 @@ SIM_PAR_PLANT = {
     "wheelbase" : BICYCLE_PARS["wheelbase_plant"], # [m] wheelbase of the bicycle
     "steer_tilt": BICYCLE_PARS["steer_tilt_plant"], #[rad] Steer tilt of the bicycle
     "trail": BICYCLE_PARS["trail_plant"], #[m] trail of the bicycle
-    "dt" : 0.001, # [s] Time step of the micro controller
-    "h" : 0.0001, # [s] Resolution of the continuous simulation (ODE)
+    "dt" : 0.01, # [s] Time step of the micro controller
+    "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,1,0],dtype=np.float64), # initial state (phi, delta, d_phi, d_delta) in rads and seconds
     "d_delta0" : 0, #[rad/s] Initial guess of steer rate for the y0 vector
@@ -123,8 +123,8 @@ SIM_PAR_REF = {
     "wheelbase" : BICYCLE_PARS["wheelbase_ref"], # [m] wheelbase of the bicycle
     "steer_tilt": BICYCLE_PARS["steer_tilt_ref"], #[rad] Steer tilt of the bicycle
     "trail": BICYCLE_PARS["trail_ref"], #[m] trail of the bicycle
-    "dt" : 0.001, # [s] Time step of the micro controller
-    "h" : 0.0001, # [s] Resolution of the continuous simulation (ODE)
+    "dt" : 0.01, # [s] Time step of the micro controller
+    "h" : 0.001, # [s] Resolution of the continuous simulation (ODE)
     "time" : 0, # [s] variable that keeps track of the current time
     "x0" : np.array([0,0,1,0],dtype=np.float64), # initial state (phi, delta, d_phi, d_delta)
     "d_delta0" : 0, #Initial guess of steer rate for the y0 vector
