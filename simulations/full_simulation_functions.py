@@ -1,3 +1,10 @@
+'''
+___[ full_simulation_functions.py ]___
+This contains the main simulation function and
+the functions used inside that main simulation
+function.
+'''
+
 from scipy.signal import StateSpace, lsim
 from numpy import hstack, vstack
 from numpy import ones_like, zeros_like, eye, ones, zeros, empty, array
@@ -7,17 +14,29 @@ from numpy import cos as np_cos
 from numpy import pi
 
 from simulation_constants import INPUT_PARS
+from create_controllers import zero_F_fun, zero_G_fun_sim
 from artifacts import torque_sens_artifact
 from hw_virtual_sensors import *
 
-
-def sim_setup(par,system,ctrl):
+## HELPER FUNCTIONS
+def sim_setup(par,system,ctrl,hasDrift=False):
+    '''
+    Set up the correct state space system
+    and controller gains for the current speed.
+    Store them in the parameter (par) variable
+    '''
+    # Initialize system matrices at correct speed
     system.calc_mtrx(par["vel"])
 
+    # Get dimensions
     par["n"] = system.mat["A"].shape[0]
     par["m"] = system.mat["B"].shape[1]
     par["p"] = system.mat["C"].shape[0]
     
+    # Extend the system matrices to include the extra inputs v and w,
+    #   being the system and measurement noise respectively.
+    #   (These were inserted to be future proof. Eventually I did not use
+    #    any system or measurement noise.)
     B_extended = hstack((system.mat["B"], eye(par["n"]), zeros((par["n"],par["p"]))))
     D_extended = hstack((system.mat["D"], zeros((par["p"],par["n"])), eye(par["p"])))
 
@@ -30,14 +49,16 @@ def sim_setup(par,system,ctrl):
         D_extended
         )
 
+    # Get the controllar gains related to the current speed
     if len(ctrl.keys()) == 1:
         for name in ctrl.keys():
             ctrl[name].calc_gain(par["vel"])
             F = ctrl[name].gain["F"]
             G = ctrl[name].gain["G"]
+    # if no or multiple controllers are given, use the zero controller ment for simulations (see comments in create_controllers.py)            
     else: 
-        F = zeros((par["m"],par["n"])) # u = F*x
-        G = zeros((par["m"],par["m"])) # u = G*u_ext
+        F = zero_F_fun() # u = F*x
+        G = zero_G_fun_sim() # u = G*u_ext  
         print("Simulation: None, or multiple controllers picked. Only chose one\nZero control used instead")
     par["F"] = F
     par["G"] = G
@@ -70,13 +91,13 @@ def create_external_input(par):
         offset = offset + par["dt"]
     
     # Create external input vector
-    # u_ext[:,INPUT_PARS["steer_t_pos"]] = np_cos(par["input_freq"]*2*np.pi*time)
-    # u_ext[100:,INPUT_PARS["steer_t_pos"]] = 0.1*ones_like(u_ext[100:,INPUT_PARS["steer_t_pos"]])
-    # u_ext[0:11,INPUT_PARS["lean_t_pos"]] = 2/par["dt"] #long impulse
-    # u_ext[:,INPUT_PARS["lean_t_pos"]] = 5
-    u_ext[1,INPUT_PARS["steer_t_pos"]] = 100*(0.01/par["h"]) #true impulse
-    u_ext[1,INPUT_PARS["lean_t_pos"]] = 100*(0.01/par["h"]) #true impulse
-    # u_ext[:,INPUT_PARS["lean_t_pos"]] = 5*np_cos((time/2*pi)*time)
+    # u_ext[:,INPUT_PARS["steer_t_pos"]] = np_cos(par["input_freq"]*2*np.pi*time) #Constant frequency sinusoid
+    # u_ext[100:,INPUT_PARS["steer_t_pos"]] = 0.1*ones_like(u_ext[100:,INPUT_PARS["steer_t_pos"]]) #Step input
+    # u_ext[0:11,INPUT_PARS["lean_t_pos"]] = 2/par["dt"] #Long impulse
+    # u_ext[:,INPUT_PARS["lean_t_pos"]] = 5 #Constant torque
+    u_ext[1,INPUT_PARS["steer_t_pos"]] = 100*(0.01/par["h"]) #True impulse
+    u_ext[1,INPUT_PARS["lean_t_pos"]] = 100*(0.01/par["h"]) #True impulse
+    # u_ext[:,INPUT_PARS["lean_t_pos"]] = 5*np_cos((time/2*pi)*time) #Chirp signal
     return u_ext
 
 def sim_post_process(par,signal):
@@ -91,7 +112,7 @@ def sim_post_process(par,signal):
     value every k*dt. 
     This function removes this artifact, such that the simulations
     of dt time join together smootly.
-    To do this, the signal is devided in 'step_num' blocks of 
+    To do this, the signal is reshaped in 'step_num' blocks of 
     'sim_steps' length. Then the last row/collumn is removed 
     containing the repetition. Afterwards the signal is reshaped 
     into its original form again. As the final value is no 
@@ -144,13 +165,15 @@ def make_meas_state_vec(par,x0,y0,phi,delta,d_phi,d_delta):
         '''Carvallo-Whipple model with heading angle and a dummy 
         variable for integration added to the state vector. Heading
         angle is directly taken from the true states, integration 
-        is continuously done with a dummy variable
+        is 'continuously' done with a dummy variable in the ODE solver.
         Used to check how well the discreet version holds up.
         '''
         y0[:] = x0[:]
         y0[:4] = array([phi,delta,d_phi,d_delta], dtype=float64)
     return y0
 
+
+## 'MAIN'
 def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
     #--[Get all parameters
     par = sim_setup(par,system,ctrlrs)
@@ -191,17 +214,17 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
     u_ext[:,INPUT_PARS["steer_t_pos"]] = torque_sens_artifact(par,u_ext[:,INPUT_PARS["steer_t_pos"]])
 
     #--[Initial 'measurements'
-    # phi = phi_kalman.x_post[0,0]
-    past_delta = x0[1]
-    # d_phi = x0[2]
-    # d_delta = par["d_delta0"]
-    # y0[:4] = array([phi,past_delta,d_phi,d_delta]) 
-    y0 = zeros_like(x0) #TODO: How does the modular artifacts, x0/y0, and Kalman interact???
-    y0[:] = x0[:] #TODO: seperate y0[psi] & y0[dummy] from x0[psi] & x0[dummy]
+    # y is considered the 'measurement' (some are measured, some are derived)
+    # For now, the initial measurement is partially the initial state.
+    y0 = zeros_like(x0)
+    y0[:] = x0[:]
     y0[0] = phi_kalman.x_post[0,0]
     y0[3] = par["d_delta0"]
+    
+    # Necessary for the one-step-differentiation rate estimation
+    past_delta = x0[1]
 
-    # Run simulation
+    #--[Run simulation
     for k in range(step_num):
         #--[store calculated y0 vec (done at the start for correct storage in time)
         y0_vec[k*sim_steps:(k+1)*sim_steps, :] = y0 * ones((sim_steps,n))
@@ -288,40 +311,14 @@ def simulate(par,system,ctrlrs,external_input_fun,phi_kalman):
     u_ext = sim_post_process(par,u_ext)
     return T_vec, y_vec, x_vec, y0_vec, u_vec, u_ext #TODO: ALSO OUPUT THE ACTUAL INPUT TO THE MODEL -> u_vec_sim
 
-def sim_setup_with_drift(par,system,ctrl):
-    if len(ctrl.keys()) == 1:
-        for name in ctrl.keys():
-            ctrl[name].calc_gain(par["vel"])
-            F = ctrl[name].gain["F"]
-            G = ctrl[name].gain["G"]
-    else: 
-        F = zeros((par["m"],par["n"])) # u = F*x
-        G = zeros((par["m"],par["m"])) # u = G*u_ext
-        print("Simulation: None, or multiple controllers picked. Only chose one\nZero control used instead")
-    par["F"] = F
-    par["G"] = G
-
-    system.calc_mtrx(par["vel"])
-
-    par["n"] = system.mat["A"].shape[0]
-    par["m"] = system.mat["B"].shape[1]
-    par["p"] = system.mat["C"].shape[0]
-    
-    B_extended = hstack((system.mat["B"], eye(par["n"]), zeros((par["n"],par["p"]))))
-    D_extended = hstack((system.mat["D"], zeros((par["p"],par["n"])), eye(par["p"])))
-
-    par["m_ext"] = B_extended.shape[1]
-
-    par["ss_model"] = StateSpace(
-        system.mat["A"] + system.mat["B"]@F,
-        B_extended,
-        system.mat["C"],
-        D_extended
-        )
-
-    return par
-
 def simulate_with_drift(par,system,ctrlrs,drift_torque,id_type):
+    '''
+    Simulate the bicycle model with drift.
+    Drift is simulated by a constant lean torque. Used to 
+    identify any effect of drift on the eigenvalue and bode
+    plots. Use true state feedback, to remove possible other
+    influences.
+    '''
     #--[Get all parameters
     par = sim_setup(par,system,ctrlrs)
 
@@ -354,8 +351,10 @@ def simulate_with_drift(par,system,ctrlrs,drift_torque,id_type):
     # Input
         # Prealocate 'continuous' simulation input
     u_vec_sim = zeros((sim_steps, m_ext))
-        # Calculate external input
-    # Pre allocate vectors
+        # Set the external input to a constant drift LEAN torque.
+        # If the simulation is used to identify the system using 
+        # the bode gain, than the external input should have 
+        # sinusoidal STEER torque.
     u_ext = zeros((par["sim_steps"] * par["step_num"], par["m"]))
     u_ext[:,INPUT_PARS["lean_t_pos"]] = drift_torque
     if id_type == "bode":
