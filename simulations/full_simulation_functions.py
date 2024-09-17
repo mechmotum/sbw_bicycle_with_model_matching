@@ -19,7 +19,7 @@ from artifacts import torque_sens_artifact
 from hw_virtual_sensors import *
 
 ## HELPER FUNCTIONS
-def sim_setup(par,system,ctrl,hasDrift=False):
+def sim_setup(par,system,ctrl):
     '''
     Set up the correct state space system
     and controller gains for the current speed.
@@ -40,8 +40,10 @@ def sim_setup(par,system,ctrl,hasDrift=False):
     B_extended = hstack((system.mat["B"], eye(par["n"]), zeros((par["n"],par["p"]))))
     D_extended = hstack((system.mat["D"], zeros((par["p"],par["n"])), eye(par["p"])))
 
+    # Get dimensions
     par["m_ext"] = B_extended.shape[1]
 
+    # Create state space object
     par["ss_model"] = StateSpace(
         system.mat["A"],
         B_extended,

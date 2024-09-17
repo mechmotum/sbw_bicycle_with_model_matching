@@ -1,3 +1,12 @@
+'''
+___[ hw_in_loop_simulation_functions.py ]___
+This contains the main script for the hardware 
+in the loop simulation.
+The hardware in the loop simulation allows for 
+simulation and validation of the code on the 
+teensy micro controller
+'''
+
 from scipy.signal import StateSpace, lsim
 from numpy import hstack, eye, ones, zeros, empty, array
 from numpy import linspace
@@ -11,17 +20,25 @@ from simulation_constants import HW_IN_LOOP_PARS, BICYCLE_PARS
 from hw_virtual_sensors import *
 
 def hw_in_the_loop_sim_setup(par,system):
+    # Initialize system matrices at correct speed
     system.calc_mtrx(par["vel"])
 
+    # Get dimensions
     par["n"] = system.mat["A"].shape[0]
     par["m"] = system.mat["B"].shape[1]
     par["p"] = system.mat["C"].shape[0]
     
+    # Extend the system matrices to include the extra inputs v and w,
+    #   being the system and measurement noise respectively.
+    #   (These were inserted to be future proof. Eventually I did not use
+    #    any system or measurement noise.)
     B_extended = hstack((system.mat["B"], eye(par["n"]), zeros((par["n"],par["p"]))))
     D_extended = hstack((system.mat["D"], zeros((par["p"],par["n"])), eye(par["p"])))
 
+    # Get dimensions
     par["m_ext"] = B_extended.shape[1]
 
+    # Create state space object
     par["ss_model"] = StateSpace(
         system.mat["A"],
         B_extended,
@@ -31,6 +48,13 @@ def hw_in_the_loop_sim_setup(par,system):
     return par
 
 def hw_in_the_loop_sim(par,system,u_ref):
+    '''
+    This function simulates the bicycle's sensor values.
+    Then it send these to the teensy, which calculates
+    the correct control and sends it back to this script.
+    The script then updates the bike state and the resulting
+    sensor values.
+    '''
     #--[Get all parameters
     par = hw_in_the_loop_sim_setup(par,system)
 
@@ -54,6 +78,7 @@ def hw_in_the_loop_sim(par,system,u_ref):
     m_ext = par["m_ext"]
     p = par["p"]
 
+    #--[Calculate the number of ticks per dt time
     ticks_travelled = (dt*vel)/(2*pi*BICYCLE_PARS["wheel_radius"]) * HW_IN_LOOP_PARS["ticks_per_rev"]
 
     #--[Prealocate return values for speed
@@ -117,6 +142,7 @@ def hw_in_the_loop_sim(par,system,u_ref):
             pass
 
         #--[Reset speed ticks
+        # This is done as the speed ticks may run into an overflow if it is not done every so often.
         isSpeedTicksReset = hw_com.sim_rx(uint8)
         if(isSpeedTicksReset):
             speed_ticks = 0
