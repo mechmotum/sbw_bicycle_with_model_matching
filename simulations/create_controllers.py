@@ -1,3 +1,11 @@
+'''
+___[ create_controllers.py ]___
+Some controllers are speed dependent. As a result
+the class holding the controller requires functions
+that return the matrices based on the speed. 
+This script holds the (speed dependent) functions 
+that return the controller gains.
+'''
 from numpy import array, zeros, eye
 from numpy.linalg import eigvals
 from scipy.signal import place_poles
@@ -81,17 +89,27 @@ def zero_F_fun():
     '''
     return zeros((2,4))
 
-def zero_G_fun():
+def zero_G_fun_sim():
     '''
-    Dummy functions to create the zero control case
+    In the simulation F and G are used to 
+    calculate the control input on the system.
+    External inputs/disturbances are handled 
+    seperately.
+    Dummy functions to create the zero control case.
+    Therefor G = 0.
     TODO: get rid of the magic numbers
     '''
-    return zeros((2,2)) #eye(2) #eye --> zeros changed the high frequency artifacts, but removes the gain difference (also explains the influence of the step size as that would mean more or less noise inputs)
+    return zeros((2,2))
 
 
 # Pole Placement Controller
 def pp_F_fun_wrapper(plant, ref):
     def pp_F_fun(speed):
+        '''
+        Calculate the pole placement gain to go from 
+        the controlled system eigenvalues to the 
+        reference system eigenvalue 
+        '''
         plant.calc_mtrx(speed)
         ref.calc_mtrx(speed)
         target_eig = eigvals(ref.mat["A"])
@@ -122,12 +140,12 @@ def pp_G_fun_theory():
 
 # Model Matching controller
 def mm_G_fun_sim_wrapper(mm_gain_fun_theory):
-    ''' The mm cotroller is imported from another
-    py script. This controller is the theoretic 
-    version, where the F and G also contain external 
-    inputs. In the case for a steer by wire bicycle, 
-    this means the lean torque is part of G. For the 
-    simulation, only the the control input is calculated. 
+    ''' The mm controller is imported from another
+    py script. This controller is a version where
+    the external lean torque is fed through, but the 
+    steer torque is dependent on the external steer
+    and lean torque.
+    The simulation handles external inputs seperately. 
     As such, external inputs should be kept out of 
     the control calculation. Hence the minus
     [[1, 0], [0, 0]]
@@ -138,6 +156,11 @@ def mm_G_fun_sim_wrapper(mm_gain_fun_theory):
 
 
 # Model matching & SIL control
+# Math behind combination:
+# (A_c + B_c@F_mm)*x + B_c@G_mm*u = A_r*x + B_r*u
+# (A_r + B_r@F_sil)*x + B_r@G_sil*u = (A_c + B_c@F_mm + B_c@G_mm@F_sil)x + B_c@G_mm@G_sil*u
+#                                   = (A_c + B_c@(F_mm + G_mm@F_sil))x + B_c@(G_mm@G_sil)*u
+#                                   = (A_c + B_c@F_mm_sil)*x + B_c@G_mm_sil*u
 def mm_sil_F_fun_wrapper(mm_gain_fun_theory):
     def mm_sil_F_fun(speed):
         mm_F = mm_gain_fun_theory["F"](speed)

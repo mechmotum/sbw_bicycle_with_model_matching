@@ -1,6 +1,8 @@
 '''
+___[ check_byte_size.py ]___
 Code to see what the byte sizes are for all values send to 
-and from the teensy.
+and from the teensy. Used when using the hardware in the 
+loop simulation.
 '''
 import numpy as np
 

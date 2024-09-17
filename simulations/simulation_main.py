@@ -118,7 +118,7 @@ pp_ctrl_theory = VariableController(pp_theory_funs)
 #Zero controller (no control)
 zero_funs = {
     "F": zero_F_fun, 
-    "G": zero_G_fun
+    "G": zero_G_fun_sim
 }
 zero_ctrl = VariableController(zero_funs)
 
