@@ -1,3 +1,12 @@
+'''
+___[  ]___
+The lean rate can not easily be directly measured,
+therefore I use an observer. The perticular observer
+is based on the paper: 
+"Roll angle estimator based on angular rate measurements for bicycles, Sanjurjo, 2019"
+This class implements that specific observer.
+'''
+
 from numpy import array, eye
 from numpy.random import normal
 from math import sin, cos, asin, atan
@@ -25,7 +34,7 @@ class KalmanSanjurjo:
     def __sgn(self,x):
         return ((int)(x >= 0) - (int)(x < 0))
 
-    def __calc_omega(self,par,bike_state): #TODO: should this function be inside the kalman class?
+    def __calc_omega(self,par,bike_state):
         ''' NOTE: the assumption is made that the bicycle
         will move on a flat level ground. (As meijaard does
         with their bicycle model.) This means pitch and pitch 
@@ -36,14 +45,21 @@ class KalmanSanjurjo:
         d_phi = bike_state[2]
         d_delta = bike_state[3]
 
-        d_psi = (delta * par["vel"]*cos(par["steer_tilt"])/par["wheelbase"]\
-                + d_delta * par["trail"]*cos(par["steer_tilt"])/par["wheelbase"])
+        # 'd_psi' formula taken from "Linearized dynamics equations for the balance and steer of a bicycle: a benchmark and review, Meaijaard, 2007"
+        d_psi = (delta * par["vel"]+ d_delta * par["trail"])*(cos(par["steer_tilt"])/par["wheelbase"])
+        
+        # 'omega_' formulas taken/derived from "Roll angle estimator based on angular rate measurements for bicycles, Sanjurjo, 2019"
         self.omega_x = d_phi
         self.omega_y = sin(phi)*d_psi
         self.omega_z = cos(phi)*d_psi
         return
 
-    def __calc_measurement(self): #NOTE uses omega(k)
+    def __calc_measurement(self): 
+        '''
+        Formula to calculate a 'measurement' lean angle.
+        The formulas are taken from (Sanjurjo 2019)
+        '''
+        #NOTE uses omega(k)
         phi_d = atan(self.omega_z*self.speed/BICYCLE_PARS["gravity"])
         phi_omega = self.__sgn(self.omega_z) * asin(self.omega_y/sqrt(self.omega_y**2 + self.omega_z**2))
         W = exp(-(self.x_post[0][0])**2/self.PHI_WEIGHT) #By using x.post, make sure this function is called before __update() to get the previous state estimate
@@ -59,8 +75,9 @@ class KalmanSanjurjo:
         self.omega_z = self.omega_z + normal(0.0,self.IMU_NOISE_VAR)
         return
         
-    def __predict(self,u): #NOTE uses omega(k-1)
-        self.x_prio = self.F@self.x_post + self.B@u #TODO: Make sure to use omega(k-1)
+    def __predict(self,u): 
+        #NOTE uses omega(k-1)
+        self.x_prio = self.F@self.x_post + self.B@u
         self.P_prio = self.F@self.P_post@(self.F.T) + self.Q
         return
 
@@ -72,13 +89,17 @@ class KalmanSanjurjo:
         return
     
     def next_step(self,par,bike_state):
+        #Prediction step using | phi(k) | = | 1 -dt | * |  phi(k-1)  | + | dt | * omega_x
+        #                      | bias(k)|   | 0   1 |   |  bias(k-1) |   | 0  |
         u = array([[self.omega_x]])
         self.__predict(u)
 
+        # Calculate the lean angle measurement
         self.__calc_omega(par,bike_state) #update omega (k-1 -> k)
-        self.__add_sensor_noise() #TODO: this is not something that should be inside the Kalman Class... find an appropriate structure.
-
+        self.__add_sensor_noise()
         z = self.__calc_measurement()
+
+        # Update step using calculated lean angle 'measurement'
         self.__update(z)
 
         return (self.x_post[0,0], self.x_post[1,0]) #return phi and bias
