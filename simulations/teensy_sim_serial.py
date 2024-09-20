@@ -1,10 +1,17 @@
+'''
+___[ teensy_sim_serial.py ]___
+This contains the class that abstracts the 
+communication between the PC and the teensy. 
+Used when doing a hardware in the loop 
+simulation.
+'''
 import serial.tools.list_ports
 import numpy as np
 
 class TeensySimSerial:
     def __init__(self, baud_rate):
         #------[Initialize variables
-        teensy_port = self.select_port()
+        teensy_port = self.__select_port()
         self.baud_rate = baud_rate
        
         #------[Create communication object
@@ -22,7 +29,7 @@ class TeensySimSerial:
             )
         return
     
-    def select_port(self):
+    def __select_port(self):
         '''
         Select correct port with help of user.
         '''
@@ -60,9 +67,10 @@ class TeensySimSerial:
         For teensy (and most likely arduino) it is b'\\r\\n'.
         Make sure the data sent by the teensy is indeed 'data_type'.
         ''' #Should be b'\r\n' (escapes are used for vscode documentation features purposes.)
+        
         input_b = self.com.read_until(b'\r\n').rstrip(b'\r\n')
         # print("input in bytes: ", input_b) # for debugging
-        input = np.frombuffer(input_b, dtype=data_type,)
+        input = np.frombuffer(input_b, dtype=data_type,) # transform into numpy array
         return input
 
     def reconnect(self):
