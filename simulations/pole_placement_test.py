@@ -1,4 +1,5 @@
 '''
+___[ pole_placement_test.py ]___
 When there are multiple inputs, pole placement can be achieved
 with different feedback gains.
 So one needs an extra condition to make the feedback gain 
@@ -13,7 +14,7 @@ import scipy.signal as sign
 ## Choose example
 # Pole placement has multiple options : 1
 # Pole placement has only one option  : 2
-exmp = 1
+exmp = 2
 
 ## Setup Matrices
  # Dimensions
@@ -29,9 +30,11 @@ A_r = S_r*D_r*T_r
 
  # Uncontrolled system
 if exmp == 1:
+    # Multiple Input
     A_n = np.matrix([[2,-4],[0.2,-3]])
     B_n = np.matrix([[1,2],[2,3]])
 if exmp == 2:
+    # Single Input
     A_n = np.matrix([[0.9,0],[2.5,-1.1]])
     B_n = np.matrix([[1],[1.5]])
 print(f"\n(A_n,B_n) controllable: {n==np.linalg.matrix_rank(np.hstack((B_n,A_n*B_n)))}")
@@ -43,24 +46,27 @@ A_c = (A_n - B_n*F.gain_matrix)
 
  # Controlled System: Model matching 
 if exmp == 1:
+    # Multi Input
     F_mm = np.linalg.inv(B_n)*(A_r - A_n)
     A_mm = (A_n + B_n*F_mm)
 elif exmp == 2:
+    # Single input
     F_mm = (A_r[0] - A_n[0])/B_n[0]
     A_mm = (A_n + B_n*F_mm)
 
  # Show A matrix systems
 print(f"\nA matrix reference:\n {A_r}")
-print(f"\nA matrix controlled (mm):\n {A_mm}")
 print(f"\nA matrix controlled (pp):\n {A_c}")
+print(f"\nA matrix controlled (mm):\n {A_mm}")
 
- # Calculate eigenvalues of all systems
+
+## Calculate eigenvalues of all systems
 print(f"\nEigenvalues reference: {np.linalg.eigvals(A_r)}")
 print(f"Eigenvectors reference:\n{np.linalg.eig(A_r).eigenvectors}")
-print(f"\nEigenvalues controlled (mm): {np.linalg.eigvals(A_mm)}")
-print(f"Eigenvectors controlled (mm):\n{np.linalg.eig(A_mm).eigenvectors}")
 print(f"\nEigenvalues controlled (pp): {np.linalg.eigvals(A_c)}")
 print(f"Eigenvectors controlled (pp):\n{np.linalg.eig(A_c).eigenvectors}")
+print(f"\nEigenvalues controlled (mm): {np.linalg.eigvals(A_mm)}")
+print(f"Eigenvectors controlled (mm):\n{np.linalg.eig(A_mm).eigenvectors}")
 
 
 ## Simulate
