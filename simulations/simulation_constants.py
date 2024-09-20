@@ -92,6 +92,9 @@ KALMAN_PAR = {
 # Sensor placements matrix
 C_MATRIX_BIKE = np.array([[0,1,0,0],[0,0,1,0]])
 
+def sensor_matrix_bike():
+    return C_MATRIX_BIKE
+
 # System specific parameters
 '''
 NOTE: Be aware that changing the controller step time (dt) 

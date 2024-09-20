@@ -42,9 +42,6 @@ def make_heading_plant(plant,par):
     "C": plantC
     }
     return tmp
-    
-def sensor_matrix_bike():
-    return C_MATRIX_BIKE
 
 
 ###--------[INITIALIZATION

@@ -34,7 +34,7 @@ if exmp == 1:
     A_n = np.matrix([[2,-4],[0.2,-3]])
     B_n = np.matrix([[1,2],[2,3]])
 if exmp == 2:
-    # Single Input
+    # Single Input (for model matching to work here the collumns of A_n, A_r, and B_n should be linearly dependent on each other)
     A_n = np.matrix([[0.9,0],[2.5,-1.1]])
     B_n = np.matrix([[1],[1.5]])
 print(f"\n(A_n,B_n) controllable: {n==np.linalg.matrix_rank(np.hstack((B_n,A_n*B_n)))}")
@@ -51,7 +51,7 @@ if exmp == 1:
     A_mm = (A_n + B_n*F_mm)
 elif exmp == 2:
     # Single input
-    F_mm = (A_r[0] - A_n[0])/B_n[0]
+    F_mm = (A_r[0] - A_n[0])/B_n[0] #= (A_r[1] - A_n[1])/B_n[1] (the linear dependency)
     A_mm = (A_n + B_n*F_mm)
 
  # Show A matrix systems
