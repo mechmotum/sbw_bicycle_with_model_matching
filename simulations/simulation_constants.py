@@ -163,9 +163,9 @@ SIM_PAR_ALT = {
     "bike_mode": np.eye(2)
 }
 
-# Number of steps in the simulation during a timestep 'dt'
-# The +1 is done because the ODE solver also counts the inital time as a step.
-# E.g. if dt=h you will have 1 step, but two time points: initial & end.
+# Number of time points in the ODE simulation during a timestep 'dt'
+# The +1 is done because the ODE solver also needs the inital time as a time point.
+# E.g. if dt=h you will have 1 step, but need two time points: initial & end.
 # (in retrospect sim_steps might not be the best name)
 SIM_PAR_PLANT["sim_steps"] = ceil(SIM_PAR_PLANT["dt"]/SIM_PAR_PLANT["h"]) + 1
 SIM_PAR_REF["sim_steps"]   = ceil(SIM_PAR_REF["dt"]/SIM_PAR_REF["h"]) + 1

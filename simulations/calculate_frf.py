@@ -6,6 +6,8 @@ This script contains the function to calculate
 the FRF given an input and a output.
 Additionally, it contains function to compare the 
 FRF to the theoretical bode gain.
+Initially I used this script to see if the method
+was viable in a real experiment.
 '''
 
 from numpy.fft import rfft, rfftfreq
