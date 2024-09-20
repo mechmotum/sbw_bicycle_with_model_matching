@@ -1,3 +1,13 @@
+'''
+___[ variable_system_classes ]___
+The A matrix of the bicycle model, and the feedback gain
+are dependend on the speed.
+The state space and controller notation therefor have to 
+be coded such that they include this speed dependency.
+The classes in this file are containers for respectively
+the state space and controller, whos numerical vaues are 
+dependent on a single parameter.
+'''
 from inspect import getfullargspec
 from numpy import eye, zeros
 
@@ -14,8 +24,8 @@ class VariableStateSpaceSystem:
     Takes in a variable needed to calculate the 
     parametrized matrix, and uses the member dictionairy 
     mat_fun (initialized in init) to calculate the 
-    numarical matrix values.
-    NOTE: all matrices now have to be dependend on the 
+    numarical matrix values of the parametrized matrix.
+    NOTE: for now, all matrices have to be dependend on the 
     same variable. (in this case it is 
     speed)
     '''
@@ -24,6 +34,11 @@ class VariableStateSpaceSystem:
         self.mat = {}
 
     def __str__(self):
+        '''
+        Function that creates a string object 
+        of all the calculated numerical matrices.
+        Usefull for debugging
+        '''
         txt = ""
         for key, value in self.mat.items():
             txt = txt + key + f": {value}\n"
@@ -56,7 +71,7 @@ class VariableController:
     parametrized gain matrix, and uses the member dictionairy 
     gain_fun (initialized in init) to calculate the 
     numarical gain matrix values.
-    NOTE: all matrices now have to be dependend on the 
+    NOTE: For now, all matrices have to be dependend on the 
     same variable. (in this case it is 
     speed)
     '''
@@ -65,6 +80,11 @@ class VariableController:
         self.gain = {}
 
     def __str__(self):
+        '''
+        Function that creates a string object 
+        of all the calculated numerical matrices.
+        Usefull for debugging
+        '''
         str = ""
         for key, value in self.gain.items():
             str = str + key + f": {value}\n"
