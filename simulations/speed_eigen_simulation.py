@@ -1,36 +1,55 @@
+'''
+___[ speed_eigen_simulation.py ]___
+This script contains the functions to calculate
+the theoretical/ideal speed-eigenvalue plots.
+'''
 from numpy.linalg import eigvals
 from numpy import real, imag
 from numpy import array, ones
 import matplotlib.pyplot as plt
 
+## HELPING
 def plot_speed_eigen(eigenvals,speed_axis):
     for key, value in eigenvals.items():
+        # Formatting
         plt.figure()    
         plt.title(key, fontsize = 24)
-        plt.scatter(speed_axis, value["real"],s=1)
-        plt.scatter(speed_axis, value["imag"],s=1)
-        plt.axis((0,10,-10,10))
         plt.xlabel("Speed [m/s]", fontsize = 16)
         plt.ylabel("Eigenvalue [-]", fontsize = 16)
+
+        # Plotting
+        plt.scatter(speed_axis, value["real"],s=1)
+        plt.scatter(speed_axis, value["imag"],s=1)
+        
+        # Formatting
+        plt.axis((0,10,-10,10))
         plt.legend(["real","imag"], fontsize = 16)
     plt.show()
     return
 
 def plot_root_locus(eigenvals,speed_axis, speedrange):
     for key, value in eigenvals.items():
+        # Formatting
         plt.figure()    
         plt.title(key, fontsize = 24)
-        plt.scatter(value["real"], value["imag"], s=1, c=speed_axis)
-        plt.scatter(value["real"][0], value["imag"][0], s=100, marker='x', c='r')
         plt.xlabel("Real", fontsize = 16)
         plt.ylabel("Imaginary", fontsize = 16)
         plt.colorbar(label="speed",values=speedrange)
+
+        # Plotting
+        plt.scatter(value["real"], value["imag"], s=1, c=speed_axis)
+        plt.scatter(value["real"][0], value["imag"][0], s=100, marker='x', c='r')
+        
+        # Formatting
         plt.axis((-20,5,-15,15))
         plt.grid(True)
     plt.show()
     return
 
+
+## MAIN
 def sim_eigen_vs_speed(speedrange, plnts, ctrls):
+    # Initialize the lists to be able to acces via indices later
     eigenvals = {
         "plant": [None for k in range(len(speedrange))],
         "ref": [None for k in range(len(speedrange))],

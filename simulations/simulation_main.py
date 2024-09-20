@@ -1,3 +1,13 @@
+'''
+___[ simulation_main.py ]___
+This is the main script of the simulations folder
+This script computes 1) the theoretical/ideal
+speed-eigenvalue and Bode gain plot.
+2) simulates the time trajectory of the 
+bicycle for different models, controllers,
+and inputs
+'''
+
 import dill
 import numpy as np
 import matplotlib.pyplot as plt
