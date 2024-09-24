@@ -7,9 +7,21 @@ from data_parsing import logfile2array
 from theoretical_plotting import get_eigen_vs_speed
 
 def kooijman_func(t, sigma, omega, c1, c2, c3, c4, l1, l2):
+    '''
+    Function to fit the impulse response to.
+    This is two exponential function plus an 
+    exponential sinusoid, which is the expected 
+    motion when taking all eigenvalues into 
+    account. 
+    '''
     return c1*np.exp(l1 * t) + c4*np.exp(l2 * t) + np.exp(sigma * t) * (c2 * np.cos(omega * t) + c3 * np.sin(omega * t))
 
 def fit_kooijman(time,data,par0):
+    '''
+    Fit the data to the fit function and return 
+    the sigma and omega of the weave mode, and the 
+    lambda of the capsize and caster mode.
+    '''
     # Fit parameters: (sigma, omega, c1, c2, c3)
     p_opt, p_cov = spo.curve_fit(f=kooijman_func, xdata=time, ydata=data, p0=par0,maxfev=MAX_FUN_EVAL)
 
@@ -19,12 +31,17 @@ def fit_kooijman(time,data,par0):
     r_squared = (1 - (ss_res / ss_tot))
 
     if(VISUAL_CHECK_FIT):
+        # Formatting
         plt.figure()
         plt.title("Kooijman eigenvalue fit on experimental data",fontsize=24)
         plt.ylabel("State [?]",fontsize=16)
         plt.xlabel("Duration [s]",fontsize=16)
+
+        # Plotting
         plt.plot(time,kooijman_func(time, *p_opt), label="Kooijman fit")
         plt.plot(time,data,label="Experimental data")
+
+        # Formatting
         plt.grid()
         plt.legend(fontsize=14)
         plt.show()
@@ -32,35 +49,55 @@ def fit_kooijman(time,data,par0):
     return p_opt[0], p_opt[1], p_opt[-2], p_opt[-1], r_squared
 
 def do_log_decrement(time, data):
+    '''
+    Perform a identification of the real part
+    of the complex eigenvalue via the log 
+    decrement. This is done as usefull part of 
+    the measured data for 1.5 m/s gave very 
+    spread results. 
+    '''
+    # Data is cut such that first peak is at time=0
     x1 = data[0]
     t1 = time[0]
+
+    # Take the first (and therefore highest) peak of opposite sign
     if x1>0:
         x2 = -np.min(data)
         t2 = time[np.argmin(data)]
     else:
         x2 = -np.max(data)
         t2 = time[np.argmax(data)]
+
+    # Calculate log decrement
     sigma = np.log(x1/x2)/(t1-t2)
-    # omega = np.pi/(t2-t1)
+
     if(VISUAL_CHECK_FIT):
+        # Formatting
         plt.figure()
         plt.title("Kooijman eigenvalue fit on experimental data",fontsize=24)
         plt.ylabel("State [?]",fontsize=16)
         plt.xlabel("Duration [s]",fontsize=16)
+
+        # Plotting
         plt.plot(time, x1*np.exp(sigma*time), color="C0", label="Kooijman fit")
         plt.plot(time,-x1*np.exp(sigma*time), color="C0")
         plt.plot(time,np.abs(data),color="C1",label="Experimental data")
         plt.plot([t1,t2],[x1,-x2],'Xr')
+
+        # Formatting
         plt.grid()
         plt.legend(fontsize=14)
         plt.show()
-    return sigma#, omega
+    return sigma
 
 def extract_eigenvals(time,data,par0,speed):
+    # Store in vector when you extract the eigenvalues from multiple measurements (i.e. angle and rate for both lean and steer)
     sigma_vec = np.empty((len(data.keys()),))
     omega_vec = np.empty((len(data.keys()),))
     lab1_vec = np.empty((len(data.keys()),))
     lab2_vec = np.empty((len(data.keys()),))
+
+    # Extract the eigenvalues given the data
     for i,value in enumerate(data.values()):
         if speed >= 2:
             sigma_vec[i], omega_vec[i], lab1_vec[i], lab2_vec[i], r_squared = fit_kooijman(time,value,par0)
@@ -70,8 +107,8 @@ def extract_eigenvals(time,data,par0,speed):
             omega_vec[i] = 0
             lab1_vec[i] = 0
             lab2_vec[i] = 0
-        # if speed == 1.5:
-        #     sigma_vec[i] = do_log_decrement(time, value)
+
+    # Take the average when the eigenvalue was identified through multiple measurements.
     sigma = np.average(sigma_vec)
     omega = np.average(omega_vec)
     lab1 = np.average(lab1_vec)
@@ -79,6 +116,7 @@ def extract_eigenvals(time,data,par0,speed):
     return sigma, omega, lab1, lab2
 
 def extract_data(full_path,start,stop,time_step,vars2extract,filter_type):
+    # Extract data and possibly filter it
     extraction = logfile2array(full_path,"",vars2extract)
 
     for key,value in extraction.items():
@@ -98,70 +136,11 @@ def extract_data(full_path,start,stop,time_step,vars2extract,filter_type):
     
     return time, extraction
 
-def plot_eigenvals(results,speedrange,ss_file1,ss_file2,plot_type):
-    #Theoretical
-    speed_ax_plant, eig_theory_plant = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS)
-    speed_ax_ref, eig_theory_ref = get_eigen_vs_speed(ss_file1,'ref',speedrange,SIL_PARAMETERS)
-    speed_ax_fric, eig_theory_fric = get_eigen_vs_speed(ss_file2,'plant',speedrange,SIL_PARAMETERS)
-    speed_ax_fric_mm, eig_theory_fric_mm = get_eigen_vs_speed(ss_file2,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
-    
-    ## REAL PART
-    plt.figure(figsize=(11, 5), dpi=125)
-    plt.title("Bicycle eigenvalues vs speed - Real part", fontsize=24)
-    plt.ylabel("Eigenvalue [-]", fontsize=16)
-    plt.xlabel("Speed [m/s]", fontsize=16)
-    
-    # Theoretical speed-eigen
-    plt.scatter(speed_ax_plant, eig_theory_plant["real"], s=1, label="Theoretical plant")
-    plt.scatter(speed_ax_ref, eig_theory_ref["real"],s=1, label="Theoretical reference")
-    plt.scatter(speed_ax_fric, eig_theory_fric["real"],s=1, label="Friction plant")
-    plt.scatter(speed_ax_fric_mm, eig_theory_fric_mm["real"],s=1, label="Friction reference")
-    # Emperical speed-eigen
-    for method in results:
-        plt.plot(method["speeds"]+method["style"]["offset"], method["real"],
-                 color=method["style"]["color"][0],
-                 marker=method["style"]["marker"][0],
-                 fillstyle=method["style"]["fillstyle"][0],
-                 linestyle='',
-                 markersize=6,
-                 label=method["name"])
-
-    plt.legend(fontsize=14,loc='lower right')
-    plt.grid()
-    plt.axis((speedrange[0],speedrange[-1],-10,5))
-
-
-    ## IMAG PART
-    plt.figure(figsize=(11, 5), dpi=125)
-    plt.title("Bicycle eigenvalues vs speed - Imaginairy part", fontsize=24)
-    plt.ylabel("Eigenvalue [-]", fontsize=16)
-    plt.xlabel("Speed [m/s]", fontsize=16)
-
-    # Theoretical speed-eigen
-    plt.scatter(speed_ax_plant, eig_theory_plant["imag"], s=1, label="Theoretical plant")
-    plt.scatter(speed_ax_ref, eig_theory_ref["imag"],s=1, label="Theoretical reference")
-    plt.scatter(speed_ax_fric, eig_theory_fric["imag"],s=1, label="Friction plant")
-    plt.scatter(speed_ax_fric_mm, eig_theory_fric_mm["imag"],s=1, label="Friction reference")
-    # Emperical speed-eigen
-    for method in results:
-        plt.plot(method["speeds"]+method["style"]["offset"], method["imag"],
-                 color=method["style"]["color"][1],
-                 marker=method["style"]["marker"][1],
-                 fillstyle=method["style"]["fillstyle"][1],
-                 linestyle='',
-                 markersize=6,
-                 label=method["name"])
-    
-    plt.legend(fontsize=14,loc='lower right')
-    plt.grid()
-    plt.axis((speedrange[0],speedrange[-1],0,10))
-    plt.show()
-
 def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type):
-    #Theoretical
     fig = plt.figure(figsize=(14,5), dpi=125)
     by_label = dict()
 
+    # Theoretical/ideal speed eigenvalue plot
     if   plot_type == "nominal":
         fig.suptitle("Bicycle Eigenvalues vs Speed - Nominal",fontsize=24)
         speed_ax_plant, eig_theory_plant       = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS)
@@ -192,6 +171,7 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type
         speed_ax_plant, eig_theory_plant       = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS)
         speed_ax_ref, eig_theory_ref           = get_eigen_vs_speed(ss_file1,'ref',  speedrange,SIL_PARAMETERS)
 
+        # Extract eigenvalues from simulated ideal response with drift
         speed_points = np.arange(1.5,6,0.25)
         sigma_plnt = np.empty_like(speed_points)
         omega_plnt = np.empty_like(speed_points)
@@ -209,6 +189,7 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type
         data_plnt={"real":np.array([sigma_plnt, lab1_plnt, lab2_plnt]).T, "imag":omega_plnt}
         data_ref ={"real":np.array([sigma_ref, lab1_ref, lab2_ref]).T, "imag":omega_ref}
         
+    # Formatting
     ax = dict()
     ax["real"] = fig.add_subplot(121)
     ax["real"].axis((0,6,-10,3))
@@ -221,6 +202,7 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type
     ax["imag"].set_title("Imaginary part", fontsize=20)
     ax["imag"].set_xlabel("Speed [m/s]", fontsize=16)
 
+    # Plot theoretical/ideal speed-eigenvalue plot
     for type, axs in ax.items():
         # Theoretic
         if   plot_type == "nominal":
@@ -251,7 +233,7 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type
         else:
             print("wrong method")
 
-        # Emperical speed-eigen
+        # Plot emperical speed-eigen from data
         for method in results:
             axs.plot(method["speeds"]+method["style"]["offset"], method[type],
                     # color=method["style"]["color"][0],
@@ -270,9 +252,10 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type
     plt.show()
 
 def calc_distance_measure(results,ss_file1,ss_file2,ss_file3,speedrange):
+    ## Get Theoretical/ideal speed eigenvalue plot, but only calculate points at the speeds used in the experiment
     eig_theory = {"plant":{}, "ref":{}}
     # nominal
-    speed_axis, eig_theory["plant"]["nominal"] = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS)
+    _, eig_theory["plant"]["nominal"] = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS)
     _, eig_theory["ref"]["nominal"]            = get_eigen_vs_speed(ss_file1,'ref',  speedrange,SIL_PARAMETERS)
     # friction
     _, eig_theory["plant"]["friction"]         = get_eigen_vs_speed(ss_file2,'plant',speedrange,SIL_PARAMETERS)
@@ -290,14 +273,16 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3,speedrange):
     _, eig_theory["plant"]["encoder"]          = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,enc_true2meas=0.8)
     _, eig_theory["ref"]["encoder"]            = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True,enc_true2meas=0.8)
 
+    
+    # Find how well the theoretical plots (e.g. friction, speed, ... ) fit the experiments.
     avg_abs_error = {}
-    for model in eig_theory.keys():
+    for model in eig_theory.keys():                         # plant or reference
         avg_abs_error[model] = {}
-        for expermnt in results:
-            if expermnt["style"]["mm_state"] == model:
-                for err_type in eig_theory[model].keys():
-                    tmp = 0
-                    length = 0
+        for expermnt in results:                          # The experiment with or without Model Matching Control
+            if expermnt["style"]["mm_state"] == model:    # If mm_state = off -> match experiment against controlled model, if mm_state = on match experiment against reference model
+                for err_type in eig_theory[model].keys(): # For every type of theoretical plot (e.g. nominal, with friction, ...)
+                    cum_sum = 0 # Cumulative absolute difference between experiment and theory
+                    length  = 0 # Amount of datapoints used for calculation of cumulative absolute difference
                     for domain in ["real","imag"]:
                         #Select column from the theory eigenvalues that corresponds to 'weave'.
                         if domain == "real": 
@@ -305,21 +290,28 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3,speedrange):
                         elif domain == "imag":
                             k = -1
 
-                        # Sort the eigenvalues such that the 'weave' eigenvalue stays in one column
-                        # (Only for (ref, speed, real) the weave eigenvalue switches column.
-                        #  TODO: implement a generalized version of this quick fix. )
+                        # Sort the eigenvalues such that the 'weave' eigenvalue stays in one column. 
+                        # Then extract it.
                         if model == "ref" and err_type == "speed" and domain == "real": 
+                            # (Only for (ref -> speed -> real) the weave eigenvalue doesn't stay in one column.
+                            # for this specific case k=1 does not hold in the last row.
+                            #  TODO: implement a generalized version of this quick fix. )
                             weave_eig = np.sort(eig_theory[model][err_type][domain])[:,k]
                             weave_eig[-1] = np.sort(eig_theory[model][err_type][domain])[-1,k+1]
                         else:
                             weave_eig = np.sort(eig_theory[model][err_type][domain])[:,k]
                         
-                        #Calculate the average absulute error
+                        # Calculate the average absulute error for model-error_type combination
                         for i in range(len(expermnt[domain])):
-                            j = np.where(expermnt["speeds"][i] - speedrange == 0)[0][0]
-                            tmp = tmp + np.abs(expermnt[domain][i]   - weave_eig[j])
+                            j = np.where(expermnt["speeds"][i] - speedrange == 0)[0][0] # Identify the speed of the single trial (i) you are currently looking at. There are multiple trails at one speed.
+                            cum_sum = cum_sum + np.abs(expermnt[domain][i]   - weave_eig[j])
                         length = length + len(expermnt[domain])
-                    avg_abs_error[model][err_type] = tmp/length
+                    avg_abs_error[model][err_type] = cum_sum/length
+
+
+    for plant_type,data in avg_abs_error.items():
+        for mode,error in data.items():
+            print(f"{plant_type}\t- {mode}:\t{error}")
 
     # Visual check
     for model in eig_theory.keys():
@@ -357,9 +349,9 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3,speedrange):
 
             for err_type in eig_theory[model].keys():
                 # Sort the eigenvalues such that the 'weave' eigenvalue stays in one column
-                # (Only for (ref, speed, real) the weave eigenvalue switches column.
-                #  TODO: implement a generalized version of this quick fix. )
+                # Then extract it.
                 if model == "ref" and err_type == "speed" and domain == "real": 
+                    #  TODO: implement a generalized version of this quick fix. )
                     weave_eig = np.sort(eig_theory[model][err_type][domain])[:,k]
                     weave_eig[-1] = np.sort(eig_theory[model][err_type][domain])[-1,k+1]
                 else:
@@ -367,11 +359,11 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3,speedrange):
                 # plot theoretic eigenvalues
                 axs.plot(speedrange,weave_eig)
                 
-                #plot the distances between experimental and theoretical
+                # plot the distances between experimental and theoretical
                 for expermnt in results:
                     if expermnt["style"]["mm_state"] == model:
                         for i in range(len(expermnt[domain])):
-                            j = np.where(expermnt["speeds"][i] - speedrange == 0)[0][0] # Select the correct speed index, as there are multiple experiments for one speed.
+                            j = np.where(expermnt["speeds"][i] - speedrange == 0)[0][0]
                             axs.plot(2*[speedrange[j]],[expermnt[domain][i],weave_eig[j]],'r')
             
             axs.grid()
@@ -383,48 +375,67 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3,speedrange):
     return avg_abs_error
 
 def plot_uncut_data(path,file,vars2extract):
+    # Extract logfile data of experiment
     extraction = logfile2array(path,file,vars2extract)
 
     fig, ax = plt.subplots()
-    ax.set_title("Output measurements of "+file, fontsize=24)
-    ax.set_ylabel("states [rad] or [rad/s]", fontsize=16)
-    ax.set_xlabel("index number [-]", fontsize=16)
+    ax.set_title("Output measurements of "+file, fontsize=30)
+    ax.set_ylabel("Measurements", fontsize=22)
+    ax.set_xlabel("Index number", fontsize=22)
+
     for key, value in extraction.items():
-        if key in ["x_acceleration","y_acceleration"]: #The acceleration measurements need to be filtered to be useful
+        # The acceleration measurements need to be filtered to be useful
+        if key in ["x_acceleration","y_acceleration"]:
             value = filt.butter_running(  2  ,  5  , value, fs=1/TIME_STEP)
-        ax.plot(value,label=key)
-    ax.grid()
-    ax.legend(fontsize=14)
+        
+        # Make fancier labels
+        if key == "lean_rate":
+            fancy_label = "Lean rate ($rad/s$)"
+            zord=3
+        elif key == "x_acceleration":
+            fancy_label = "x acceleration ($m/s^2$)"
+            zord=1
+        elif key == "y_acceleration":
+            fancy_label = "y acceleration ($m/s^2$)"
+            zord=2
+
+        # Plot
+        ax.plot(value,linewidth=3,label=fancy_label, zorder=zord)
+
+    ax.grid(axis='x')
+    ax.tick_params(axis='x', labelsize=20)
+    ax.tick_params(axis='y', labelsize=20)
+    ax.legend(fontsize=20)
     return ax
 
 #=====START=====#
 #---[Constants
-PATH = "..\\teensy\\logs\\"
-BUTTER_ORDER = 2
-BUTTER_CUT_OFF = 10
-HIGH_PASS_Wc_FREQ = 1
-TIME_STEP = 0.01
-PHASE = "calculate_eig" # "cut_data" or "calculate_eig"
-VISUAL_CHECK_FIT = False # If true, show graph for visually checking the kooijman function fit
-MAX_FUN_EVAL = 50000
+PATH = "..\\teensy\\logs\\"     # Path to log files
+BUTTER_ORDER = 2                # Order of butter filter
+BUTTER_CUT_OFF = 10             # Cut off frequency of butter filter
+HIGH_PASS_Wc_FREQ = 1           # Cut off frequency of hp filter
+TIME_STEP = 0.01                # Time between log data measurements
+PHASE = "calculate_eig"         # "cut_data" or "calculate_eig"
+VISUAL_CHECK_FIT = False        # If true, show graph for visually checking the kooijman function fit
+MAX_FUN_EVAL = 50000            # Max nbr of function evaluations for the nonlinear fit function
 
 #Theoretical model parameters
-METHOD = "drift" #nominal, friction, params, speed, motor, encoder, drift
+METHOD = "nominal" #nominal, friction, params, speed, motor, encoder, drift
 MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
 ALT_PARAM_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_estimated_error_parameters"
-FRICTION_IN_STEER_FILE ="bike_models_n_friction\\ss_cw_friction-0.2_viscous"# ".\\ss_cw_friction-0.02_sigmoid"
+FRICTION_IN_STEER_FILE ="bike_models_n_friction\\ss_cw_friction-0.2_viscous"# (alternate friction model: ".\\ss_cw_friction-0.02_sigmoid")
 SPEED_START = 0.1
 SPEED_STOP = 8
 SPEED_STEP = 0.01
 SPEED_RANGE = np.linspace(SPEED_START , SPEED_STOP , num=int(1 + (SPEED_STOP-SPEED_START)/SPEED_STEP))
-DISTANCE_MEASURE_SPEEDS = np.arange(1.5,5.5,0.5)
-SIL_PARAMETERS = {
+DISTANCE_MEASURE_SPEEDS = np.arange(1.5,5.5,0.5) # speeds used for the average absolute error calculation
+SIL_PARAMETERS = {      # SIL == Steer Into Lean
     'avg_speed' : 6.5,
     'L_gain': 2,
     'H_gain': 0.7
 }
 
-#---[variable to invastigate and list of single experiments
+#---[variable to invastigate
 vars2extract = {
         # "lean_angle": [],
         "lean_rate": [],
@@ -435,6 +446,11 @@ vars2extract = {
         # "y_acceleration": [],
         # "hand_torque": [],
     }
+
+#---[Raw log files used to identify the time responses
+# Format: ["log file name", [(start, and end of time response)]]
+# start and end will create vertical lines in the raw data to validate your choise.
+# Initially put a single [(0,0)] here.
 log_files = [
     # ("eigen_normal_sil6.5n2_5.4kph.log", [(4486,4486+100), (5420,5420+100), (6325,6325+100), (7349,7349+100), (8984,8984+100), (9750,9750+100), (10600,10700)]),
     # ("eigen_normal_sil6.5n2_7.2kph.log", [(9870,9870+100), (11024,11024+100), (12689,12689+100), (13773,13773+100), (14886,14886+100)]),
@@ -446,7 +462,11 @@ log_files = [
     # ("eigen_normal_sil6.5n2_18kph.log", [(1964,1964+100), (2917,2917+100), (3831,3831+100), (4594,4594+100), (5549,5549+100), (6326,6326+100), (7060,7060+100)]),
     ("eigen_mm_sil6.5n2_18kph.log", [(2928,2928+100),(4308,4308+100),(5508,5508+100),(6931,6931+100),(8232,8232+100),(10043,10043+100),(14193,14193+100),(15348,15348+100)])
 ]
-experiments = [ #file,speed[km/h],start&end in file, initial values    
+
+#---[Singled out impulse responses to fit the kooijman function to
+# Format of data struct:
+# (title, {plot style}, fileter type ((file,speed[m/s],start&end in file, initial values for plot function),(...),...)
+experiments = [
     # Model Matching OFF
     # ('Model Matching OFF - low pass filtered',
     # {"color":('k', 'k'),
@@ -523,63 +543,63 @@ experiments = [ #file,speed[km/h],start&end in file, initial values
      "mm_state":"plant"} ,
      'raw',(
     ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (4486,4486+100), (-3.0, 5.5, 0.3, 1.0, 1.0, 0.5, -0.5, -4)), #(4486,4775)
-    # ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (5420,5420+100), (-3.0, 5.5, 0.35, 1.0, 1.0, -0.5)), #(5420,5668)
-    # ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (6325,6325+100), (-3.0, 5.5, -0.4, 1.0, 1.0, -0.5)), #(6325,6499)
-    # ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (7349,7349+100), (-3.0, 5.5, -0.4, 1.0, 1.0, -0.5)), #(7349,7532)
-    # ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (8984,8984+100), (-3.0, 5.5, 0.3, 1.0, 1.0, -0.5)), #(8984,9214)
-    # ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (9750,9750+100), (-3.0, 5.5, -0.25, 1.0, 1.0, -0.5)), #(9750,9925)
-    # ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (10603,10603+100), (-3.0, 5.5, 0.2, 1.0, 1.0, -0.5)), #(10600,10845)
-    # ("eigen_normal_sil6.5n2_7.2kph.log", 2, (9870,9870+100), (-3.0, 7.5, -0.25, 1.0, 1.0, -0.5)),#(9870,10039)
-    # ("eigen_normal_sil6.5n2_7.2kph.log", 2, (11024,11024+100), (-3.0, 7.5, -0.4, 1.0, 1.0, -0.5)),#(11024,11137)
-    # ("eigen_normal_sil6.5n2_7.2kph.log", 2, (12689,12689+100), (-3.0, 7.5, -0.25, 1.0, 1.0, -0.5)),#(12689,12854)
-    # ("eigen_normal_sil6.5n2_7.2kph.log", 2, (13773,13773+100), (-3.0, 7.5, -0.35, 1.0, 1.0, -0.5)),#(13773,13934)
-    # ("eigen_normal_sil6.5n2_7.2kph.log", 2, (14886,14886+100), (-3.0, 7.5, 0.2, 1.0, 1.0, -0.5)),#(14886,15052)
-    # ("eigen_normal_sil6.5n2_9kph.log", 2.5, (2121,2121+100), (-2.5, 8.5, -0.3, 1.0, 1.0, -0.5)),#(2121,2273)
-    # ("eigen_normal_sil6.5n2_9kph.log", 2.5, (3002,3002+100), (-2.5, 8.5, 0.2, 1.0, 1.0, -0.5)),#(3002,3281)
-    # ("eigen_normal_sil6.5n2_9kph.log", 2.5, (8673,8765), (-2.5, 8.5, -0.3, 1.0, 1.0, -0.5)),#(8673,8765)
-    # ("eigen_normal_sil6.5n2_9kph.log", 2.5, (9613,9613+100), (-2.5, 8.5, -0.4, 1.0, 1.0, -0.5)),#(9613,9940)
-    # ("eigen_normal_sil6.5n2_9kph.log", 2.5, (11049,11049+100), (-2.5, 8.5, -0.4, 1.0, 1.0, -0.5)),#(11049,11416)
-    # ("eigen_normal_sil6.5n2_9kph.log", 2.5, (12487,12487+100), (-2.5, 8.5, 0.3, 1.0, 1.0, -0.5)),#(12487,12695)
-    # ("eigen_normal_sil6.5n2_10.8kph.log", 3, (1573,1573+100), (-2.5, 9.5, 0.25, 1.0, 1.0, -0.5)),#(1573,1760)
-    # ("eigen_normal_sil6.5n2_10.8kph.log", 3, (2601,2601+100), (-2.5, 9.5, 0.25, 1.0, 1.0, -0.5)),#(2601,2750)
-    # ("eigen_normal_sil6.5n2_10.8kph.log", 3, (3577,3577+100), (-2.5, 9.5, -0.4, 1.0, 1.0, -0.5)),#(3577,3815)
-    # ("eigen_normal_sil6.5n2_10.8kph.log", 3, (5682,5682+100), (-2.5, 9.5, 0.25, 1.0, 1.0, -0.5)),#(5682,5923)
-    # ("eigen_normal_sil6.5n2_10.8kph.log", 3, (6527,6527+100), (-2.5, 9.5, -0.4, 1.0, 1.0, -0.5)),#(6527,6772)
-    # ("eigen_normal_sil6.5n2_10.8kph.log", 3, (7471,7471+100), (-2.5, 9.5, -0.4, 1.0, 1.0, -0.5)),#(7471,7705)
-    # ("eigen_normal_sil6.5n2_10.8kph.log", 3, (8371,8371+100), (-2.5, 9.5, -0.4, 1.0, 1.0, -0.5)),#(8371,8581)
-    # ("eigen_normal_sil6.5n2_10.8kph.log", 3, (9424,9424+100), (-2.5, 9.5, -0.5, 1.0, 1.0, -0.5)),#(9424,9585)
-    # ("eigen_normal_sil6.5n2_10.8kph.log", 3, (10187,10187+100), (-2.5, 9.5, -0.4, 1.0, 1.0, -0.5)),#(10187,10470)
-    # ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (2028,2028+100), (-2.5, 10.0, -0.4, 1.0, 1.0, -0.5)),#(2028,2246)
-    # ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (3053,3053+100), (-2.5, 10.0, -0.5, 1.0, 1.0, -0.5)),#(3053,3175)
-    # ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (3983,3983+100), (-2.5, 10.0, -0.5, 1.0, 1.0, -0.5)),#(3983,4231)
-    # ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (4982,4982+100), (-2.5, 10.0, -0.5, 1.0, 1.0, -0.5)),#(4982,5191)
-    # ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (6881,6881+100), (-2.5, 10.0, -0.4, 1.0, 1.0, -0.5)),#(6881,7073)
-    # ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (7898,7898+100), (-2.5, 10.0, -0.4, 1.0, 1.0, -0.5)),#(7898,8076)
-    # ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (8749,8749+100), (-2.5, 10.0, 0.4, 1.0, 1.0, -0.5)),#(8749,8970)
-    # ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (9733,9733+100), (-2.5, 10.0, -0.5, 1.0, 1.0, -0.5)),#(9733,9992)
-    # ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (10872,10872+100), (-2.5, 10.0, 0.4, 1.0, 1.0, -0.5)),#(10872,11169)
-    # ("eigen_normal_sil6.5n2_14.4kph.log", 4, (1410,1410+100), (-2.3, 10.0, 0.5, 1.0, 1.0, -0.5)),#(1410,1538)
-    # ("eigen_normal_sil6.5n2_14.4kph.log", 4, (2385,2385+100), (-2.3, 10.0, -0.4, 1.0, 1.0, -0.5)),#(2385,2677)
-    # ("eigen_normal_sil6.5n2_14.4kph.log", 4, (3400,3400+100), (-2.3, 10.0, 0.3, 1.0, 1.0, -0.5)),#(3400,3610)
-    # ("eigen_normal_sil6.5n2_14.4kph.log", 4, (4352,4352+100), (-2.3, 10.0, -0.6, 1.0, 1.0, -0.5)),#(4352,4573)
-    # ("eigen_normal_sil6.5n2_14.4kph.log", 4, (5276,5276+100), (-2.3, 10.0, -0.6, 1.0, 1.0, -0.5)),#(5276,5581)
-    # ("eigen_normal_sil6.5n2_14.4kph.log", 4, (6311,6311+100), (-2.3, 10.0, -0.6, 1.0, 1.0, -0.5)),#(6311,6560)
-    # ("eigen_normal_sil6.5n2_14.4kph.log", 4, (7347,7347+100), (-2.3, 10.0, -0.6, 1.0, 1.0, -0.5)),#(7347,7559)
-    # ("eigen_normal_sil6.5n2_14.4kph.log", 4, (8423,8423+100), (-2.3, 10.0, -0.6, 1.0, 1.0, -0.5)),#(8423,8653)
-    # ("eigen_normal_sil6.5n2_16.2kph.log", 4.5, (1576,1576+100), (-2.3, 10.0, -0.4, 1.0, 1.0, -0.5)),#(1576,1828)
-    # ("eigen_normal_sil6.5n2_16.2kph.log", 4.5, (2529,2529+100), (-2.3, 10.0, -0.5, 1.0, 1.0, -0.5)),#(2529,2695)
-    # ("eigen_normal_sil6.5n2_16.2kph.log", 4.5, (5041,5041+100), (-2.3, 10.0, 0.4, 1.0, 1.0, -0.5)),#(5041,5191)
-    # ("eigen_normal_sil6.5n2_16.2kph.log", 4.5, (5796,5796+100), (-2.3, 10.0, -0.6, 1.0, 1.0, -0.5)),#(5796,6034)
-    # ("eigen_normal_sil6.5n2_16.2kph.log", 4.5, (8035,8035+100), (-2.3, 10.0, 0.4, 1.0, 1.0, -0.5)),#(8035,8212)
-    # ("eigen_normal_sil6.5n2_16.2kph.log", 4.5, (13604,13604+100), (-2.3, 10.0, -0.6, 1.0, 1.0, -0.5)),#(13604,13800)
-    # ("eigen_normal_sil6.5n2_18kph.log", 5, (1964,1964+100), (-2.0, 9.5, 0.4, 1.0, 1.0, -0.5)),#(1964,2310)
-    # ("eigen_normal_sil6.5n2_18kph.log", 5, (2917,2917+100), (-2.0, 9.5, -0.5, 1.0, 1.0, -0.5)),#(2917,3221)
-    # ("eigen_normal_sil6.5n2_18kph.log", 5, (3831,3831+100), (-2.0, 9.5, 0.5, 1.0, 1.0, -0.5)),#(3831,4007)
-    # ("eigen_normal_sil6.5n2_18kph.log", 5, (4594,4594+100), (-2.0, 9.5, -0.5, 1.0, 1.0, -0.5)),#(4594,4874)
-    # ("eigen_normal_sil6.5n2_18kph.log", 5, (5549,5549+100), (-2.0, 9.5, 0.5, 1.0, 1.0, -0.5)),#(5549,5679)
-    # ("eigen_normal_sil6.5n2_18kph.log", 5, (6326,6326+100), (-2.0, 9.5, -0.5, 1.0, 1.0, -0.5)),#(6326,6542)
-    # ("eigen_normal_sil6.5n2_18kph.log", 5, (7060,7060+100), (-2.0, 9.5, -0.5, 1.0, 1.0, -0.5)),#(7060,7310)
-    # ("eigen_normal_sil6.5n2_18kph.log", 5, (12196,12196+100), (-2.0, 9.5, -0.5, 1.0, 1.0, -0.5)),#(12196,12360)
+    ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (5420,5420+100), (-3.0, 5.5, 0.35, 1.0, 1.0, -0.5)), #(5420,5668)
+    ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (6325,6325+100), (-3.0, 5.5, -0.4, 1.0, 1.0, -0.5)), #(6325,6499)
+    ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (7349,7349+100), (-3.0, 5.5, -0.4, 1.0, 1.0, -0.5)), #(7349,7532)
+    ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (8984,8984+100), (-3.0, 5.5, 0.3, 1.0, 1.0, -0.5)), #(8984,9214)
+    ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (9750,9750+100), (-3.0, 5.5, -0.25, 1.0, 1.0, -0.5)), #(9750,9925)
+    ("eigen_normal_sil6.5n2_5.4kph.log", 1.5, (10603,10603+100), (-3.0, 5.5, 0.2, 1.0, 1.0, -0.5)), #(10600,10845)
+    ("eigen_normal_sil6.5n2_7.2kph.log", 2, (9870,9870+100), (-3.0, 7.5, -0.25, 1.0, 1.0, -0.5)),#(9870,10039)
+    ("eigen_normal_sil6.5n2_7.2kph.log", 2, (11024,11024+100), (-3.0, 7.5, -0.4, 1.0, 1.0, -0.5)),#(11024,11137)
+    ("eigen_normal_sil6.5n2_7.2kph.log", 2, (12689,12689+100), (-3.0, 7.5, -0.25, 1.0, 1.0, -0.5)),#(12689,12854)
+    ("eigen_normal_sil6.5n2_7.2kph.log", 2, (13773,13773+100), (-3.0, 7.5, -0.35, 1.0, 1.0, -0.5)),#(13773,13934)
+    ("eigen_normal_sil6.5n2_7.2kph.log", 2, (14886,14886+100), (-3.0, 7.5, 0.2, 1.0, 1.0, -0.5)),#(14886,15052)
+    ("eigen_normal_sil6.5n2_9kph.log", 2.5, (2121,2121+100), (-2.5, 8.5, -0.3, 1.0, 1.0, -0.5)),#(2121,2273)
+    ("eigen_normal_sil6.5n2_9kph.log", 2.5, (3002,3002+100), (-2.5, 8.5, 0.2, 1.0, 1.0, -0.5)),#(3002,3281)
+    ("eigen_normal_sil6.5n2_9kph.log", 2.5, (8673,8765), (-2.5, 8.5, -0.3, 1.0, 1.0, -0.5)),#(8673,8765)
+    ("eigen_normal_sil6.5n2_9kph.log", 2.5, (9613,9613+100), (-2.5, 8.5, -0.4, 1.0, 1.0, -0.5)),#(9613,9940)
+    ("eigen_normal_sil6.5n2_9kph.log", 2.5, (11049,11049+100), (-2.5, 8.5, -0.4, 1.0, 1.0, -0.5)),#(11049,11416)
+    ("eigen_normal_sil6.5n2_9kph.log", 2.5, (12487,12487+100), (-2.5, 8.5, 0.3, 1.0, 1.0, -0.5)),#(12487,12695)
+    ("eigen_normal_sil6.5n2_10.8kph.log", 3, (1573,1573+100), (-2.5, 9.5, 0.25, 1.0, 1.0, -0.5)),#(1573,1760)
+    ("eigen_normal_sil6.5n2_10.8kph.log", 3, (2601,2601+100), (-2.5, 9.5, 0.25, 1.0, 1.0, -0.5)),#(2601,2750)
+    ("eigen_normal_sil6.5n2_10.8kph.log", 3, (3577,3577+100), (-2.5, 9.5, -0.4, 1.0, 1.0, -0.5)),#(3577,3815)
+    ("eigen_normal_sil6.5n2_10.8kph.log", 3, (5682,5682+100), (-2.5, 9.5, 0.25, 1.0, 1.0, -0.5)),#(5682,5923)
+    ("eigen_normal_sil6.5n2_10.8kph.log", 3, (6527,6527+100), (-2.5, 9.5, -0.4, 1.0, 1.0, -0.5)),#(6527,6772)
+    ("eigen_normal_sil6.5n2_10.8kph.log", 3, (7471,7471+100), (-2.5, 9.5, -0.4, 1.0, 1.0, -0.5)),#(7471,7705)
+    ("eigen_normal_sil6.5n2_10.8kph.log", 3, (8371,8371+100), (-2.5, 9.5, -0.4, 1.0, 1.0, -0.5)),#(8371,8581)
+    ("eigen_normal_sil6.5n2_10.8kph.log", 3, (9424,9424+100), (-2.5, 9.5, -0.5, 1.0, 1.0, -0.5)),#(9424,9585)
+    ("eigen_normal_sil6.5n2_10.8kph.log", 3, (10187,10187+100), (-2.5, 9.5, -0.4, 1.0, 1.0, -0.5)),#(10187,10470)
+    ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (2028,2028+100), (-2.5, 10.0, -0.4, 1.0, 1.0, -0.5)),#(2028,2246)
+    ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (3053,3053+100), (-2.5, 10.0, -0.5, 1.0, 1.0, -0.5)),#(3053,3175)
+    ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (3983,3983+100), (-2.5, 10.0, -0.5, 1.0, 1.0, -0.5)),#(3983,4231)
+    ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (4982,4982+100), (-2.5, 10.0, -0.5, 1.0, 1.0, -0.5)),#(4982,5191)
+    ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (6881,6881+100), (-2.5, 10.0, -0.4, 1.0, 1.0, -0.5)),#(6881,7073)
+    ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (7898,7898+100), (-2.5, 10.0, -0.4, 1.0, 1.0, -0.5)),#(7898,8076)
+    ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (8749,8749+100), (-2.5, 10.0, 0.4, 1.0, 1.0, -0.5)),#(8749,8970)
+    ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (9733,9733+100), (-2.5, 10.0, -0.5, 1.0, 1.0, -0.5)),#(9733,9992)
+    ("eigen_normal_sil6.5n2_12.6kph.log", 3.5, (10872,10872+100), (-2.5, 10.0, 0.4, 1.0, 1.0, -0.5)),#(10872,11169)
+    ("eigen_normal_sil6.5n2_14.4kph.log", 4, (1410,1410+100), (-2.3, 10.0, 0.5, 1.0, 1.0, -0.5)),#(1410,1538)
+    ("eigen_normal_sil6.5n2_14.4kph.log", 4, (2385,2385+100), (-2.3, 10.0, -0.4, 1.0, 1.0, -0.5)),#(2385,2677)
+    ("eigen_normal_sil6.5n2_14.4kph.log", 4, (3400,3400+100), (-2.3, 10.0, 0.3, 1.0, 1.0, -0.5)),#(3400,3610)
+    ("eigen_normal_sil6.5n2_14.4kph.log", 4, (4352,4352+100), (-2.3, 10.0, -0.6, 1.0, 1.0, -0.5)),#(4352,4573)
+    ("eigen_normal_sil6.5n2_14.4kph.log", 4, (5276,5276+100), (-2.3, 10.0, -0.6, 1.0, 1.0, -0.5)),#(5276,5581)
+    ("eigen_normal_sil6.5n2_14.4kph.log", 4, (6311,6311+100), (-2.3, 10.0, -0.6, 1.0, 1.0, -0.5)),#(6311,6560)
+    ("eigen_normal_sil6.5n2_14.4kph.log", 4, (7347,7347+100), (-2.3, 10.0, -0.6, 1.0, 1.0, -0.5)),#(7347,7559)
+    ("eigen_normal_sil6.5n2_14.4kph.log", 4, (8423,8423+100), (-2.3, 10.0, -0.6, 1.0, 1.0, -0.5)),#(8423,8653)
+    ("eigen_normal_sil6.5n2_16.2kph.log", 4.5, (1576,1576+100), (-2.3, 10.0, -0.4, 1.0, 1.0, -0.5)),#(1576,1828)
+    ("eigen_normal_sil6.5n2_16.2kph.log", 4.5, (2529,2529+100), (-2.3, 10.0, -0.5, 1.0, 1.0, -0.5)),#(2529,2695)
+    ("eigen_normal_sil6.5n2_16.2kph.log", 4.5, (5041,5041+100), (-2.3, 10.0, 0.4, 1.0, 1.0, -0.5)),#(5041,5191)
+    ("eigen_normal_sil6.5n2_16.2kph.log", 4.5, (5796,5796+100), (-2.3, 10.0, -0.6, 1.0, 1.0, -0.5)),#(5796,6034)
+    ("eigen_normal_sil6.5n2_16.2kph.log", 4.5, (8035,8035+100), (-2.3, 10.0, 0.4, 1.0, 1.0, -0.5)),#(8035,8212)
+    ("eigen_normal_sil6.5n2_16.2kph.log", 4.5, (13604,13604+100), (-2.3, 10.0, -0.6, 1.0, 1.0, -0.5)),#(13604,13800)
+    ("eigen_normal_sil6.5n2_18kph.log", 5, (1964,1964+100), (-2.0, 9.5, 0.4, 1.0, 1.0, -0.5)),#(1964,2310)
+    ("eigen_normal_sil6.5n2_18kph.log", 5, (2917,2917+100), (-2.0, 9.5, -0.5, 1.0, 1.0, -0.5)),#(2917,3221)
+    ("eigen_normal_sil6.5n2_18kph.log", 5, (3831,3831+100), (-2.0, 9.5, 0.5, 1.0, 1.0, -0.5)),#(3831,4007)
+    ("eigen_normal_sil6.5n2_18kph.log", 5, (4594,4594+100), (-2.0, 9.5, -0.5, 1.0, 1.0, -0.5)),#(4594,4874)
+    ("eigen_normal_sil6.5n2_18kph.log", 5, (5549,5549+100), (-2.0, 9.5, 0.5, 1.0, 1.0, -0.5)),#(5549,5679)
+    ("eigen_normal_sil6.5n2_18kph.log", 5, (6326,6326+100), (-2.0, 9.5, -0.5, 1.0, 1.0, -0.5)),#(6326,6542)
+    ("eigen_normal_sil6.5n2_18kph.log", 5, (7060,7060+100), (-2.0, 9.5, -0.5, 1.0, 1.0, -0.5)),#(7060,7310)
+    ("eigen_normal_sil6.5n2_18kph.log", 5, (12196,12196+100), (-2.0, 9.5, -0.5, 1.0, 1.0, -0.5)),#(12196,12360)
     ("eigen_normal_sil6.5n2_18kph.log", 5, (12961,12961+100), (-1.90, 9.42, -0.07, 0.85, 0.02, 0.22, -14.31, -0.07)))#(12961,13073)
     ),
 
@@ -650,52 +670,52 @@ experiments = [ #file,speed[km/h],start&end in file, initial values
      "mm_state":"ref"} ,
      'raw',(
     ("eigen_mm_sil6.5n2_5.4kph.log", 1.5, (4047,4047+100), (-3, 5, 0.35, 1.0, 1.0, 0.5, -0.5, -4)),#(4047,4240)
-    # ("eigen_mm_sil6.5n2_5.4kph.log", 1.5, (4947,4947+100), (-3, 5, 0.45, 1.0, 1.0, -0.5)),#(4947,5105)
-    # ("eigen_mm_sil6.5n2_5.4kph.log", 1.5, (5868,5868+100), (-3, 5, -0.5, 1.0, 1.0, -0.5)),#(5868,6025)
-    # ("eigen_mm_sil6.5n2_5.4kph.log", 1.5, (6755,6755+100), (-3, 5, -0.6, 1.0, 1.0, -0.5)),#(6755,6910)
-    # ("eigen_mm_sil6.5n2_5.4kph.log", 1.5, (7658,7658+100), (-3, 5, 0.55, 1.0, 1.0, -0.5)),#(7658,7855)
-    # ("eigen_mm_sil6.5n2_7.2kph.log", 2, (3388,3388+100), (-2.5, 7, 0.5, 1.0, 1.0, -0.5)),#(3388,3528)
-    # ("eigen_mm_sil6.5n2_7.2kph.log", 2, (4202,4202+100), (-2.5, 7, 0.6, 1.0, 1.0, -0.5)),#(4202,4420)
-    # ("eigen_mm_sil6.5n2_7.2kph.log", 2, (5061,5061+100), (-2.5, 7, 0.6, 1.0, 1.0, -0.5)),#(5061,5300)
-    # ("eigen_mm_sil6.5n2_7.2kph.log", 2, (5958,5958+100), (-2.5, 7, 0.55, 1.0, 1.0, -0.5)),#(5958,6178)
-    # ("eigen_mm_sil6.5n2_7.2kph.log", 2, (6912,6912+100), (-2.5, 7, -0.5, 1.0, 1.0, -0.5)),#(6912,7120)
-    # ("eigen_mm_sil6.5n2_9kph.log", 2.5, (1308,1308+100), (-2.5, 8, 0.5, 1.0, 1.0, -0.5)),#(1308,1602)
-    # ("eigen_mm_sil6.5n2_9kph.log", 2.5, (2326,2326+100), (-2.5, 8, -0.6, 1.0, 1.0, -0.5)),#(2326,2560)
-    # ("eigen_mm_sil6.5n2_9kph.log", 2.5, (3775,3775+100), (-2.5, 8, 0.6, 1.0, 1.0, -0.5)),#(3775,4000)
-    # ("eigen_mm_sil6.5n2_9kph.log", 2.5, (5812,5812+100), (-2.5, 8, -0.5, 1.0, 1.0, -0.5)),#(5812,6134)
-    # ("eigen_mm_sil6.5n2_9kph.log", 2.5, (6948,6948+100), (-2.5, 8, 0.55, 1.0, 1.0, -0.5)),#(6948,7080)
-    # ("eigen_mm_sil6.5n2_9kph.log", 2.5, (7922,7922+100), (-2.5, 8, 0.6, 1.0, 1.0, -0.5)),#(7922,8240)
-    # ("eigen_mm_sil6.5n2_10.8kph.log", 3, (1440,1440+100), (-2, 8.5, 0.5, 1.0, 1.0, -0.5)),#(1440,1720)
-    # ("eigen_mm_sil6.5n2_10.8kph.log", 3, (2586,2586+100), (-2, 8.5, 0.5, 1.0, 1.0, -0.5)),#(2586,2890)
-    # ("eigen_mm_sil6.5n2_10.8kph.log", 3, (3894,3894+100), (-2, 8.5, 0.5, 1.0, 1.0, -0.5)),#(3894,4065)
-    # ("eigen_mm_sil6.5n2_10.8kph.log", 3, (5017,5017+100), (-2, 8.5, -0.5, 1.0, 1.0, -0.5)),#(5017,5355)
-    # ("eigen_mm_sil6.5n2_10.8kph.log", 3, (7224,7224+100), (-2, 8.5, 0.5, 1.0, 1.0, -0.5)),#(7224,7520)
-    # ("eigen_mm_sil6.5n2_12.6kph.log", 3.5, (1501,1501+100), (-1.5, 9, 0.5, 1.0, 1.0, -0.5)),#(1501,1700)
-    # ("eigen_mm_sil6.5n2_12.6kph.log", 3.5, (2311,2311+100), (-1.5, 9, 0.5, 1.0, 1.0, -0.5)),#(2311,2445)
-    # ("eigen_mm_sil6.5n2_12.6kph.log", 3.5, (3165,3165+100), (-1.5, 9, 0.5, 1.0, 1.0, -0.5)),#(3165,3450)
-    # ("eigen_mm_sil6.5n2_12.6kph.log", 3.5, (4180,4180+100), (-1.5, 9, 0.5, 1.0, 1.0, -0.5)),#(4180,4470)
-    # ("eigen_mm_sil6.5n2_12.6kph.log", 3.5, (5237,5237+100), (-1.5, 9, 0.5, 1.0, 1.0, -0.5)),#(5237,5445)
-    # ("eigen_mm_sil6.5n2_12.6kph.log", 3.5, (6500,6500+150), (-1.5, 9, 0.5, 1.0, 1.0, -0.5)),#(6500,6780)
-    # ("eigen_mm_sil6.5n2_12.6kph.log", 3.5, (8508,8508+100), (-1.5, 9, -0.5, 1.0, 1.0, -0.5)),#(8508,8735)
-    # ("eigen_mm_sil6.5n2_14.4kph.log", 4, (1767,1767+100), (-1, 9, 0.5, 1.0, 1.0, -0.5)),#(1767,1975)
-    # ("eigen_mm_sil6.5n2_14.4kph.log", 4, (2523,2523+150), (-1, 9, 0.5, 1.0, 1.0, -0.5)),#(2523,2750)
-    # ("eigen_mm_sil6.5n2_14.4kph.log", 4, (3326,3326+100), (-1, 9, 0.5, 1.0, 1.0, -0.5)),#(3326,3435)
-    # ("eigen_mm_sil6.5n2_14.4kph.log", 4, (4346,4346+100), (-1, 9, 0.5, 1.0, 1.0, -0.5)),#(4346,4670)
-    # ("eigen_mm_sil6.5n2_14.4kph.log", 4, (5346,5346+150), (-1, 9, 0.5, 1.0, 1.0, -0.5)),#(5346,5580)
-    # ("eigen_mm_sil6.5n2_16.2kph.log", 4.5, (4003,4003+100), (-1, 8.5, -0.5, 1.0, 1.0, -0.5)),#(4003,4195)
-    # ("eigen_mm_sil6.5n2_16.2kph.log", 4.5, (4957,4957+100), (-1, 8.5, -0.5, 1.0, 1.0, -0.5)),#(4957,5060)
-    # ("eigen_mm_sil6.5n2_16.2kph.log", 4.5, (5870,5870+100), (-1, 8.5, -0.5, 1.0, 1.0, -0.5)),#(5870,6090)
-    # ("eigen_mm_sil6.5n2_16.2kph.log", 4.5, (6787,6787+100), (-1, 8.5, -0.5, 1.0, 1.0, -0.5)),#(6787,7000)
-    # ("eigen_mm_sil6.5n2_16.2kph.log", 4.5, (7918,7918+100), (-1, 8.5, -0.5, 1.0, 1.0, -0.5)),#(7918,8280)
-    # ("eigen_mm_sil6.5n2_16.2kph.log", 4.5, (9187,9187+100), (-1, 8.5, -0.5, 1.0, 1.0, -0.5)),#(9187,9360)
-    # ("eigen_mm_sil6.5n2_16.2kph.log", 4.5, (9988,9988+100), (-1, 8.5, 0.5, 1.0, 1.0, -0.5)),#(9988,10325)
-    # ("eigen_mm_sil6.5n2_18kph.log", 5, (2928,2928+100), (-0.45, 7.6, 0.29, 0.76, -0.02, -0.05, -0.40, -15.5)),#(2928,3240)
-    # ("eigen_mm_sil6.5n2_18kph.log", 5, (4308,4308+100), (-0.45, 7.6, 0.29, 0.76, -0.02, -0.05, -0.40, -15.5)),#(4308,4520)
-    # ("eigen_mm_sil6.5n2_18kph.log", 5, (5508,5508+100), (-0.45, 7.6, 0.29, 0.76, -0.02, -0.05, -0.40, -15.5)),#(5508,5675)
-    # ("eigen_mm_sil6.5n2_18kph.log", 5, (6931,6931+100), (-0.45, 7.6, 0.29, 0.76, -0.02, -0.05, -0.40, -15.5)),#(6931,7200)
-    # ("eigen_mm_sil6.5n2_18kph.log", 5, (8232,8232+100), (-0.45, 7.6, 0.29, 0.76, -0.02, -0.05, -0.40, -15.5)),#(8232,8410)
-    # ("eigen_mm_sil6.5n2_18kph.log", 5, (10043,10043+100), (-0.45, 7.6, 0.29, 0.76, -0.02, -0.05, -0.40, -15.5)),#(10043,10260)
-    # ("eigen_mm_sil6.5n2_18kph.log", 5, (14193,14193+100), (-0.45, 7.6, 0.29, 0.76, -0.02, -0.05, -0.40, -15.5)),#(14193,14377)
+    ("eigen_mm_sil6.5n2_5.4kph.log", 1.5, (4947,4947+100), (-3, 5, 0.45, 1.0, 1.0, -0.5)),#(4947,5105)
+    ("eigen_mm_sil6.5n2_5.4kph.log", 1.5, (5868,5868+100), (-3, 5, -0.5, 1.0, 1.0, -0.5)),#(5868,6025)
+    ("eigen_mm_sil6.5n2_5.4kph.log", 1.5, (6755,6755+100), (-3, 5, -0.6, 1.0, 1.0, -0.5)),#(6755,6910)
+    ("eigen_mm_sil6.5n2_5.4kph.log", 1.5, (7658,7658+100), (-3, 5, 0.55, 1.0, 1.0, -0.5)),#(7658,7855)
+    ("eigen_mm_sil6.5n2_7.2kph.log", 2, (3388,3388+100), (-2.5, 7, 0.5, 1.0, 1.0, -0.5)),#(3388,3528)
+    ("eigen_mm_sil6.5n2_7.2kph.log", 2, (4202,4202+100), (-2.5, 7, 0.6, 1.0, 1.0, -0.5)),#(4202,4420)
+    ("eigen_mm_sil6.5n2_7.2kph.log", 2, (5061,5061+100), (-2.5, 7, 0.6, 1.0, 1.0, -0.5)),#(5061,5300)
+    ("eigen_mm_sil6.5n2_7.2kph.log", 2, (5958,5958+100), (-2.5, 7, 0.55, 1.0, 1.0, -0.5)),#(5958,6178)
+    ("eigen_mm_sil6.5n2_7.2kph.log", 2, (6912,6912+100), (-2.5, 7, -0.5, 1.0, 1.0, -0.5)),#(6912,7120)
+    ("eigen_mm_sil6.5n2_9kph.log", 2.5, (1308,1308+100), (-2.5, 8, 0.5, 1.0, 1.0, -0.5)),#(1308,1602)
+    ("eigen_mm_sil6.5n2_9kph.log", 2.5, (2326,2326+100), (-2.5, 8, -0.6, 1.0, 1.0, -0.5)),#(2326,2560)
+    ("eigen_mm_sil6.5n2_9kph.log", 2.5, (3775,3775+100), (-2.5, 8, 0.6, 1.0, 1.0, -0.5)),#(3775,4000)
+    ("eigen_mm_sil6.5n2_9kph.log", 2.5, (5812,5812+100), (-2.5, 8, -0.5, 1.0, 1.0, -0.5)),#(5812,6134)
+    ("eigen_mm_sil6.5n2_9kph.log", 2.5, (6948,6948+100), (-2.5, 8, 0.55, 1.0, 1.0, -0.5)),#(6948,7080)
+    ("eigen_mm_sil6.5n2_9kph.log", 2.5, (7922,7922+100), (-2.5, 8, 0.6, 1.0, 1.0, -0.5)),#(7922,8240)
+    ("eigen_mm_sil6.5n2_10.8kph.log", 3, (1440,1440+100), (-2, 8.5, 0.5, 1.0, 1.0, -0.5)),#(1440,1720)
+    ("eigen_mm_sil6.5n2_10.8kph.log", 3, (2586,2586+100), (-2, 8.5, 0.5, 1.0, 1.0, -0.5)),#(2586,2890)
+    ("eigen_mm_sil6.5n2_10.8kph.log", 3, (3894,3894+100), (-2, 8.5, 0.5, 1.0, 1.0, -0.5)),#(3894,4065)
+    ("eigen_mm_sil6.5n2_10.8kph.log", 3, (5017,5017+100), (-2, 8.5, -0.5, 1.0, 1.0, -0.5)),#(5017,5355)
+    ("eigen_mm_sil6.5n2_10.8kph.log", 3, (7224,7224+100), (-2, 8.5, 0.5, 1.0, 1.0, -0.5)),#(7224,7520)
+    ("eigen_mm_sil6.5n2_12.6kph.log", 3.5, (1501,1501+100), (-1.5, 9, 0.5, 1.0, 1.0, -0.5)),#(1501,1700)
+    ("eigen_mm_sil6.5n2_12.6kph.log", 3.5, (2311,2311+100), (-1.5, 9, 0.5, 1.0, 1.0, -0.5)),#(2311,2445)
+    ("eigen_mm_sil6.5n2_12.6kph.log", 3.5, (3165,3165+100), (-1.5, 9, 0.5, 1.0, 1.0, -0.5)),#(3165,3450)
+    ("eigen_mm_sil6.5n2_12.6kph.log", 3.5, (4180,4180+100), (-1.5, 9, 0.5, 1.0, 1.0, -0.5)),#(4180,4470)
+    ("eigen_mm_sil6.5n2_12.6kph.log", 3.5, (5237,5237+100), (-1.5, 9, 0.5, 1.0, 1.0, -0.5)),#(5237,5445)
+    ("eigen_mm_sil6.5n2_12.6kph.log", 3.5, (6500,6500+150), (-1.5, 9, 0.5, 1.0, 1.0, -0.5)),#(6500,6780)
+    ("eigen_mm_sil6.5n2_12.6kph.log", 3.5, (8508,8508+100), (-1.5, 9, -0.5, 1.0, 1.0, -0.5)),#(8508,8735)
+    ("eigen_mm_sil6.5n2_14.4kph.log", 4, (1767,1767+100), (-1, 9, 0.5, 1.0, 1.0, -0.5)),#(1767,1975)
+    ("eigen_mm_sil6.5n2_14.4kph.log", 4, (2523,2523+150), (-1, 9, 0.5, 1.0, 1.0, -0.5)),#(2523,2750)
+    ("eigen_mm_sil6.5n2_14.4kph.log", 4, (3326,3326+100), (-1, 9, 0.5, 1.0, 1.0, -0.5)),#(3326,3435)
+    ("eigen_mm_sil6.5n2_14.4kph.log", 4, (4346,4346+100), (-1, 9, 0.5, 1.0, 1.0, -0.5)),#(4346,4670)
+    ("eigen_mm_sil6.5n2_14.4kph.log", 4, (5346,5346+150), (-1, 9, 0.5, 1.0, 1.0, -0.5)),#(5346,5580)
+    ("eigen_mm_sil6.5n2_16.2kph.log", 4.5, (4003,4003+100), (-1, 8.5, -0.5, 1.0, 1.0, -0.5)),#(4003,4195)
+    ("eigen_mm_sil6.5n2_16.2kph.log", 4.5, (4957,4957+100), (-1, 8.5, -0.5, 1.0, 1.0, -0.5)),#(4957,5060)
+    ("eigen_mm_sil6.5n2_16.2kph.log", 4.5, (5870,5870+100), (-1, 8.5, -0.5, 1.0, 1.0, -0.5)),#(5870,6090)
+    ("eigen_mm_sil6.5n2_16.2kph.log", 4.5, (6787,6787+100), (-1, 8.5, -0.5, 1.0, 1.0, -0.5)),#(6787,7000)
+    ("eigen_mm_sil6.5n2_16.2kph.log", 4.5, (7918,7918+100), (-1, 8.5, -0.5, 1.0, 1.0, -0.5)),#(7918,8280)
+    ("eigen_mm_sil6.5n2_16.2kph.log", 4.5, (9187,9187+100), (-1, 8.5, -0.5, 1.0, 1.0, -0.5)),#(9187,9360)
+    ("eigen_mm_sil6.5n2_16.2kph.log", 4.5, (9988,9988+100), (-1, 8.5, 0.5, 1.0, 1.0, -0.5)),#(9988,10325)
+    ("eigen_mm_sil6.5n2_18kph.log", 5, (2928,2928+100), (-0.45, 7.6, 0.29, 0.76, -0.02, -0.05, -0.40, -15.5)),#(2928,3240)
+    ("eigen_mm_sil6.5n2_18kph.log", 5, (4308,4308+100), (-0.45, 7.6, 0.29, 0.76, -0.02, -0.05, -0.40, -15.5)),#(4308,4520)
+    ("eigen_mm_sil6.5n2_18kph.log", 5, (5508,5508+100), (-0.45, 7.6, 0.29, 0.76, -0.02, -0.05, -0.40, -15.5)),#(5508,5675)
+    ("eigen_mm_sil6.5n2_18kph.log", 5, (6931,6931+100), (-0.45, 7.6, 0.29, 0.76, -0.02, -0.05, -0.40, -15.5)),#(6931,7200)
+    ("eigen_mm_sil6.5n2_18kph.log", 5, (8232,8232+100), (-0.45, 7.6, 0.29, 0.76, -0.02, -0.05, -0.40, -15.5)),#(8232,8410)
+    ("eigen_mm_sil6.5n2_18kph.log", 5, (10043,10043+100), (-0.45, 7.6, 0.29, 0.76, -0.02, -0.05, -0.40, -15.5)),#(10043,10260)
+    ("eigen_mm_sil6.5n2_18kph.log", 5, (14193,14193+100), (-0.45, 7.6, 0.29, 0.76, -0.02, -0.05, -0.40, -15.5)),#(14193,14377)
     ("eigen_mm_sil6.5n2_18kph.log", 5, (15348,15348+100), (-0.45, 7.6, 0.29, 0.76, -0.02, -0.05, -0.40, -15.5)))#(15348,15483)
     ),
 ]
@@ -714,7 +734,7 @@ if(PHASE == "calculate_eig"):
             sigmas[i], omegas[i], lab1[i], lab2[i] = extract_eigenvals(time,extraction,par0,speeds[i])
         results.append({"name":name,"style":style,"real":np.array([sigmas,lab1,lab2]).T,"imag":omegas,"speeds":speeds})
     plot_eigenvals_paper(results, SPEED_RANGE, MODEL_FILE, FRICTION_IN_STEER_FILE, ALT_PARAM_MODEL_FILE, METHOD)
-    # calc_distance_measure(results, MODEL_FILE, FRICTION_IN_STEER_FILE, ALT_PARAM_MODEL_FILE, DISTANCE_MEASURE_SPEEDS)
+    calc_distance_measure(results, MODEL_FILE, FRICTION_IN_STEER_FILE, ALT_PARAM_MODEL_FILE, DISTANCE_MEASURE_SPEEDS)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:
@@ -724,27 +744,3 @@ elif(PHASE == "cut_data"):
             ax.axvline(trial[0])
             ax.axvline(trial[1])
         plt.show()
-
-
-# -- [ Frist real test (but with false sil controller)
-# MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices"
-# # ("eigenvaltest_08kph_6bar_error_in_sil.log", 8, (4527,4626), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# # ("eigenvaltest_08kph_6bar_error_in_sil.log", 8, (5431,5533), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# ("eigenvaltest_08kph_6bar_error_in_sil.log", 8, (6373,6485), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_10kph_6bar_error_in_sil.log", 10, (3958,4060), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_10kph_6bar_error_in_sil.log", 10, (4906,4995), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# # ("eigenvaltest_10kph_6bar_error_in_sil.log", 10, (5957,6240), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# ("eigenvaltest_12kph_6bar_error_in_sil.log", 12, (3971,4080), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_12kph_6bar_error_in_sil.log", 12, (4755,4885), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# # ("eigenvaltest_12kph_6bar_error_in_sil.log", 12, (5671,5895), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# ("eigenvaltest_14kph_6bar_error_in_sil.log", 14, (4355,4441), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_14kph_6bar_error_in_sil.log", 14, (5226,5347), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# # ("eigenvaltest_14kph_6bar_error_in_sil.log", 14, (6038,6274), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# # ("eigenvaltest_16kph_6bar_error_in_sil.log", 16, (4087,4277), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# # ("eigenvaltest_16kph_6bar_error_in_sil.log", 16, (4911,5174), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# ("eigenvaltest_16kph_6bar_error_in_sil.log", 16, (5976,6073), (-1.0, 3.0, -1.0, 1.0, 1.0)), 
-# ("eigenvaltest_16kph_6bar_error_in_sil.log", 16, (7002,7097), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_18kph_6bar_error_in_sil.log", 18, (6707,6866), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_18kph_6bar_error_in_sil.log", 18, (7756,7902), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# # ("eigenvaltest_18kph_6bar_error_in_sil.log", 18, (8753,8982), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# ("eigenvaltest_18kph_6bar_error_in_sil.log", 18, (9749,10013), (-1.0, 3.0, -1.0, 1.0, 1.0))

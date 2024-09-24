@@ -7,9 +7,19 @@ from data_parsing import logfile2array
 from theoretical_plotting import get_eigen_vs_speed
 
 def kooijman_func(t, sigma, omega, c1, c2, c3):
+    '''
+    Function to fit the impulse response to.
+    This is an exponential sinusoid which is 
+    the expected motion from the weave mode.
+    '''
     return c1 + np.exp(sigma * t) * (c2 * np.cos(omega * t) + c3 * np.sin(omega * t))
 
 def fit_kooijman(time,data,par0):
+    '''
+    Fit the data to the exponential sinusoid 
+    and return the sigma and omega representing 
+    the real and imaginary part of the eigenvalue
+    '''
     # Fit parameters: (sigma, omega, c1, c2, c3)
     p_opt, p_cov = spo.curve_fit(f=kooijman_func, xdata=time, ydata=data, p0=par0,maxfev=MAX_FUN_EVAL)
 
@@ -19,58 +29,87 @@ def fit_kooijman(time,data,par0):
     r_squared = (1 - (ss_res / ss_tot))
 
     if(VISUAL_CHECK_FIT):
+        # Formatting
         fig, ax = plt.subplots()
         ax.set_title("Kooijman eigenvalue fit on experimental data",fontsize=30)
         ax.set_ylabel("Lean rate ($rad/s$)",fontsize=22)
         ax.set_xlabel("Duration ($s$)",fontsize=22)
-        ax.plot(time,data,linewidth=3,label="Experimental data")
-        ax.plot(time,kooijman_func(time, *p_opt), linewidth=2, label="Kooijman fit")
-        ax.grid()
         ax.tick_params(axis='x', labelsize=20)
         ax.tick_params(axis='y', labelsize=20)
+
+        # Plotting
+        ax.plot(time,data,linewidth=3,label="Experimental data")
+        ax.plot(time,kooijman_func(time, *p_opt), linewidth=2, label="Kooijman fit")
+
+        # Formatting
+        ax.grid()
         ax.legend(fontsize=20)
         plt.show()
 
     return p_opt[0], p_opt[1], r_squared
 
 def do_log_decrement(time, data):
+    '''
+    Perform a identification of the real part
+    of the complex eigenvalue via the log 
+    decrement. This is done as usefull part of 
+    the measured data for 1.5 m/s gave very 
+    spread results. 
+    '''
+    # Data is cut such that first peak is at time=0
     x1 = data[0]
     t1 = time[0]
+
+    # Take the first (and therefore highest) peak of opposite sign
     if x1>0:
         x2 = -np.min(data)
         t2 = time[np.argmin(data)]
     else:
         x2 = -np.max(data)
         t2 = time[np.argmax(data)]
+    
+    # Calculate log decrement
     sigma = np.log(x1/x2)/(t1-t2)
-    # omega = np.pi/(t2-t1)
+
     if(VISUAL_CHECK_FIT):
+        # Formatting
         plt.figure()
         plt.title("Kooijman eigenvalue fit on experimental data",fontsize=24)
         plt.ylabel("State [?]",fontsize=16)
         plt.xlabel("Duration [s]",fontsize=16)
+
+        # Plotting
         plt.plot(time, x1*np.exp(sigma*time), color="C0", label="Kooijman fit")
         plt.plot(time,-x1*np.exp(sigma*time), color="C0")
         plt.plot(time,np.abs(data),color="C1",label="Experimental data")
         plt.plot([t1,t2],[x1,-x2],'Xr')
+
+        # Formatting
         plt.grid()
         plt.legend(fontsize=14)
         plt.show()
-    return sigma#, omega
+    return sigma
 
 def extract_eigenvals(time,data,par0,speed):
+    # Store in vector when you extract the eigenvalues from multiple measurements (i.e. angle and rate for both lean and steer)
     sigma_vec = np.empty((len(data.keys()),))
     omega_vec = np.empty((len(data.keys()),))
+
+    # Extract the eigenvalues given the data
     for i,value in enumerate(data.values()):
         sigma_vec[i], omega_vec[i] , r_squared = fit_kooijman(time,value,par0)
-        print(f"R-squared value of sigma({sigma_vec[i]:.4f}) & omega({omega_vec[i]:.4f}) (going {speed} m/s):\t{r_squared:.4f}")
+        # For 1.5 m/s the normal fitting gives spread out results, so use log decrement instead.
         if speed == 1.5:
             sigma_vec[i] = do_log_decrement(time, value)
+        print(f"R-squared value of sigma({sigma_vec[i]:.4f}) & omega({omega_vec[i]:.4f}) (going {speed} m/s):\t{r_squared:.4f}")
+    
+    # Take the average when the eigenvalue was identified through multiple measurements.
     sigma = np.average(sigma_vec)
     omega = np.average(omega_vec)
     return sigma, omega
 
 def extract_data(full_path,start,stop,time_step,vars2extract,filter_type):
+    # Extract data and possibly filter it
     extraction = logfile2array(full_path,"",vars2extract)
 
     for key,value in extraction.items():
@@ -90,70 +129,11 @@ def extract_data(full_path,start,stop,time_step,vars2extract,filter_type):
     
     return time, extraction
 
-def plot_eigenvals(results,speedrange,ss_file1,ss_file2,plot_type):
-    #Theoretical
-    speed_ax_plant, eig_theory_plant = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS)
-    speed_ax_ref, eig_theory_ref = get_eigen_vs_speed(ss_file1,'ref',speedrange,SIL_PARAMETERS)
-    speed_ax_fric, eig_theory_fric = get_eigen_vs_speed(ss_file2,'plant',speedrange,SIL_PARAMETERS)
-    speed_ax_fric_mm, eig_theory_fric_mm = get_eigen_vs_speed(ss_file2,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True)
-    
-    ## REAL PART
-    plt.figure(figsize=(11, 5), dpi=125)
-    plt.title("Bicycle eigenvalues vs speed - Real part", fontsize=24)
-    plt.ylabel("Eigenvalue [-]", fontsize=16)
-    plt.xlabel("Speed [m/s]", fontsize=16)
-    
-    # Theoretical speed-eigen
-    plt.scatter(speed_ax_plant, eig_theory_plant["real"], s=1, label="Theoretical plant")
-    plt.scatter(speed_ax_ref, eig_theory_ref["real"],s=1, label="Theoretical reference")
-    plt.scatter(speed_ax_fric, eig_theory_fric["real"],s=1, label="Friction plant")
-    plt.scatter(speed_ax_fric_mm, eig_theory_fric_mm["real"],s=1, label="Friction reference")
-    # Emperical speed-eigen
-    for method in results:
-        plt.plot(method["speeds"]+method["style"]["offset"], method["real"],
-                 color=method["style"]["color"][0],
-                 marker=method["style"]["marker"][0],
-                 fillstyle=method["style"]["fillstyle"][0],
-                 linestyle='',
-                 markersize=6,
-                 label=method["name"])
-
-    plt.legend(fontsize=14,loc='lower right')
-    plt.grid()
-    plt.axis((speedrange[0],speedrange[-1],-10,5))
-
-
-    ## IMAG PART
-    plt.figure(figsize=(11, 5), dpi=125)
-    plt.title("Bicycle eigenvalues vs speed - Imaginairy part", fontsize=24)
-    plt.ylabel("Eigenvalue [-]", fontsize=16)
-    plt.xlabel("Speed [m/s]", fontsize=16)
-
-    # Theoretical speed-eigen
-    plt.scatter(speed_ax_plant, eig_theory_plant["imag"], s=1, label="Theoretical plant")
-    plt.scatter(speed_ax_ref, eig_theory_ref["imag"],s=1, label="Theoretical reference")
-    plt.scatter(speed_ax_fric, eig_theory_fric["imag"],s=1, label="Friction plant")
-    plt.scatter(speed_ax_fric_mm, eig_theory_fric_mm["imag"],s=1, label="Friction reference")
-    # Emperical speed-eigen
-    for method in results:
-        plt.plot(method["speeds"]+method["style"]["offset"], method["imag"],
-                 color=method["style"]["color"][1],
-                 marker=method["style"]["marker"][1],
-                 fillstyle=method["style"]["fillstyle"][1],
-                 linestyle='',
-                 markersize=6,
-                 label=method["name"])
-    
-    plt.legend(fontsize=14,loc='lower right')
-    plt.grid()
-    plt.axis((speedrange[0],speedrange[-1],0,10))
-    plt.show()
-
 def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type):
-    #Theoretical
     fig = plt.figure(figsize=(14,5), dpi=125)
     by_label = dict()
 
+    # Theoretical/ideal speed eigenvalue plot
     if   plot_type == "nominal":
         fig.suptitle("Bicycle Eigenvalues vs Speed - Nominal",fontsize=24)
         speed_ax_plant, eig_theory_plant       = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS)
@@ -181,9 +161,10 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type
         speed_ax_enc, eig_theory_enc           = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,enc_true2meas=0.8)
         speed_ax_enc_mm, eig_theory_enc_mm     = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True,enc_true2meas=0.8)
     elif plot_type == "drift":
-        speed_ax_plant, eig_theory_plant       = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS)
-        speed_ax_ref, eig_theory_ref           = get_eigen_vs_speed(ss_file1,'ref',  speedrange,SIL_PARAMETERS)
+        # speed_ax_plant, eig_theory_plant       = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS)
+        # speed_ax_ref, eig_theory_ref           = get_eigen_vs_speed(ss_file1,'ref',  speedrange,SIL_PARAMETERS)
 
+        # Extract eigenvalues from simulated ideal response with drift
         speed_points = np.arange(1.5,6,0.25)
         sigma_plnt = np.empty_like(speed_points)
         omega_plnt = np.empty_like(speed_points)
@@ -196,7 +177,8 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type
             sigma_ref[i],  omega_ref[i]  = extract_eigenvals(tmp["ref"][0],{"lean_rate":tmp["ref"][1]},(-2, 5, 0, 1, 0),speed)
         data_plnt={"real":sigma_plnt, "imag":omega_plnt}
         data_ref ={"real":sigma_ref, "imag":omega_ref}
-        
+    
+    # Formatting
     ax = dict()
     ax["real"] = fig.add_subplot(121)
     ax["real"].axis((0,6,-10,3))
@@ -209,6 +191,7 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type
     ax["imag"].set_title("Imaginary part", fontsize=20)
     ax["imag"].set_xlabel("Speed ($m/s$)", fontsize=16)
 
+    # Plot theoretical/ideal speed-eigenvalue plot
     for type, axs in ax.items():
         # Theoretic
         if   plot_type == "nominal":
@@ -239,7 +222,7 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type
         else:
             print("wrong method")
 
-        # Emperical speed-eigen
+        # Plot emperical speed-eigen from data
         for method in results:
             axs.plot(method["speeds"]+method["style"]["offset"], method[type],
                     color=method["style"]["color"][0],
@@ -259,9 +242,10 @@ def plot_eigenvals_paper(results,speedrange,ss_file1,ss_file2,ss_file3,plot_type
     plt.show()
 
 def calc_distance_measure(results,ss_file1,ss_file2,ss_file3,speedrange):
+    ## Get Theoretical/ideal speed eigenvalue plot, but only calculate points at the speeds used in the experiment
     eig_theory = {"plant":{}, "ref":{}}
     # nominal
-    speed_axis, eig_theory["plant"]["nominal"] = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS)
+    _, eig_theory["plant"]["nominal"]          = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS)
     _, eig_theory["ref"]["nominal"]            = get_eigen_vs_speed(ss_file1,'ref',  speedrange,SIL_PARAMETERS)
     # friction
     _, eig_theory["plant"]["friction"]         = get_eigen_vs_speed(ss_file2,'plant',speedrange,SIL_PARAMETERS)
@@ -279,37 +263,42 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3,speedrange):
     _, eig_theory["plant"]["encoder"]          = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,enc_true2meas=0.8)
     _, eig_theory["ref"]["encoder"]            = get_eigen_vs_speed(ss_file1,'plant',speedrange,SIL_PARAMETERS,isAppliedMM=True,enc_true2meas=0.8)
 
+
+    # Find how well the theoretical plots (e.g. friction, speed, ... ) fit the experiments.
     avg_abs_error = {}
-    for model in eig_theory.keys():
+    for model in eig_theory.keys():                         # plant or reference
         avg_abs_error[model] = {}
-        for expermnt in results:
-            if expermnt["style"]["mm_state"] == model:
-                for err_type in eig_theory[model].keys():
-                    tmp = 0
-                    length = 0
+        for experiment in results:                          # The experiment with or without Model Matching Control
+            if experiment["style"]["mm_state"] == model:    # If mm_state = off -> match experiment against controlled model, if mm_state = on match experiment against reference model
+                for err_type in eig_theory[model].keys():   # For every type of theoretical plot (e.g. nominal, with friction, ...)
+                    cum_sum = 0 # Cumulative absolute difference between experiment and theory
+                    length  = 0 # Amount of datapoints used for calculation of cumulative absolute difference
                     for domain in ["real","imag"]:
-                        #Select column from the theory eigenvalues that corresponds to 'weave'.
+                        # Select column from the theory eigenvalues that corresponds to 'weave'.
                         if domain == "real": 
                             k = 1
                         elif domain == "imag":
                             k = -1
 
-                        # Sort the eigenvalues such that the 'weave' eigenvalue stays in one column
-                        # (Only for (ref, speed, real) the weave eigenvalue switches column.
-                        #  TODO: implement a generalized version of this quick fix. )
+                        # Sort the eigenvalues such that the 'weave' eigenvalue stays in one column. 
+                        # Then extract it.
                         if model == "ref" and err_type == "speed" and domain == "real": 
+                            # (Only for (ref -> speed -> real) the weave eigenvalue doesn't stay in one column.
+                            # for this specific case k=1 does not hold in the last row.
+                            #  TODO: implement a generalized version of this quick fix. )
                             weave_eig = np.sort(eig_theory[model][err_type][domain])[:,k]
                             weave_eig[-1] = np.sort(eig_theory[model][err_type][domain])[-1,k+1]
                         else:
                             weave_eig = np.sort(eig_theory[model][err_type][domain])[:,k]
                         
-                        #Calculate the average absulute error
-                        for i in range(len(expermnt[domain])):
-                            j = np.where(expermnt["speeds"][i] - speedrange == 0)[0][0]
-                            tmp = tmp + np.abs(expermnt[domain][i]   - weave_eig[j])
-                        length = length + len(expermnt[domain])
-                    avg_abs_error[model][err_type] = tmp/length
+                        # Calculate the average absulute error for model-error_type combination
+                        for i in range(len(experiment[domain])):
+                            j = np.where(experiment["speeds"][i] - speedrange == 0)[0][0]    # Identify the speed of the single trial (i) you are currently looking at. There are multiple trails at one speed.
+                            cum_sum = cum_sum + np.abs(experiment[domain][i]   - weave_eig[j])
+                        length = length + len(experiment[domain])
+                    avg_abs_error[model][err_type] = cum_sum/length
     
+
     for plant_type,data in avg_abs_error.items():
         for mode,error in data.items():
             print(f"{plant_type}\t- {mode}:\t{error}")
@@ -318,6 +307,7 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3,speedrange):
     for model in eig_theory.keys():
         fig = plt.figure(figsize=(14,5), dpi=125)
         ax = dict()
+
         ax["real"] = fig.add_subplot(121)
         ax["real"].axis((0,6,-10,3))
         ax["real"].set_title("Real part", fontsize=20)
@@ -350,9 +340,9 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3,speedrange):
 
             for err_type in eig_theory[model].keys():
                 # Sort the eigenvalues such that the 'weave' eigenvalue stays in one column
-                # (Only for (ref, speed, real) the weave eigenvalue switches column.
-                #  TODO: implement a generalized version of this quick fix. )
+                # Then extract it.
                 if model == "ref" and err_type == "speed" and domain == "real": 
+                    #  TODO: implement a generalized version of this quick fix. )
                     weave_eig = np.sort(eig_theory[model][err_type][domain])[:,k]
                     weave_eig[-1] = np.sort(eig_theory[model][err_type][domain])[-1,k+1]
                 else:
@@ -360,11 +350,11 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3,speedrange):
                 # plot theoretic eigenvalues
                 axs.plot(speedrange,weave_eig)
                 
-                #plot the distances between experimental and theoretical
+                # plot the distances between experimental and theoretical
                 for expermnt in results:
                     if expermnt["style"]["mm_state"] == model:
                         for i in range(len(expermnt[domain])):
-                            j = np.where(expermnt["speeds"][i] - speedrange == 0)[0][0] # Select the correct speed index, as there are multiple experiments for one speed.
+                            j = np.where(expermnt["speeds"][i] - speedrange == 0)[0][0] 
                             axs.plot(2*[speedrange[j]],[expermnt[domain][i],weave_eig[j]],'r')
             
             axs.grid()
@@ -376,17 +366,20 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3,speedrange):
     return avg_abs_error
 
 def plot_uncut_data(path,file,vars2extract):
+    # Extract logfile data of experiment
     extraction = logfile2array(path,file,vars2extract)
 
     fig, ax = plt.subplots()
-    # ax.set_title("Output measurements of "+file, fontsize=24)
-    ax.set_title("Output measurements at 5 m/s, with model matching on", fontsize=30)
+    ax.set_title("Output measurements of "+file, fontsize=30)
     ax.set_ylabel("Measurements", fontsize=22)
     ax.set_xlabel("Index number", fontsize=22)
+
     for key, value in extraction.items():
-        if key in ["x_acceleration","y_acceleration"]: #The acceleration measurements need to be filtered to be useful
+        # The acceleration measurements need to be filtered to be useful
+        if key in ["x_acceleration","y_acceleration"]:
             value = filt.butter_running(  2  ,  5  , value, fs=1/TIME_STEP)
         
+        # Make fancier labels
         if key == "lean_rate":
             fancy_label = "Lean rate ($rad/s$)"
             zord=3
@@ -396,7 +389,10 @@ def plot_uncut_data(path,file,vars2extract):
         elif key == "y_acceleration":
             fancy_label = "y acceleration ($m/s^2$)"
             zord=2
+
+        # Plot
         ax.plot(value,linewidth=3,label=fancy_label, zorder=zord)
+
     ax.grid(axis='x')
     ax.tick_params(axis='x', labelsize=20)
     ax.tick_params(axis='y', labelsize=20)
@@ -405,32 +401,32 @@ def plot_uncut_data(path,file,vars2extract):
 
 #=====START=====#
 #---[Constants
-PATH = "..\\teensy\\logs\\"
-BUTTER_ORDER = 2
-BUTTER_CUT_OFF = 10
-HIGH_PASS_Wc_FREQ = 1
-TIME_STEP = 0.01
-PHASE = "calculate_eig" # "cut_data" or "calculate_eig"
-VISUAL_CHECK_FIT = False # If true, show graph for visually checking the kooijman function fit
-MAX_FUN_EVAL = 50000
+PATH = "..\\teensy\\logs\\"     # Path to log files
+BUTTER_ORDER = 2                # Order of butter filter
+BUTTER_CUT_OFF = 10             # Cut off frequency of butter filter
+HIGH_PASS_Wc_FREQ = 1           # Cut off frequency of hp filter
+TIME_STEP = 0.01                # Time between log data measurements
+PHASE = "calculate_eig"         # "cut_data" or "calculate_eig"
+VISUAL_CHECK_FIT = False        # If true, show graph for visually checking the kooijman function fit
+MAX_FUN_EVAL = 50000            # Max nbr of function evaluations for the nonlinear fit function
 
 #Theoretical model parameters
 METHOD = "nominal" #nominal, friction, params, speed, motor, encoder, drift
 MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
 ALT_PARAM_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_estimated_error_parameters"
-FRICTION_IN_STEER_FILE ="bike_models_n_friction\\ss_cw_friction-0.2_viscous"# ".\\ss_cw_friction-0.02_sigmoid"
+FRICTION_IN_STEER_FILE ="bike_models_n_friction\\ss_cw_friction-0.2_viscous"# (alternate friction model: ".\\ss_cw_friction-0.02_sigmoid")
 SPEED_START = 0.1
 SPEED_STOP = 8
 SPEED_STEP = 0.01
 SPEED_RANGE = np.linspace(SPEED_START , SPEED_STOP , num=int(1 + (SPEED_STOP-SPEED_START)/SPEED_STEP))
-DISTANCE_MEASURE_SPEEDS = np.arange(1.5,5.5,0.5)
-SIL_PARAMETERS = {
+DISTANCE_MEASURE_SPEEDS = np.arange(1.5,5.5,0.5) # speeds used for the average absolute error calculation
+SIL_PARAMETERS = {      # SIL == Steer Into Lean
     'avg_speed' : 6.5,
     'L_gain': 2,
     'H_gain': 0.7
 }
 
-#---[variable to invastigate and list of single experiments
+#---[variable to invastigate
 vars2extract = {
         # "lean_angle": [],
         "lean_rate": [],
@@ -441,6 +437,11 @@ vars2extract = {
         # "y_acceleration": [],
         # "hand_torque": [],
     }
+
+#---[Raw log files used to identify the time responses
+# Format: ["log file name", [(start, and end of time response)]]
+# start and end will create vertical lines in the raw data to validate your choise.
+# Initially put a single [(0,0)] here.
 log_files = [
     # ("eigen_normal_sil6.5n2_5.4kph.log", [(4486,4486+100), (5420,5420+100), (6325,6325+100), (7349,7349+100), (8984,8984+100), (9750,9750+100), (10600,10700)]),
     # ("eigen_normal_sil6.5n2_7.2kph.log", [(9870,9870+100), (11024,11024+100), (12689,12689+100), (13773,13773+100), (14886,14886+100)]),
@@ -452,7 +453,11 @@ log_files = [
     # ("eigen_normal_sil6.5n2_18kph.log", [(1964,1964+100), (2917,2917+100), (3831,3831+100), (4594,4594+100), (5549,5549+100), (6326,6326+100), (7060,7060+100)]),
     ("eigen_mm_sil6.5n2_18kph.log", [(2928,2928+100),(4308,4308+100),(5508,5508+100),(6931,6931+100),(8232,8232+100),(10043,10043+100),(14193,14193+100),(15348,15348+100)])
 ]
-experiments = [ #file,speed[km/h],start&end in file, initial values    
+
+#---[Singled out impulse responses to fit the kooijman function to
+# Format of data struct:
+# (title, {plot style}, fileter type ((file,speed[m/s],start&end in file, initial values for plot function),(...),...)
+experiments = [
     # Model Matching OFF
     # ('Model Matching OFF - low pass filtered',
     # {"color":('k', 'k'),
@@ -713,13 +718,13 @@ if(PHASE == "calculate_eig"):
         sigmas = np.empty((len(data),))
         omegas = np.empty((len(data),))
         speeds = np.empty((len(data),))
-        for i, one_disturb in enumerate(data):
+        for i, one_disturb in enumerate(data): # disturb == trial == one impulse response
             file, speeds[i], start_stop, par0 = one_disturb
             time, extraction = extract_data(PATH+file,start_stop[0],start_stop[1],TIME_STEP,vars2extract,filter_type)
             sigmas[i], omegas[i] = extract_eigenvals(time,extraction,par0,speeds[i])
         results.append({"name":name,"style":style,"real":sigmas,"imag":omegas,"speeds":speeds})
     plot_eigenvals_paper(results, SPEED_RANGE, MODEL_FILE, FRICTION_IN_STEER_FILE, ALT_PARAM_MODEL_FILE, METHOD)
-    # calc_distance_measure(results, MODEL_FILE, FRICTION_IN_STEER_FILE, ALT_PARAM_MODEL_FILE, DISTANCE_MEASURE_SPEEDS)
+    calc_distance_measure(results, MODEL_FILE, FRICTION_IN_STEER_FILE, ALT_PARAM_MODEL_FILE, DISTANCE_MEASURE_SPEEDS)
 
 elif(PHASE == "cut_data"):
     for foo in log_files:
@@ -729,27 +734,3 @@ elif(PHASE == "cut_data"):
             ax.axvline(trial[0])
             ax.axvline(trial[1])
         plt.show()
-
-
-# -- [ Frist real test (but with false sil controller)
-# MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices"
-# # ("eigenvaltest_08kph_6bar_error_in_sil.log", 8, (4527,4626), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# # ("eigenvaltest_08kph_6bar_error_in_sil.log", 8, (5431,5533), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# ("eigenvaltest_08kph_6bar_error_in_sil.log", 8, (6373,6485), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_10kph_6bar_error_in_sil.log", 10, (3958,4060), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_10kph_6bar_error_in_sil.log", 10, (4906,4995), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# # ("eigenvaltest_10kph_6bar_error_in_sil.log", 10, (5957,6240), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# ("eigenvaltest_12kph_6bar_error_in_sil.log", 12, (3971,4080), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_12kph_6bar_error_in_sil.log", 12, (4755,4885), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# # ("eigenvaltest_12kph_6bar_error_in_sil.log", 12, (5671,5895), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# ("eigenvaltest_14kph_6bar_error_in_sil.log", 14, (4355,4441), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_14kph_6bar_error_in_sil.log", 14, (5226,5347), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# # ("eigenvaltest_14kph_6bar_error_in_sil.log", 14, (6038,6274), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# # ("eigenvaltest_16kph_6bar_error_in_sil.log", 16, (4087,4277), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# # ("eigenvaltest_16kph_6bar_error_in_sil.log", 16, (4911,5174), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# ("eigenvaltest_16kph_6bar_error_in_sil.log", 16, (5976,6073), (-1.0, 3.0, -1.0, 1.0, 1.0)), 
-# ("eigenvaltest_16kph_6bar_error_in_sil.log", 16, (7002,7097), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_18kph_6bar_error_in_sil.log", 18, (6707,6866), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# ("eigenvaltest_18kph_6bar_error_in_sil.log", 18, (7756,7902), (-1.0, 3.0, -1.0, 1.0, 1.0)),
-# # ("eigenvaltest_18kph_6bar_error_in_sil.log", 18, (8753,8982), (-1.0, 3.0, -1.0, 1.0, 1.0)), #Questionable
-# ("eigenvaltest_18kph_6bar_error_in_sil.log", 18, (9749,10013), (-1.0, 3.0, -1.0, 1.0, 1.0))
