@@ -1,3 +1,9 @@
+'''
+___[ data_parsing.py ]___
+Extract the data from the log files and
+convert them to a dict with lists containing
+floats.
+'''
 import numpy as np
 import csv
 
@@ -12,6 +18,8 @@ def logfile2array(path,filename,var2extract):
     extraction = {}
     for key in var2extract.keys():
             extraction[key] = []
+    
+    # Extract data and store in extraction dict
     with open(path+filename, newline='', mode="r") as f:
         reader = csv.DictReader(f)
         for row in reader:

@@ -1,3 +1,11 @@
+''' 
+___[ kooijman_eig_fit.py ]___
+I use this scipt to find the impulse responses
+from the raw measurement data, and then identify 
+the eigenvalues from those impulse responses.
+The results are plotted.
+'''
+
 import dill
 import numpy as np
 import scipy.optimize as spo

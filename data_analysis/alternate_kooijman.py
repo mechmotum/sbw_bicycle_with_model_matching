@@ -1,3 +1,12 @@
+'''
+___[ alternate_kooijman.py ]___
+This script is similar to kooijman_eig_fit.py,
+but it uses a different function to fit the data
+to. This function includes the time responses
+correlating to all eigenvalues instead of just 
+the weave mode.
+'''
+
 import dill
 import numpy as np
 import scipy.optimize as spo
