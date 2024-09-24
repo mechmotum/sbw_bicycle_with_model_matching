@@ -412,7 +412,7 @@ def plot_uncut_data(path,file,vars2extract):
 PATH = "..\\teensy\\logs\\"     # Path to log files
 BUTTER_ORDER = 2                # Order of butter filter
 BUTTER_CUT_OFF = 10             # Cut off frequency of butter filter
-HIGH_PASS_Wc_FREQ = 1           # Cut off frequency of hp filter
+HIGH_PASS_Wc_FREQ = 1           # Cut off frequency of high pass filter
 TIME_STEP = 0.01                # Time between log data measurements
 PHASE = "calculate_eig"         # "cut_data" or "calculate_eig"
 VISUAL_CHECK_FIT = False        # If true, show graph for visually checking the kooijman function fit
@@ -447,7 +447,7 @@ vars2extract = {
     }
 
 #---[Raw log files used to identify the time responses
-# Format: ["log file name", [(start, and end of time response)]]
+# Format: ["log file name", [(start-end of time response)]]
 # start and end will create vertical lines in the raw data to validate your choise.
 # Initially put a single [(0,0)] here.
 log_files = [

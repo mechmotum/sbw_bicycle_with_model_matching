@@ -1,3 +1,13 @@
+'''
+___[ estimate_gain_bodes.py ]___
+I use this scipt to find the sinusoidal
+exitation response from the raw measurement 
+data, and then calculate the bode gain for 
+different frequencies.
+The results are plotted against the 
+theoretical bode gains.
+'''
+
 import copy
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,6 +17,11 @@ from theoretical_plotting import get_bode
 import dill
 
 def find_sinosoid_peaks(sig,start,stop,tune):
+    '''
+    Find peaks of sinusoidal inputs. These peaks
+    can be used to caluculate the gain. 
+    Obsolete method, as FFT is more robust.
+    '''
     peak_height = np.max((sig[start:stop]))
     vally_height = np.min((sig[start:stop]))
     wasPeak = False
@@ -82,12 +97,17 @@ def find_freq_and_amp(time,sig,peaks,vallies):
     returns amplitude and frequence of the measured sinosiod 
     input signal. 
     Frequency is in Herz
+    peaks and vallies contain the index stamps of the signal 
+    at which a peak occures
     '''
+    # one period is peak->vally->peak so #periods is #valies (and visa versa)
     if(len(peaks) <= len(vallies)):
         nbr_of_periods = len(peaks)
     else:
         nbr_of_periods = len(vallies)
 
+    # Calculate the average period and amplitude. 
+    # The -1 is a consequense of using k+1 (otherwise index is out of range)
     peak_period = np.zeros((nbr_of_periods-1,))
     vally_period = np.zeros((nbr_of_periods-1,))
     amplitudes = np.zeros((nbr_of_periods,))
@@ -101,7 +121,7 @@ def find_freq_and_amp(time,sig,peaks,vallies):
     sig_amplitude = np.average(np.abs(amplitudes))
     return sig_frequency,sig_amplitude
 
-def get_single_bode_point_peaks(bode_points, filename,vars2extract, start, stop, tune_par, FRF):
+def get_single_bode_point_peaks(bode_points, filename,vars2extract, start, stop, tune_par):
     #---[Decide on and extract variable from log file
     extraction = logfile2array(PATH,filename,vars2extract)
 
@@ -133,10 +153,12 @@ def get_single_bode_point_peaks(bode_points, filename,vars2extract, start, stop,
             plt.title(f"Measurement of {key}",fontsize=24)
             plt.xlabel("Time [s]", fontsize=16)
             plt.ylabel(f"{key} [Nm] or [rad/s] or [rad]", fontsize=16)
+
             plt.plot(time[start-50:stop+50], value[start-50:stop+50],'-',label="Raw")
             # plt.plot(time[start-50:stop+50], val_butter[start-50:stop+50],'--',label="Filtered")
             plt.plot(time[peaks], signal[peaks],'o',label="peak")
             plt.plot(time[vallies], signal[vallies],'o',label="vally")
+
             plt.axvline(time[start])
             plt.axvline(time[stop])
             plt.grid()
@@ -157,24 +179,13 @@ def get_single_bode_point_peaks(bode_points, filename,vars2extract, start, stop,
 
     return bode_points
 
-def get_single_bode_point_fft(bode_points, filename,vars2extract, start, stop, tune_par, FRF):
-    FRF = {}
-    for in_key in INPUT.keys():
-        FRF[in_key] = {}
-        for out_key in OUTPUT.keys():
-            FRF[in_key][out_key] = []
-    analyse_bode_data(bode_points, filename,vars2extract, start, stop, tune_par, FRF)
-    return
-
-def analyse_bode_data(bode_points, filename,vars2extract, start, stop, tune_par, FRF):
+def analyse_bode_data(bode_points, filename,vars2extract, start, stop, tune_par):
     #---[Extract variable from log file
     extraction = logfile2array(PATH,filename,vars2extract)
 
     #---[Choose between filtered and raw signal
     signals = {}
     for key,value in extraction.items():
-
-        #---[Choose signal to analyse
         if(TO_ANALYSE == "raw"):
             signals[key] = value
         elif(TO_ANALYSE == "filtered"):
@@ -182,44 +193,48 @@ def analyse_bode_data(bode_points, filename,vars2extract, start, stop, tune_par,
             val_butter = filt.first_order_hp(HIGH_PASS_Wc_FREQ,value,fs=1/TIME_STEP)
             signals[key] = val_butter
 
-
+    #---[Extract gain at excitation frequency for the input and ouput signal
     for key_in in INPUT.keys():
         for key_out in OUTPUT.keys():
+            #---[Transform time domain to frequency domain
             input_frq = np.fft.rfft(signals[key_in][start:stop]) # magnitude [-]
             output_frq = np.fft.rfft(signals[key_out][start:stop]) # magnitude [-]
             freq_bins= np.fft.rfftfreq(len(signals[key_out][start:stop]),TIME_STEP) # [Hz]
 
+            #---[Calculate largest value in the frequency domain and corresponding frequency. 
+            '''The exact excitation frequency is unknown. The assumption is made that the frequency
+            with the largest magnitude is the excitation frequency'''
             tmp = np.argmax(abs(input_frq))
             freq_in = freq_bins[tmp]
-            # freq_out = freq_bins[(tmp-2)+np.argmax(abs(output_frq[tmp-2:tmp+5]))]
-            freq_out = freq_bins[np.argmax(abs(output_frq[1:]))+1]
+            freq_out = freq_bins[np.argmax(abs(output_frq[1:]))+1] # Output signals sometimes experienced drift. Therefore the DC gain is filtered out (aka output_frq[0])
             magnitude_in = np.max(abs(input_frq))
-            # magnitude_out = np.max(abs(output_frq[tmp-2:tmp+5]))
-            magnitude_out = np.max(abs(output_frq[1:]))
-
-            FRF[key_in][key_out].append([freq_bins[np.argmax(abs(input_frq))-3:np.argmax(abs(input_frq))+5],\
-                                         (abs(output_frq)/abs(input_frq))[np.argmax(abs(input_frq))-3:np.argmax(abs(input_frq))+5]])
+            magnitude_out = np.max(abs(output_frq[1:])) # Same thing (filter DC gain)
 
             print(f"---{key_in} to {key_out}---\nfrequency input:\t{freq_in:.3}\ndifference (in-out):\t{freq_in-freq_out}\n")
             bode_points[key_in][key_out].append([freq_in,magnitude_out/magnitude_in])
 
             if(CHECK_VISUALLY):
+                if key_in == "hand_torque":
+                    fancy_in = "Hand Torque"
+                elif key_in == "lean_torque":
+                    fancy_in = "Lean Torque"
+
                 if key_out == "fork_angle":
-                    fancy_label = "Fork Angle"
+                    fancy_out = "Fork Angle"
                 elif key_out == "lean_rate":
-                    fancy_label = "Lean Rate"
+                    fancy_out = "Lean Rate"
+                
                 fig, ax = plt.subplots()
-                ax.set_xscale('log')
-                ax.set_title(f"Output measurements of 1.3 Hz input at 4 m/s in the frequency domain", fontsize=30)
-                # ax.set_title(f"Bode plot of {key_in} to {key_out}", fontsize=24)
+                ax.set_title(f"Bode plot of {fancy_in} to {fancy_out}", fontsize=24)
                 ax.set_xlabel("Frequencies (Hz)", fontsize=22)
                 ax.set_ylabel("Magnitude", fontsize=22)
-                ax.plot(freq_bins,abs(input_frq),linewidth=3,label="Steer torque Input")
-                ax.plot(freq_bins,abs(output_frq),linewidth=3,label="Lean rate Output")
+                ax.set_xscale('log')
+
+                ax.plot(freq_bins,abs(input_frq),linewidth=3,label="Steer Torque Input")
+                ax.plot(freq_bins,abs(output_frq),linewidth=3,label="Lean Rate Output")
                 ax.plot(freq_in,np.max(abs(input_frq)),'o',label="Input Maximum")
-                # ax.plot(freq_out,np.max(abs(output_frq[tmp-2:tmp+5])),'o',label="output max")
                 ax.plot(freq_out,np.max(abs(output_frq)),'o',label="Output Maximum")
-                ax.legend(fontsize=14)
+
                 ax.tick_params(axis='x', labelsize=20)
                 ax.tick_params(axis='y', labelsize=20)
                 ax.legend(fontsize=20)
@@ -229,15 +244,25 @@ def analyse_bode_data(bode_points, filename,vars2extract, start, stop, tune_par,
     return
 
 def get_sim_drift_points(plnt_type):
+    '''
+    As the theoretical drift points are the result from simulating the experiment itself
+    the bode gain points still need to be identified from the simulated 'measurements'
+    This function does just that
+    ''' 
+
+    # Create container
     drift_points = {}
     for in_key in INPUT.keys():
         drift_points[in_key] = {}
         for out_key in OUTPUT.keys():
             drift_points[in_key][out_key] = []
     
+    # for a specific set of input frequencies (the frequencies simulated for), calculate the bode gain
     for freq in np.arange(1.0,3.2,0.2):
         with open(f"..\\data_analysis\\drift_sim_data\\drift_bode_data_{freq}Hz",'rb') as inf:
             sim_data = dill.load(inf)
+        
+        # see simulate_drift_data.py (in simulations map) for the structure of sim_data
         drift_timestep = sim_data[plnt_type][3]
         drift_sig = {"fork_angle": sim_data[plnt_type][2][:,1],"lean_rate": sim_data[plnt_type][2][:,2], 
                     "hand_torque": sim_data[plnt_type][1][:,1],"lean_torque": sim_data[plnt_type][1][:,0]}
@@ -257,46 +282,8 @@ def get_sim_drift_points(plnt_type):
                 drift_points[key_in][key_out].append([freq_in,magnitude_out/magnitude_in])
     return drift_points
 
-def plot_results(results,ss_file1,ss_file2,plot_type):
-    bode_mags_plant = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
-    bode_mags_ref = get_bode(ss_file1,"ref",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
-    bode_mags_fric = get_bode(ss_file2,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
-    bode_mags_fric_mm = get_bode(ss_file2,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True) # frequency in rad/s, magnitude in dB
-    
-    for in_key, in_value in INPUT.items():
-        for out_key, out_value in OUTPUT.items():
-            plt.figure(figsize=(14,5), dpi=125)
-            plt.title(f"{in_key} to {out_key}",fontsize=24)
-            plt.xlabel("Frequency [Hz]", fontsize=16)
-            plt.ylabel("Gain [dB]", fontsize=16)
-            plt.xscale('log')
-
-            #---[plot the theoretic bode
-            plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],linewidth=3, label="Theoretical Gain Plant")
-            plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:],linewidth=3, label="Theoretical Gain Reference")
-            plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_fric[in_value,out_value,:],'-.',linewidth=4, label="Friction Gain plant")
-            plt.plot(FREQ_RANGE/(2*np.pi),bode_mags_fric_mm[in_value,out_value,:],':',linewidth=4, label="Friction Gain Reference")
-
-            #---[plot the empirical bode
-            for trial in results:
-                bode_points[in_key][out_key] = np.array(trial["bode_points"][in_key][out_key])
-
-                [plt.plot(tmp[0],20*np.log10(tmp[1]),linestyle=':',color=trial["style"]["FFT_color"]) for tmp in trial["FRF"][in_key][out_key]]
-                plt.plot(bode_points[in_key][out_key][:,0], 20*np.log10(bode_points[in_key][out_key][:,1]),
-                        color=trial["style"]["color"],
-                        marker=trial["style"]["marker"],
-                        fillstyle=trial["style"]["fillstyle"],
-                        linestyle='',
-                        markersize=6,
-                        label="Emperical Gain - " + trial["name"])
-                # plt.plot([1],linestyle=':',color=trial["style"]["FFT_color"],label="Y(s)/U(s) - " + trial["name"])
-            
-            plt.axis([0.07,12,-50,0])
-            plt.grid()
-            plt.legend(fontsize=12, loc='lower left')
-    plt.show()
-
 def plot_results_paper(results,ss_file1,ss_file2,ss_file3,plot_type):
+    # Get theoretical bode gain plots
     if   plot_type == "nominal":
         bode_mags_plant    = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
         bode_mags_ref      = get_bode(ss_file1,"ref"  ,EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
@@ -313,8 +300,6 @@ def plot_results_paper(results,ss_file1,ss_file2,ss_file3,plot_type):
         bode_mags_mtr      = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,cmd2trq_gain=0.9) # frequency in rad/s, magnitude in dB
         bode_mags_mtr_mm   = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True,cmd2trq_gain=0.9) # frequency in rad/s, magnitude in dB
     elif plot_type == "encoder":
-        # bode_mags_plant    = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
-        # bode_mags_ref      = get_bode(ss_file1,"ref"  ,EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
         bode_mags_enc      = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,enc_true2meas=0.8) # frequency in rad/s, magnitude in dB
         bode_mags_enc_mm   = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,FREQ_RANGE,SIL_PARAMETERS,isAppliedMM=True,enc_true2meas=0.8) # frequency in rad/s, magnitude in dB
     elif plot_type == "drift":
@@ -327,6 +312,7 @@ def plot_results_paper(results,ss_file1,ss_file2,ss_file3,plot_type):
             fig = plt.figure(figsize=(14,5), dpi=125)
             by_label = dict()
 
+            # Make the titles fancier
             if in_key == "hand_torque":
                 inpt = "Steer Torque"
             elif in_key == "lean_torque":
@@ -343,6 +329,9 @@ def plot_results_paper(results,ss_file1,ss_file2,ss_file3,plot_type):
                 outpt = "Unknown"
                 print("Bode output unknown")
             
+            # Create a left (mm off) and right (mm on) plot as the 
+            # putting the experimental results all in one picture
+            # becomes unclear.
             axs = dict()
             axs["left"] = fig.add_subplot(121)
             axs["left"].set_xlabel("Frequency (Hz)", fontsize=22)
@@ -361,7 +350,8 @@ def plot_results_paper(results,ss_file1,ss_file2,ss_file3,plot_type):
                 
             for trial in results:
                 bode_points[in_key][out_key] = np.array(trial["bode_points"][in_key][out_key])
-
+                
+                # Plot the theoretical bode gains. Plot them in both left and right
                 if   plot_type == "nominal":
                     fig.suptitle(f"Bode Gain of {inpt} to {outpt} - Nominal",fontsize=30)
                     axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],     linewidth=4, label="Theoretical Controlled")
@@ -384,8 +374,6 @@ def plot_results_paper(results,ss_file1,ss_file2,ss_file3,plot_type):
                     axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_mtr_mm[in_value,out_value,:],'--',linewidth=4, label="Corrected Motor Reference")
                 elif plot_type == "encoder":
                     fig.suptitle(f"Bode Gain of {inpt} to {outpt} - Corrected Encoder",fontsize=24)
-                    # axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_plant[in_value,out_value,:],     linewidth=4, label="Theoretical Controlled")
-                    # axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_ref[in_value,out_value,:]  ,'--',linewidth=4, label="Theoretical Reference")
                     axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_enc[in_value,out_value,:]   ,     linewidth=4, label="Corrected Encoder Controlled")
                     axs[trial["style"]["place"]].plot(FREQ_RANGE/(2*np.pi),bode_mags_enc_mm[in_value,out_value,:],'--',linewidth=4, label="Corrected Encoder Reference")
                 elif plot_type == "drift":
@@ -400,7 +388,7 @@ def plot_results_paper(results,ss_file1,ss_file2,ss_file3,plot_type):
                         drift_points[plnt_type][in_key][out_key] = np.array(drift_points[plnt_type][in_key][out_key])
                         axs[trial["style"]["place"]].plot(drift_points[plnt_type][in_key][out_key][:,0], 20*np.log10(drift_points[plnt_type][in_key][out_key][:,1]),'X',label=f"Drift {lbl}")
 
-                [axs[trial["style"]["place"]].plot(tmp[0],20*np.log10(tmp[1]),linestyle=':',color=trial["style"]["FFT_color"]) for tmp in trial["FRF"][in_key][out_key]]
+                # Plot the experimental data points. 
                 axs[trial["style"]["place"]].plot(bode_points[in_key][out_key][:,0], 20*np.log10(bode_points[in_key][out_key][:,1]),
                         color=trial["style"]["color"],
                         markeredgecolor="k",
@@ -409,7 +397,6 @@ def plot_results_paper(results,ss_file1,ss_file2,ss_file3,plot_type):
                         linestyle='',
                         markersize=10,
                         label="Emperical Gain - " + trial["name"])
-                # plt.plot([1],linestyle=':',color=trial["style"]["FFT_color"],label="Y(s)/U(s) - " + trial["name"])
                 axs[trial["style"]["place"]].grid()
                 handles, labels = axs[trial["style"]["place"]].get_legend_handles_labels()
                 by_label.update(zip(labels, handles))
@@ -419,6 +406,7 @@ def plot_results_paper(results,ss_file1,ss_file2,ss_file3,plot_type):
     plt.show()
 
 def calc_distance_measure(results,ss_file1,ss_file2,ss_file3):
+    # Create container
     experiments_points = {}
     freqs = {}
     for run in results:
@@ -426,13 +414,14 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3):
         for in_key in INPUT.keys():
             experiments_points[run["style"]["mm_state"]][in_key] = {}
 
-    for run in results: #a run is mm control being ON or OFF
+    # Get the input frequencies (Hz) used for the mm ON run and for the mm OFF run 
+    for run in results: # a run is mm control being ON or OFF
         for in_key in INPUT.keys():
             for out_key in OUTPUT.keys():
                 experiments_points[run["style"]["mm_state"]][in_key][out_key] = np.array(run["bode_points"][in_key][out_key])
         freqs[run["style"]["mm_state"]] = experiments_points[run["style"]["mm_state"]][in_key][out_key][:,0]
     
-
+    # Get Theoretical bode magnitudes
     bode_mags = {"plant":{}, "ref":{}}
     #nominal
     bode_mags["plant"]["nominal"]   = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,2*np.pi*freqs["plant"],SIL_PARAMETERS) # frequency in rad/s, magnitude in dB
@@ -453,23 +442,24 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3):
     bode_mags["plant"]["enc"]       = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,2*np.pi*freqs["plant"],SIL_PARAMETERS,enc_true2meas=0.8) # frequency in rad/s, magnitude in dB
     bode_mags["ref"]["enc"]         = get_bode(ss_file1,"plant",EXPERIMENT_SPEED,2*np.pi*freqs["ref"],SIL_PARAMETERS,isAppliedMM=True,enc_true2meas=0.8) # frequency in rad/s, magnitude in dB
     
+    # Calculate the average absolute error between the theoretical bode plots and the experimental data points
     avg_abs_error = {}
     for model, err_types in bode_mags.items():
         avg_abs_error[model] = {}
         for err_key, theory_points in err_types.items():
-            avg_abs_error[model][err_key] = 0
             tmp = 0
+            count = 0
             for in_key, in_value in INPUT.items():
                     for out_key, out_value in OUTPUT.items():
                         tmp = tmp + np.average(np.abs(theory_points[in_value,out_value,:] - 20*np.log10(experiments_points[model][in_key][out_key][:,1])))
-                        # print(freqs[model] - experiments_points[model][in_key][out_key][:,0])
-            avg_abs_error[model][err_key] = tmp/2
+                        count = count + 1
+            avg_abs_error[model][err_key] = tmp/count
     
     for plant_type,data in avg_abs_error.items():
         for mode,error in data.items():
             print(f"{plant_type}\t- {mode}:\t{error}")
 
-    # visual check
+    # Visual check
     for in_key, in_value in INPUT.items():
         for out_key, out_value in OUTPUT.items():
             fig = plt.figure(figsize=(14,5), dpi=125)
@@ -492,12 +482,14 @@ def calc_distance_measure(results,ss_file1,ss_file2,ss_file3):
 
             for model, err_types in bode_mags.items():
                 for theory_points in err_types.values():
+                    # Plot theory
                     axs[model].plot(freqs[model],theory_points[in_value,out_value,:],'x')
+                    # Plot experiment
                     axs[model].plot(experiments_points[model][in_key][out_key][:,0], 20*np.log10(experiments_points[model][in_key][out_key][:,1]),'o')
+                    # Plot vertical distance
                     for i in range(len(freqs[model])):
                         axs[model].plot(2*[freqs[model][i]], [theory_points[in_value,out_value,i],20*np.log10(experiments_points[model][in_key][out_key][i,1])],'r')
                 axs[model].grid()
-            
             fig.subplots_adjust(left=0.07, bottom=None, right=0.99, top=0.74, wspace=0.14, hspace=None) #for 125% screen zoom
     plt.show()
 
@@ -507,8 +499,7 @@ def plot_uncut_data(path,file,vars2extract):
     extraction = logfile2array(path,file,vars2extract)
 
     fig, ax = plt.subplots()
-    # ax.set_title("Output measurements of "+file, fontsize=24)
-    ax.set_title("Output measurements of 1.3 Hz input at 4 m/s", fontsize=30)
+    ax.set_title("Output measurements of "+file, fontsize=30)
     ax.set_ylabel("Measurments", fontsize=22)
     ax.set_xlabel("Index number", fontsize=22)
     for key, value in extraction.items():
@@ -531,24 +522,24 @@ def plot_uncut_data(path,file,vars2extract):
 
 #=====START=====#
 #---[Constants
-PATH = "..\\teensy\\logs\\bodetest-4m_per_s\\"
-TO_ANALYSE = "raw" # "raw" or "filtered"
-# BUTTER_ORDER = 2
-# BUTTER_CUT_OFF = 20
-HIGH_PASS_Wc_FREQ = 1
-TIME_STEP = 0.01
-OUTPUT = {"fork_angle": 0,"lean_rate": 1}
-INPUT = {"hand_torque": 1} #"lean_torque": 0,
-PHASE = "calculate_bode" #"cut_data" OR "calculate_bode" the first to investigate the uncut plot, the later to calculate the bode plot of the different samples
-METHOD = "FFT"
-EXPERIMENT_SPEED = 4 #[m/s]
-CHECK_VISUALLY = False
+PATH = "..\\teensy\\logs\\bodetest-4m_per_s\\"  
+TO_ANALYSE = "raw"                              # "raw" or "filtered"
+BUTTER_ORDER = 2                                # Order of butter filter
+BUTTER_CUT_OFF = 20                             # Cut off frequency of butter filter
+HIGH_PASS_Wc_FREQ = 1                           # Cut off frequency of high pass filter
+TIME_STEP = 0.01                                # Time between log data measurements
+OUTPUT = {"fork_angle": 0,"lean_rate": 1}       # Outputs used for analysis
+INPUT = {"hand_torque": 1}                      # Inputs used for analysis. Ideally {"lean_torque": 0, "hand_torque": 1}
+PHASE = "calculate_bode"                        # "cut_data" OR "calculate_bode" the first to investigate the uncut plot, the later to calculate the bode plot of the different samples
+METHOD = "FFT"                                  # "peaks" OR "FFT" (peaks is outdated, use FFT. It is more stable)
+EXPERIMENT_SPEED = 4                            # speed used during the experiment[m/s]
+CHECK_VISUALLY = False                          # If True, visually check if the identification of the peaks (for peaks) or the maximum magnitude (for FFT) is correct
 
 #Theoretical model parameters
 PLOT_TYPE = "nominal" #nominal, friction, params, speed, motor, encoder, drift
 MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected"
 ALT_PARAM_MODEL_FILE = "..\\model matching gain calculation\\bike_and_ref_variable_dependend_system_matrices_estimated_error_parameters"
-FRICTION_IN_STEER_FILE = "bike_models_n_friction\\ss_cw_friction-0.2_viscous"# ".\\ss_cw_friction-0.02_sigmoid"
+FRICTION_IN_STEER_FILE = "bike_models_n_friction\\ss_cw_friction-0.2_viscous"#  (alternate friction model: ".\\ss_cw_friction-0.02_sigmoid")
 FREQ_RANGE = np.logspace(-3,3,1000) # [rad/s]
 SIL_PARAMETERS = {
     'avg_speed' : 6.5,
@@ -556,7 +547,7 @@ SIL_PARAMETERS = {
     'H_gain': 0.7
 }
 
-#---[variable to invastigate and list of single experiments
+#---[variable to invastigate
 vars2extract = {
     "lean_rate": [],
     "fork_angle": [],
@@ -565,7 +556,11 @@ vars2extract = {
     # "y_acceleration": [],
     # "speed":[],
 }
+
+#---[Raw log files used to identify the time responses
 # log_files is a list of tuples containing (filename, data investigation start-and-stop)
+# start-stop will create vertical lines in the raw data to validate your choise.
+# Initially put a single [(0,0)] here.
 log_files = [
     # ("bode_mm_4mps_1.0Hz.log", [(13108,13308)]),
     # ("bode_mm_4mps_1.1Hz.log", [(8380,8561),(10153,10330)]),
@@ -584,8 +579,10 @@ log_files = [
     # ("bode_mm_4mps_2.8Hz.log", [(20988,21104)]),
     # ("bode_mm_4mps_3.0Hz.log", [(6735,6860)])
 ]
+
+#---[Singled out sinusoidal input responses to calculate gain from
 # A list of tuples containing (file, data investigation start-and-stop, tuning parameter).
-'''NOTE: The tuning parameter is a parameter used in the method to filter away noise:
+'''NOTE: The tuning parameter is a parameter used in the 'peaks' method to filter away noise:
 A new peak or vally has to be a certain distance from the previous vally or peak, respectively.
 This is done by the following rule:
     new_peak > prev_peak  - tuning_par * (prev_peak - prev_vally)
@@ -598,41 +595,6 @@ If the tune_par is 0, then the new_peak has to be larger than the previous peak
 The lower the tune_par the closer the next peak is allowed to be to the previous vally.
  ''' 
 experiments = [
-    ## OLD BODE DATA (2mps)
-    # ("MM OFF", 
-    #  {"color":'tab:green',
-    #   "FFT_color":'salmon',
-    #   "marker":'d', 
-    #   "fillstyle":'full'}, 
-    # (
-    # # ("bode_normal_sil6.5_1Hz.log(pre-run)", (40060,40460), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_normal_sil6.5_1Hz.log", (3925,4220),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_normal_sil6.5_2Hz.log", (762,1013),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_normal_sil6.5_3Hz.log", (7357,7851),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_normal_sil6.5_4Hz.log", (18120,18392),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_normal_sil6.5_5Hz.log", (20648,20809),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_normal_sil6.5_maxHz.log", (6322,6427),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}))
-    # ),
-
-    # ("MM on", 
-    #  {"color":'tab:red',
-    #   "FFT_color":'k',
-    #   "marker":'d', 
-    #   "fillstyle":'none'}, 
-    # (
-    # ("bode_mm_sil6.5_1Hz.log", (510,845),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_mm_sil6.5_2Hz.log", (4250,4505),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_mm_sil6.5_3Hz.log", (3475,3741),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_mm_sil6.5_3Hz.log", (4864,5105),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_mm_sil6.5_4Hz.log", (13592,13942),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_mm_sil6.5_5Hz.log", (6897,7105),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_mm_sil6.5_5Hz.log", (6897,7105),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_mm_sil6.5_5Hz.log", (8448,8698),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_mm_sil6.5_5Hz.log", (17630,17805),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-    # ("bode_mm_sil6.5_maxHz.log", (5478,5588),{"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}))
-    # )
-
-
     ## NEW BODE DATA (MORE POINTS AROUND PEAK) (4mps)
     #--Plotting for paper
     ("Model Matching OFF", 
@@ -643,13 +605,6 @@ experiments = [
       "place": "left",
       "mm_state": "plant"}, 
     (
-    #--Plotting for normal
-    # ("MM OFF", 
-    #  {"color":'tab:green',
-    #   "FFT_color":'salmon',
-    #   "marker":'d', 
-    #   "fillstyle":'full'}, 
-    # (
     ("bode_normal_4mps_1.0Hz.log", (6077,6269),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
     ("bode_normal_4mps_1.0Hz.log", (8823,8920),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
     ("bode_normal_4mps_1.1Hz.log", (793,1221),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
@@ -692,13 +647,6 @@ experiments = [
       "place": "right",
       "mm_state": "ref"}, 
     (
-    #--Plotting for normal
-#    ("MM ON", 
-#      {"color":'k',
-#       "FFT_color":'k',
-#       "marker":'^', 
-#       "fillstyle":'full'}, 
-#     (
     ("bode_mm_4mps_1.0Hz.log", (13108,13308),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
     ("bode_mm_4mps_1.1Hz.log", (8380,8561),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
     ("bode_mm_4mps_1.1Hz.log", (10153,10330),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
@@ -723,13 +671,13 @@ experiments = [
 
 #---[Get the bodepoints from the measured data of the experiments
 if(PHASE=="calculate_bode"):
+    # Choose gain calculation method
     if(METHOD=="peaks"):
         get_single_bode_point = get_single_bode_point_peaks
     elif(METHOD=="FFT"):
-        get_single_bode_point = get_single_bode_point_fft
-    elif(METHOD=="FFT+"):
         get_single_bode_point = analyse_bode_data
 
+    # Create container and fill
     results = []
     for name,style,data in experiments:
         bode_points = {}
@@ -737,53 +685,21 @@ if(PHASE=="calculate_bode"):
             bode_points[in_key] = {}
             for out_key in OUTPUT.keys():
                 bode_points[in_key][out_key] = []
-        FRF = copy.deepcopy(bode_points)    
 
+        # Calculate bode point from the sinusoidal exitation response
         for single_exitation in data:
             file, start0_stop1, tune_par = single_exitation
-            get_single_bode_point(bode_points, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par, FRF) # frequency in Hz, magnitude in [-]. Bode points is passed by reference
+            get_single_bode_point(bode_points, file, vars2extract, start0_stop1[0], start0_stop1[1], tune_par) # frequency in Hz, magnitude in [-]. Bode points is passed by reference
         
-        results.append({"name":name, "style":style, "bode_points":copy.deepcopy(bode_points), "FRF":copy.deepcopy(FRF)})
+        results.append({"name":name, "style":style, "bode_points":copy.deepcopy(bode_points)})
     plot_results_paper(results,MODEL_FILE,FRICTION_IN_STEER_FILE,ALT_PARAM_MODEL_FILE,PLOT_TYPE)
-    # calc_distance_measure(results,MODEL_FILE,FRICTION_IN_STEER_FILE,ALT_PARAM_MODEL_FILE)
+    calc_distance_measure(results,MODEL_FILE,FRICTION_IN_STEER_FILE,ALT_PARAM_MODEL_FILE)
 
 elif(PHASE == "cut_data"):
-    for foo in log_files:
-        log, start_stop = foo
+    for tmp in log_files:
+        log, start_stop = tmp
         ax = plot_uncut_data(PATH,log,vars2extract)
         for start, stop in start_stop:
             ax.axvline(start)
             ax.axvline(stop)
         plt.show()
-
-
-
-# ("pilot_test_28-02.log", (14730,15625), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}), 
-# ("pilot_test_28-02.log", (15682,16125), {"lean_rate":0.55,"fork_angle":0.8, "hand_torque":0.5}),
-
-# # ("oscilation_18bpm_8kph_error_in_sil.log", (3600,4133), {"lean_rate":0.3,"fork_angle":0.8, "hand_torque":0.5}), #Questionalble
-# ("oscilation_22bpm_8kph_error_in_sil.log", (13220,14310), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-# ("oscilation_30bpm_8kph_last_set_error_in_sil.log", (18385,18775), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-# ("oscilation_60bpm_8kph_2_error_in_sil.log", (7356,7845), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-# ("oscilation_90bpm_8kph_error_in_sil.log", (6615,6928), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-# ("oscilation_120bpm_8kph_error_in_sil.log", (9394,9716), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-# ("oscilation_120bpm_8kph_error_in_sil.log", (12060,12296), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-# ("oscillation_240bpm_8kph_error_in_sil.log", (4535,4683), {"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-# ("oscillation_240bpm_8kph_error_in_sil.log", (7794,8051), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-# ("oscillation_fast_as_possible_error_in_sil.log", (3744,3891), {"lean_rate":0.5,"fork_angle":0.8, "hand_torque":0.5}),
-
-#  ("MM OFF", 
-#      {"color":'tab:red',
-#       "FFT_color":'k',
-#       "marker":'d', 
-#       "fillstyle":'none'}, 
-#     (
-#     ("experiment_with_crash\\bode_mm_4mps_1.0Hz.log", (9069,9554),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-#     ("experiment_with_crash\\bode_mm_4mps_1.1Hz.log", (34646,34820),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-#     ("experiment_with_crash\\bode_mm_4mps_1.2Hz.log", (19120,19202),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-#     ("experiment_with_crash\\bode_mm_4mps_1.3Hz.log", (18407,18483),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-#     ("experiment_with_crash\\bode_mm_4mps_1.4Hz.log", (8232,8296),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-#     ("experiment_with_crash\\bode_mm_4mps_1.4Hz.log", (12838,12985),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-#     ("experiment_with_crash\\bode_mm_4mps_1.5Hz.log", (13574,13774),{"lean_rate":0.5,"fork_angle":0.5, "hand_torque":0.5}),
-#     )
-#     ),

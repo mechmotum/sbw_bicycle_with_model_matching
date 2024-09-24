@@ -3,6 +3,8 @@ ___[ data_parsing.py ]___
 Extract the data from the log files and
 convert them to a dict with lists containing
 floats.
+The data to extract from the log file is 
+indicated by var2extract
 '''
 import numpy as np
 import csv
