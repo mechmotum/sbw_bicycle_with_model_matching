@@ -1,3 +1,11 @@
+'''
+___[ controllers.py ]___
+Define the control function needed for the VariableController
+class in create_variable_cntrls.py. Then create control 
+dictionaries used in sensitivity_analysis.py and 
+bicycle_parameter_change_investigation.py.
+'''
+
 import numpy as np
 import sympy as sm
 
@@ -42,6 +50,8 @@ def sil_gain_G_fun():
 
 # Model matching controller
 def create_mm_gains(plant_num,ref_num):
+    # see "ss_meijaard_equations_simplifaction.py" in the 
+    # 'model matching gain calculation' folder for more info
     v = sm.symbols('v')
 
     gain_val_full = {}
@@ -63,6 +73,11 @@ def create_mm_gains(plant_num,ref_num):
     return mm_gains
 
 # Model matching controller after Steer into Lean has been applied
+# Math behind combination:
+# (A_c + B_c@F_mm)*x + B_c@G_mm*u = A_r*x + B_r*u
+# (A_r + B_r@F_sil)*x + B_r@G_sil*u = (A_c + B_c@F_mm + B_c@G_mm@F_sil)x + B_c@G_mm@G_sil*u
+#                                   = (A_c + B_c@(F_mm + G_mm@F_sil))x + B_c@(G_mm@G_sil)*u
+#                                   = (A_c + B_c@F_mm_sil)*x + B_c@G_mm_sil*u
 def get_mm_sil_gain_F_fun(avg_speed,K_L,K_H,mm_ctrl):
     def mm_sil_gain_F_fun(speed):
         return mm_ctrl['F'](speed) + mm_ctrl['G']()@(get_sil_gain_F_fun(avg_speed,K_L,K_H)(speed))
