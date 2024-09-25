@@ -1,5 +1,21 @@
+'''
+___[ ss_meijaard_equations.py ]___
+This function builts up the meijaard equations
+symbolically and transforms it into the state
+space form. Then it analysis if there is a 
+parameter that can be freely changed.
+
+Full story: 
+Not every controlled model <> reference model combination 
+is possible, because there is only one controlled input 
+(i.e. steer toque). Therefore there are 6 restrictions:
+phi_coef till Tdelta_coef should equal zero.
+If there is a variable that is not present in all 6 
+equations, then it can be chosen freely without influencing
+the 6 constraints.
+'''
+
 import sympy as sm
-import pickle
 
 sm.init_printing()
 
@@ -187,8 +203,8 @@ A_r = A.xreplace(repl_to_reference)
 B_r = B.xreplace(repl_to_reference) 
 
 # Go numerical (at least for the plant)
-# A = A.evalf(n=8, subs=repl_params)
-# B = B.evalf(n=8, subs=repl_params)
+A = A.evalf(n=8, subs=repl_params)
+B = B.evalf(n=8, subs=repl_params)
 
 #================================[Solve for u]================================#
 ##--[Equate plant and reference
@@ -206,23 +222,18 @@ Tdelta_coef = B_r[2,1] * B[3,1] - B_r[3,1] * B[2,1]                         #B_r
 
 
 # Check if there is any symbol that is not present. This symbol will be easiest to change
-# print(len(phi_coef.free_symbols))       # does not include: v, I_Ryy, I_Fyy
-# print(len(delta_coef.free_symbols))     # does not include:
-# print(len(dphi_coef.free_symbols))      # does not include: g
-# print(len(ddelta_coef.free_symbols))    # does not include: g
-# print(len(Tphi_coef.free_symbols))      # does not include: g, v, I_Ryy, I_Fyy
-# print(len(Tdelta_coef.free_symbols))    # does not include: g, v, I_Ryy, I_Bzz, I_Hzz, I_Fyy
-# Analysis shows that (for now) there is no variable that is allowed to change without forcing other variables to change as well
+print(len(phi_coef.free_symbols))       # does not include: v, I_Ryy, I_Fyy
+print(len(delta_coef.free_symbols))     # does not include:
+print(len(dphi_coef.free_symbols))      # does not include: g
+print(len(ddelta_coef.free_symbols))    # does not include: g
+print(len(Tphi_coef.free_symbols))      # does not include: g, v, I_Ryy, I_Fyy
+print(len(Tdelta_coef.free_symbols))    # does not include: g, v, I_Ryy, I_Bzz, I_Hzz, I_Fyy
+
+# First analysis shows that (for now, as substitution of the functions above into each other might make the resulting
+# function dependent on less variables) there is no variable that is allowed to change without forcing other variables 
+# to change as well.
 # When values of all the reference parameters are set equal to that of the plant with exception of one reference parameter, 
-# then if and only if all constricting equation gives the trivial solution 0=0 OR, this parameter can have an arbitrary value, 
+# then if and only if all constricting equation gives the trivial solution x = x, this parameter can have an arbitrary value, 
 # while the value of the remaining reference parameters can stay equal to that of the plant.
-# If it is not the case, then some other reference parameters will have to have a specific value different than that of the plant, 
-# and on top of that a change in the single reference parameter might also influence the value of these 'fixed' parameters.
-
-# It might be possible to solve for this system numerically. The downside it that for every change it has to be solved again. The upside is, there is a solution.
-# numerically: fill in the values of the plant parameters, then choose 7 reference paremeters (six for the restriction, 1 that you want changed), for the other
-#     reference values fill in the value of the respective plant parameter. Now choose the value of the parameter you want to change and fill it in. 
-#     You now have six equations, with only six variables (the parameters that will be restricted), and numbers. This can be solved numerically. numpy, scipy, or sympy
-
-# with open("20-primal_restriction_eqations.txt", "a") as f:
-#   [print(sm.latex(coef), file=f) for coef in [phi_coef, delta_coef, dphi_coef, ddelta_coef, Tphi_coef, Tdelta_coef]]
+# If it is not the case, then some other reference parameters will have to have a specific value different than that of the plant. 
+# On top of that, a change in the single reference parameter might also influence the value of these 'fixed' parameters.
