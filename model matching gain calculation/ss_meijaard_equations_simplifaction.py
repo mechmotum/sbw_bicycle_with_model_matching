@@ -1,7 +1,17 @@
+'''
+___[ ss_meijaard_equations_simplifaction.py ]___
+This scripts finds the correct gains to achieve model matching.
+To do so, it has to solve the equations as seen in Brown e.a. (2007)
+This is done symbolically using sympy.
+As consequence of having only one control input (steer torque), 
+not all controlled plant <> reference plant combinations are 
+possible. So first the restrictions for the reference model are 
+calculated.
+'''
+
 import sympy as sm
 import pickle
 import dill #for storing the lambdify functions
-import inspect
 
 #--Settings
 dill.settings['recurse'] = True #Recurse is needed for sypmy's lambdified objects to be saved
@@ -115,55 +125,60 @@ A_r = A.xreplace(repl_to_comp_ref)
 B_r = B.xreplace(repl_to_comp_ref) 
 
 #================================[Set up equations to solve for u]================================#
-# THIS PART IS COMMENTED TO SAVE TIME, AS THE SOLUTION IS ALREADY SAVED.
+# THIS CAN BE COMMENTED TO SAVE TIME, AS THE SOLUTION IS ALREADY SAVED.
 # IF A DIFFERENT SET OF FIXED PARAMETERS IS REQUIRED, UNCOMMENT AND CHANGE AS APPROPRIATE
 
-# ##--[Equate plant and reference
-# #        A*x + B*f = A_r*x + B_r*f_r
-# #        B_delta*T_delta = (A_r - A) x + (B_phi_r - B_phi) T_phi + B_delta_r*T_delta_r
+##--[Equate controlled plant and reference plant
+# See thesis "Model Matching Control Applied to Bicycles", 2024 on TU repository AND 
+# "Experimental Vehicle Handling Modification through Steer-by-Wire and Differential Drive" Brown et al., 2007 
+# for more info.
+# Solve this equation to find the value for the control input in order to get model matching.
+#        A_c*x + B_c*f_c = A_r*x + B_r*f_r
+#        B_delta*T_delta_c = (A_r - A_c) x + (B_phi_r - B_phi_C) T_phi + B_delta_r*T_delta_r
 
-# # As the variable can be anything, equation only has a solution if each column matrix is 
-# # linear dependent on B_delta. 
-# # Simplifications: (The term afterwards in comment is the original equation to solve.)
-# #  `-> 1) (A_r[2] - A[2])/ B[2] - (A_r[3] - A[3]) / B[3] = 0   --{a/b = c/d --> a*d = b*c}-->  (A_r[2] - A[2])* B[3] - (A_r[3] - A[3]) * B[2] = 0
-# #  `-> 2) both B[2,1] and B[3,1] are devided by M_inv_det  ---> M_inv_det * ((...)*B[2,1] - (...)*B[3,1]) = 0  ---> (...)*B[2,1] - (...)*B[3,1] = 0
-# #  `-> 3) factorizatation is done to make the complete expression have a single denominator
-# phi_coef = sm.factor((A_r[2,0] - A[2,0]) * (B[3,1] * M_inv_det)  - (A_r[3,0] - A[3,0]) * (B[2,1] * M_inv_det))     #(A_r[2,0] - A[2,0]) / B[2,1] - (A_r[3,0] - A[3,0]) / B[3,1] = 0
-# delta_coef = sm.factor((A_r[2,1] - A[2,1]) * (B[3,1] * M_inv_det) - (A_r[3,1] - A[3,1]) * (B[2,1] * M_inv_det))    #(A_r[2,1] - A[2,1]) / B[2,1] - (A_r[3,1] - A[3,1]) / B[3,1] = 0
-# dphi_coef = sm.factor((A_r[2,2] - A[2,2]) * (B[3,1] * M_inv_det) - (A_r[3,2] - A[3,2]) * (B[2,1] * M_inv_det))     #(A_r[2,2] - A[2,2]) / B[2,1] - (A_r[3,2] - A[3,2]) / B[3,1] = 0
-# ddelta_coef = sm.factor((A_r[2,3] - A[2,3]) * (B[3,1] * M_inv_det) - (A_r[3,3] - A[3,3]) * (B[2,1] * M_inv_det))   #(A_r[2,3] - A[2,3]) / B[2,1] - (A_r[3,3] - A[3,3]) / B[3,1] = 0
-# Tphi_coef = sm.factor((B_r[2,0] - B[2,0]) * (B[3,1] * M_inv_det) - (B_r[3,0] - B[3,0]) * (B[2,1] * M_inv_det))     #(B_r[2,0] - B[2,0]) / B[2,1] - (B_r[3,0] - B[3,0]) / B[3,1] = 0
-# Tdelta_coef = sm.factor(B_r[2,1] * (B[3,1] * M_inv_det) - B_r[3,1] * (B[2,1] * M_inv_det))                         #B_r[2,1] / B[2,1] - B_r[3,1] / B[3,1] = 0
+# As the variable can be anything, equation only has a solution if each column matrix is 
+# linear dependent on B_delta. 
+# Simplifications to speed up the solve function: (The term afterwards in comment is the 
+# original equation to solve.)
+#  `-> 1) (A_r[2] - A[2])/ B[2] - (A_r[3] - A[3]) / B[3] = 0   --{a/b = c/d --> a*d = b*c}-->  (A_r[2] - A[2])* B[3] - (A_r[3] - A[3]) * B[2] = 0
+#  `-> 2) both B[2,1] and B[3,1] internally are devided by M_inv_det  ---> (...)*B[2,1] - (...)*B[3,1] = 0 <---> M_inv_det * ((...)*B[2,1] - (...)*B[3,1]) = 0
+#  `-> 3) factorizatation is done to make the complete expression have a single denominator
+phi_coef = sm.factor((A_r[2,0] - A[2,0]) * (B[3,1] * M_inv_det)  - (A_r[3,0] - A[3,0]) * (B[2,1] * M_inv_det))     #(A_r[2,0] - A[2,0]) / B[2,1] - (A_r[3,0] - A[3,0]) / B[3,1] = 0
+delta_coef = sm.factor((A_r[2,1] - A[2,1]) * (B[3,1] * M_inv_det) - (A_r[3,1] - A[3,1]) * (B[2,1] * M_inv_det))    #(A_r[2,1] - A[2,1]) / B[2,1] - (A_r[3,1] - A[3,1]) / B[3,1] = 0
+dphi_coef = sm.factor((A_r[2,2] - A[2,2]) * (B[3,1] * M_inv_det) - (A_r[3,2] - A[3,2]) * (B[2,1] * M_inv_det))     #(A_r[2,2] - A[2,2]) / B[2,1] - (A_r[3,2] - A[3,2]) / B[3,1] = 0
+ddelta_coef = sm.factor((A_r[2,3] - A[2,3]) * (B[3,1] * M_inv_det) - (A_r[3,3] - A[3,3]) * (B[2,1] * M_inv_det))   #(A_r[2,3] - A[2,3]) / B[2,1] - (A_r[3,3] - A[3,3]) / B[3,1] = 0
+Tphi_coef = sm.factor((B_r[2,0] - B[2,0]) * (B[3,1] * M_inv_det) - (B_r[3,0] - B[3,0]) * (B[2,1] * M_inv_det))     #(B_r[2,0] - B[2,0]) / B[2,1] - (B_r[3,0] - B[3,0]) / B[3,1] = 0
+Tdelta_coef = sm.factor(B_r[2,1] * (B[3,1] * M_inv_det) - B_r[3,1] * (B[2,1] * M_inv_det))                         #B_r[2,1] / B[2,1] - B_r[3,1] / B[3,1] = 0
 
-# # Save the variables, as factorisation takes a while.
-# # WARNING: Do not take only the numerator of the coefficient to solve the equations.
-# # This leads to solutions that caused the original denominator to become zero.
-# with open("10-restriction_coefficients", "wb") as outf:
-#     pickle.dump([phi_coef, delta_coef, dphi_coef, ddelta_coef, Tphi_coef, Tdelta_coef], outf)
+# Save the variables, as factorisation takes a while.
+# WARNING: Do not take only the numerator of the coefficient to solve the equations.
+# This leads to solutions that caused the original denominator to become zero.
+with open("10-restriction_coefficients", "wb") as outf:
+    pickle.dump([phi_coef, delta_coef, dphi_coef, ddelta_coef, Tphi_coef, Tdelta_coef], outf)
 
-# with open("10-restriction_coefficients","rb") as inf:
-#     phi_coef, delta_coef, dphi_coef, ddelta_coef, Tphi_coef, Tdelta_coef = pickle.load(inf)
+with open("10-restriction_coefficients","rb") as inf:
+    phi_coef, delta_coef, dphi_coef, ddelta_coef, Tphi_coef, Tdelta_coef = pickle.load(inf)
 
-# ## Solve using sympy 
-# # solve for the first 5 equations. Solving seperately is faster.
-# # sol1 = sm.solve([Tphi_coef, Tdelta_coef, dphi_coef, delta_coef, phi_coef], [I_Txx_r, I_Txz_r, I_Tzz_r, S_T_r, z_T_r], dict=True)
+## Solve using sympy 
+# solve for the first 5 equations. Solving seperately is faster.
+sol1 = sm.solve([Tphi_coef, Tdelta_coef, dphi_coef, delta_coef, phi_coef], [I_Txx_r, I_Txz_r, I_Tzz_r, S_T_r, z_T_r], dict=True)
 # sol1 = sm.solve([Tphi_coef, Tdelta_coef, dphi_coef, delta_coef, phi_coef], [I_Txx_r, I_Txz_r, I_Tzz_r, S_A_r, z_T_r], dict=True) # Alternate set
-# with open("10-partial_restriction_solution-Txx-Txz-Tzz-S_T-z_T", "wb") as outf:
-#     pickle.dump(sol1, outf)
+with open("10-partial_restriction_solution-Txx-Txz-Tzz-S_T-z_T", "wb") as outf:
+    pickle.dump(sol1, outf)
 
-# with open("10-partial_restriction_solution-Txx-Txz-Tzz-S_T-z_T", "rb") as inf:
-#     sol1 = pickle.load(inf)
+with open("10-partial_restriction_solution-Txx-Txz-Tzz-S_T-z_T", "rb") as inf:
+    sol1 = pickle.load(inf)
 
-# # Solve for the last equation
-# sol2 = sm.solve(ddelta_coef.xreplace(sol1[0]), S_F_r, dict=True)
+# Solve for the last equation
+sol2 = sm.solve(ddelta_coef.xreplace(sol1[0]), S_F_r, dict=True)
 
-# # Concatinate dictionaries
-# sol3 = {**sol1[0], **sol2[0]}
-# with open("10-restriction_solution-Txx-Txz-Tzz-S_T-z_T-S_F", "wb") as outf:
-#     pickle.dump(sol3, outf)
+# Concatinate dictionaries for final solution
+sol3 = {**sol1[0], **sol2[0]}
+with open("10-restriction_solution-Txx-Txz-Tzz-S_T-z_T-S_F", "wb") as outf:
+    pickle.dump(sol3, outf)
 
-# with open("10-restriction_solution-Txx-Txz-Tzz-S_T-z_T-S_F", "rb") as inf:
-#     sol3 = pickle.load(inf)
+with open("10-restriction_solution-Txx-Txz-Tzz-S_T-z_T-S_F", "rb") as inf:
+    sol3 = pickle.load(inf)
 
 #============================[Expend composit parameters to primal]============================#
 ##--[define static symbols
@@ -257,10 +272,41 @@ S_A_c = m_A_c*u_A_c + mu_c*m_T_c*x_T_c
 #     I_Fyy : 0.0984#0.28        # kg*(m**2)
 #     }
 
+# # numerical values for reference parameters (original use)
+# repl_params_ref = {
+#     w_r : 1.064, #1.02,         # m
+#     c_r : 0.08, #0.08,          # m
+#     lamb_r : (sm.pi/10 - (sm.pi/10)/100),#(sm.pi/10 - (sm.pi/10)/10), # rad
+#     g_r : 9.81,#9.81,           # m/(s**2)
+#     v_r : 5,#5,                 # m/s
+#     r_R_r : 0.333,#0.3,         # m
+#     m_R_r : 4.9,#2,             # kg
+#     I_Rxx_r : 0.0701, #0.0603,  # kg*(m**2)
+#     I_Ryy_r : 0.1293, #0.12,    # kg*(m**2)
+#     x_B_r : 0.335, #0.3,        # m
+#     z_B_r : -0.736, #-0.9,      # m
+#     m_B_r : 22.9,#85,           # kg
+#     I_Bxx_r : 2.6375, #9.2,     # kg*(m**2)
+#     #_r I_Byy : 11,             # kg*(m**2)
+#     I_Bzz_r : 1.9428, # 2.8,    # kg*(m**2)
+#     I_Bxz_r : 0.6536,#2.4,      # kg*(m**2)
+#     x_H_r : 0.818,#0.9,         # m
+#     z_H_r : -0.986,#-0.7,       # m
+#     m_H_r : 5.4,#4,             # kg
+#     I_Hxx_r : 0.3439,#0.05892,  # kg*(m**2)
+#     #_r I_Hyy : 0.06,           # kg*(m**2)
+#     I_Hzz_r : 0.1031,#0.00708,  # kg*(m**2)
+#     I_Hxz_r : -0.0919,#-0.00756,# kg*(m**2)
+#     r_F_r : 0.336,#0.35,        # m
+#     m_F_r : 1.6,#3,             # kg
+#     I_Fxx_r : 0.0524,#0.1405,   # kg*(m**2)
+#     I_Fyy_r : 0.0984#0.28       # kg*(m**2)
+#     }
+
 # Measured parameters:
 # All geometric, and wheel parameters are measured.
 # Mass and center of mass is measured for rear frame & front essembly combined.
-#   The seperate values are estimated from this measuerment
+#   The seperate values are estimated from this measuerment using compose_25_parameters.py
 # The pink and green intrumented bicycle and the the Bianchi Pista are used 
 #   to estimate rear frame and the front assembly inertias respectively.
 repl_params = {
@@ -285,9 +331,9 @@ repl_params = {
     x_H     : 0.944, # [m]
     z_H     : -0.595, # [m]
     m_H     : 0.6, # [kg]
-    I_Hxx   : 0.00980, # 0.0980, # [kg*(m**2)] # corrected:Bianchi Pista
-    I_Hzz   : 0.00396, # 0.0396, # [kg*(m**2)] # corrected:Bianchi Pista
-    I_Hxz   : -0.00044, # -0.0044, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hxx   : 0.00980, # 0.0980, # [kg*(m**2)]   # Bianchi Pista
+    I_Hzz   : 0.00396, # 0.0396, # [kg*(m**2)]   # Bianchi Pista
+    I_Hxz   : -0.00044, # -0.0044, # [kg*(m**2)] # Bianchi Pista
 
     r_F     : 0.3498, # [m]
     m_F     : 1.780, # [kg]
@@ -310,53 +356,22 @@ repl_params_ref = {
     x_B_r     : 0.462, # [m]
     z_B_r     : -0.698, # [m]
     m_B_r     : 20.9, # [kg]
-    I_Bxx_r   : 1.64, # 2.64, # [kg*(m**2)] # corrected:instrumented bicycle
-    I_Bzz_r   : 1.94, # [kg*(m**2)]
-    I_Bxz_r   : 0.654, # [kg*(m**2)]
+    I_Bxx_r   : 1.64, # 2.64, # [kg*(m**2)] # instrumented bicycle
+    I_Bzz_r   : 1.94, # [kg*(m**2)]         # instrumented bicycle
+    I_Bxz_r   : 0.654, # [kg*(m**2)]        # instrumented bicycle
 
     x_H_r     : 0.944, # [m]
     z_H_r     : -0.595, # [m]
     m_H_r     : 0.6, # [kg]
-    I_Hxx_r   : 0.00980, # 0.0980, # [kg*(m**2)] # corrected:Bianchi Pista
-    I_Hzz_r   : 0.00396, # 0.0396, # [kg*(m**2)] # corrected:Bianchi Pista
-    I_Hxz_r   : -0.00044, # -0.0044, # [kg*(m**2)] # corrected:Bianchi Pista
+    I_Hxx_r   : 0.00980, # 0.0980, # [kg*(m**2)]    # Bianchi Pista
+    I_Hzz_r   : 0.00396, # 0.0396, # [kg*(m**2)]    # Bianchi Pista
+    I_Hxz_r   : -0.00044, # -0.0044, # [kg*(m**2)]  # Bianchi Pista
 
     r_F_r     : 0.3498, # [m]
     m_F_r     : 1.780, # [kg]
     I_Fxx_r   : 0.0644, # [kg*(m**2)]
     I_Fyy_r   : 0.1289, # [kg*(m**2)]
     }
-
-# # numerical values for reference parameters Original use
-# repl_params_ref = {
-#     w_r : 1.064, #1.02,         # m
-#     c_r : 0.08, #0.08,          # m
-#     lamb_r : (sm.pi/10 - (sm.pi/10)/100),#(sm.pi/10 - (sm.pi/10)/10), # rad
-#     g_r : 9.81,#9.81,           # m/(s**2)
-#     v_r : 5,#5,                 # m/s
-#     r_R_r : 0.333,#0.3,         # m
-#     m_R_r : 4.9,#2,             # kg
-#     I_Rxx_r : 0.0701, #0.0603,  # kg*(m**2)
-#     I_Ryy_r : 0.1293, #0.12,    # kg*(m**2) <---
-#     x_B_r : 0.335, #0.3,        # m
-#     z_B_r : -0.736, #-0.9,      # m
-#     m_B_r : 22.9,#85,           # kg
-#     I_Bxx_r : 2.6375, #9.2,     # kg*(m**2)
-#     #_r I_Byy : 11,             # kg*(m**2)
-#     I_Bzz_r : 1.9428, # 2.8,    # kg*(m**2)
-#     I_Bxz_r : 0.6536,#2.4,      # kg*(m**2) <---
-#     x_H_r : 0.818,#0.9,         # m
-#     z_H_r : -0.986,#-0.7,       # m
-#     m_H_r : 5.4,#4,             # kg
-#     I_Hxx_r : 0.3439,#0.05892,  # kg*(m**2)
-#     #_r I_Hyy : 0.06,           # kg*(m**2)
-#     I_Hzz_r : 0.1031,#0.00708,  # kg*(m**2)
-#     I_Hxz_r : -0.0919,#-0.00756,# kg*(m**2)
-#     r_F_r : 0.336,#0.35,        # m
-#     m_F_r : 1.6,#3,             # kg
-#     I_Fxx_r : 0.0524,#0.1405,   # kg*(m**2)
-#     I_Fyy_r : 0.0984#0.28       # kg*(m**2) <---
-#     }
 
 #Convert primal parameter in terms of plant to terms of reference
 repl_to_ref = {
@@ -450,24 +465,28 @@ repl_ref_comp = {
 
 
 ##--[Solve for the reference primal paremeters in terms of the other reference primal parameters and the plant parameters
-# THIS PART IS COMMENTED TO SAVE TIME, AS THE SOLUTION IS ALREADY SAVED.
+# THIS PART CAN BE COMMENTED TO SAVE TIME, AS THE SOLUTION IS ALREADY SAVED.
 # IF A DIFFERENT SET OF FIXED PARAMETERS IS REQUIRED, UNCOMMENT AND CHANGE AS APPROPRIATE
 
-# # Replace the refernce composite parameters with reference primal parameters 
-# primal_sys_of_eq = list()
-# for key, value in sol3.items():
-#     primal_sys_of_eq.append(key.xreplace(repl_ref_comp) - value.xreplace(repl_ref_comp))
-# # Solve for primal parameters
-# solx = sm.solve(primal_sys_of_eq, [I_Bxx_r, I_Bxz_r, I_Fyy_r, I_Ryy_r, z_B_r], dict = True)
+# Replace the refernce composite parameters with reference primal parameters 
+primal_sys_of_eq = list()
+for key, value in sol3.items():
+    primal_sys_of_eq.append(key.xreplace(repl_ref_comp) - value.xreplace(repl_ref_comp))
+# Solve for primal parameters
+solx = sm.solve(primal_sys_of_eq, [I_Bxx_r, I_Bxz_r, I_Fyy_r, I_Ryy_r, z_B_r], dict = True)
 
-# # Replace plant composite parameters with plant primal parameters
-# soly = dict()
-# for key, value in solx[0].items():
-#     tmp_dict = {key : value.xreplace(repl_comp)}
-#     soly = {**soly, **tmp_dict}
+# Replace plant composite parameters with plant primal parameters
+soly = dict()
+for key, value in solx[0].items():
+    tmp_dict = {key : value.xreplace(repl_comp)}
+    soly = {**soly, **tmp_dict}
 
-# with open("10-primal_restriction_solution-Bxx-Bxz-Fyy-Ryy-z_B", "wb") as outf:
-#     pickle.dump(soly, outf)
+# Final solution of restriction. These 5 reference parameters can not
+# be freely chosen and depend on the other reference parameters and the 
+# controlled bike parameters. If these restrictions are not met, it is 
+# not possible to perform model matching from controlled to reference bike.
+with open("10-primal_restriction_solution-Bxx-Bxz-Fyy-Ryy-z_B", "wb") as outf:
+    pickle.dump(soly, outf)
 
 with open("10-primal_restriction_solution-Bxx-Bxz-Fyy-Ryy-z_B", "rb") as inf:
     soly = pickle.load(inf)
@@ -477,6 +496,10 @@ with open("10-primal_restriction_solution-Bxx-Bxz-Fyy-Ryy-z_B", "rb") as inf:
 # Calculate the numerical gains from both first and second model matching constraint equation
 # gains from both constriants should be equal per variable. So check this first and then store
 # only one. 
+
+# Calculate the gain values, see
+# "Experimental Vehicle Handling Modification through Steer-by-Wire and Differential Drive" Brown et al., 2007 
+# for more info.
 gain_val_full = {}
 for idx, state in enumerate(["phi", "delta", "dphi", "ddelta"]):
     gain_val_full["K_"+ state] = [
@@ -493,6 +516,8 @@ gain_val_full["K_Tdelta"] = [
 ]
 
 # Fill in the parameter values, except for dependend variable speed/velocity (v)
+# For this, use a dummy value.
+# In this way the gains remain speed dependent (as they should be)
 for key, value in gain_val_full.items():
     for idx in range(2):
         gain_val_full[key][idx] = value[idx].xreplace(repl_comp).xreplace(repl_ref_comp).xreplace(soly).xreplace({v: tmp}).xreplace(repl_params).xreplace(repl_params_ref).xreplace({tmp: v}).evalf(PRECISION)
@@ -501,8 +526,8 @@ for key, value in gain_val_full.items():
 # # #======================[Save Matrices and Gains for use in Simulation]========================#
 # Rewrite plant and reference matrices in simulation format
 # Format: dict{
-#           plant = dict{A: lambdified function depending on speed, B:self defined function depending on nothing},
-#           ref = dict{A: lambdified function depending on speed, B:self defined function depending on nothing}
+#           plant = dict{A: lambdified function depending on speed, B:lambdified function depending on nothing},
+#           ref = dict{A: lambdified function depending on speed, B:lambdified function depending on nothing}
 #         }
 Aval = A.xreplace(repl_comp).xreplace({v: tmp}).xreplace(repl_params).xreplace({tmp: v}).evalf(PRECISION) #Replace params (execpt v) with pre defined values
 Bval = B.xreplace(repl_comp).xreplace(repl_params).evalf(PRECISION) #same as Aval
@@ -521,7 +546,7 @@ plant_and_ref_mtrxs = {
 }
 
 # Rewrite model matching gains in simulation format
-F = sm.Matrix([[0,0,0,0],[gain_val_full[key][0] for key in ["K_phi", "K_delta", "K_dphi", "K_ddelta"]]]) # Done in seperate lines, as it is needed in one of the validation checks below
+F = sm.Matrix([[0,0,0,0],[gain_val_full[key][0] for key in ["K_phi", "K_delta", "K_dphi", "K_ddelta"]]])
 G = sm.Matrix([[1,0],[gain_val_full[key][0] for key in ["K_Tphi", "K_Tdelta"]]])
 
 mm_gains = {
@@ -537,12 +562,14 @@ for key, value in mm_gains.items():
         mm_gains[key] = sm.lambdify((), value, 'numpy')
 
 
-# save matrices and gains
+# Save matrices and gains
+# Corrected --> adjusted the coppied inertias to represent the bicycle better,
+#               as the sbw bike's front assembly does not contain a steer. 
 with open("bike_and_ref_variable_dependend_system_matrices_measured_parameters_corrected", "wb") as outf:
     dill.dump(plant_and_ref_mtrxs, outf)
 
-# with open("model_matching_gains_measured_parameters", "wb") as outf:
-#     dill.dump(mm_gains, outf)
+with open("model_matching_gains_measured_parameters", "wb") as outf:
+    dill.dump(mm_gains, outf)
 
 # #================================[Validation and Other Checks]================================#
 # Check if matrix equations are correct. (check against meijaard et al. 2007)
