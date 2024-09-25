@@ -9,10 +9,11 @@ import matplotlib.pyplot as plt
 import dill
 
 def theoretic_impulse_response(speed,plnt_type):
+    # Load the simulated theoretical impulse respnse
     with open(f"..\\simulations\\00-impulse_response_{speed}mps", "rb") as outf:
         data = dill.load(outf)
         time = data["time"]
-        response = data[plnt_type][:,2]
+        response = data[plnt_type][:,2] # 2 -> get lean rate
     return (time, response)
 
 def plot_disturbance_reactions(logfiles,vars2extract):

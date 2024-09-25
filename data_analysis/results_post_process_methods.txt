@@ -1,3 +1,7 @@
+'''
+___[ results_post_process_methods.txt ]___
+Settings on what to plot in the kooijman_eig_fit.py
+'''
 #Compare lengths
     # Model Matching OFF RAW
     ( 'MM OFF raw long',

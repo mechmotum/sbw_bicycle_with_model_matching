@@ -1,5 +1,18 @@
+'''
+___[ simulated_runtime_filter.py ]___
+I use filters in the teensy code. This script
+tests out how several filters work when 
+filtering the measurements in real time. I 
+also coded filters that take the entire signal
+as input for comarison.
+'''
+
 import numpy as np
 import scipy.signal as signal
+
+# For runtime filters look into FIR and IIR filters.
+#    See: https://www.youtube.com/@youngmoo-kim for videos on digital filtering
+
 
 #Runtime moving average FIR Filter
 def mov_average(data,order):
@@ -13,10 +26,6 @@ def mov_average(data,order):
         out[i] = tmp/order
     return out
 
-
-#Runtime weigthed moving average FIR Filter
-# ---Not explored further---
-
 #Runtime runnig average
 def runnig_average(data,weight):
     out = np.zeros_like(data)
@@ -27,7 +36,10 @@ def runnig_average(data,weight):
     return out
 
 #Runtime 1st order lowpass filter
-# G(s) = Wc/(s+Wc) --> a = [1 Wc], b = Wc
+#  G(s) = Wc/(s+Wc) --> a = [1 Wc], b = Wc
+#  Uses bilinear transformation, see: 
+#   > https://www.youtube.com/watch?v=HJ-C4Incgpw
+#   > https://en.wikipedia.org/wiki/Bilinear_transform
 def first_order_lp(w_c,data,fs):
     a_c = [1, 2*np.pi*w_c]
     b_c = [2*np.pi*w_c]
@@ -63,16 +75,8 @@ def first_order_hp(w_c,data,fs,showCoefs=False):
         out[i] = (tmp_b - tmp_a)/a[0]
     return out
 
-#2nd order Buttersworth filter
-def butter_static(order,w_c,data,fs):
-    butter_sos = signal.butter(order, w_c, output='sos', fs=fs)
-    out = signal.sosfilt(butter_sos, data)
-    return out
-
 #Runtime 2nd order Buttersworth filter
 def butter_running(order,w_c,data,fs):
-    # b,a = signal.butter(order, w_c, output='ba', fs=fs)
-    # out = signal.lfilter(b, a, data)
     out = np.zeros_like(data)
     b,a = signal.butter(order, w_c, output='ba', fs=fs)
     for i in range(max(len(a),len(b)),len(data)):
@@ -83,4 +87,11 @@ def butter_running(order,w_c,data,fs):
         for k in range(len(b)):
             tmp_b = tmp_b + b[k]*data[i-k]
         out[i] = (tmp_b - tmp_a)/a[0]
+    return out
+
+## FULL SIGNAL
+# 2nd order Buttersworth filter
+def butter_static(order,w_c,data,fs):
+    butter_sos = signal.butter(order, w_c, output='sos', fs=fs)
+    out = signal.sosfilt(butter_sos, data)
     return out
