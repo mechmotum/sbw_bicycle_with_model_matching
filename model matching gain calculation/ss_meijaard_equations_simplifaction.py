@@ -161,6 +161,8 @@ with open("10-restriction_coefficients","rb") as inf:
 
 ## Solve using sympy 
 # solve for the first 5 equations. Solving seperately is faster.
+#   How I choose the 6 parameters to solve for, was a bit of reasoning and a bit of luck. Not every set of 6 has a solution.
+#   See 00-variables_to_solve_for.txt for the bit of reasoning I used
 sol1 = sm.solve([Tphi_coef, Tdelta_coef, dphi_coef, delta_coef, phi_coef], [I_Txx_r, I_Txz_r, I_Tzz_r, S_T_r, z_T_r], dict=True)
 # sol1 = sm.solve([Tphi_coef, Tdelta_coef, dphi_coef, delta_coef, phi_coef], [I_Txx_r, I_Txz_r, I_Tzz_r, S_A_r, z_T_r], dict=True) # Alternate set
 with open("10-partial_restriction_solution-Txx-Txz-Tzz-S_T-z_T", "wb") as outf:
@@ -473,6 +475,7 @@ primal_sys_of_eq = list()
 for key, value in sol3.items():
     primal_sys_of_eq.append(key.xreplace(repl_ref_comp) - value.xreplace(repl_ref_comp))
 # Solve for primal parameters
+#   see 00-from_comp_to_primal.txt for the reasoning behind the choise of primal parameters to solve for
 solx = sm.solve(primal_sys_of_eq, [I_Bxx_r, I_Bxz_r, I_Fyy_r, I_Ryy_r, z_B_r], dict = True)
 
 # Replace plant composite parameters with plant primal parameters

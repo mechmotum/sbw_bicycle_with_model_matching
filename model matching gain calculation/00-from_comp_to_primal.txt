@@ -1,3 +1,21 @@
+'''
+___[ 00-from_comp_to_primal.txt ]___
+This file shows the free symbols of the composite variables
+in terms of the primal variables. To solve for the primal 
+parameters, choose one composite parameter that contains a 
+primal parameter not seen in other composite parameters.
+For example I_Bxx is only seen in I_Txx.
+Then eliminate the row and repeat for a niew primal parameter.
+The reasoning: eventually you will get
+
+    I_Bxx = f('other parameters')
+    par2  = f('other parameters')
+    ...
+    par6  = f('other parameters')
+
+Then 'other parameters' will not containt I_Bxx and par2 till par6.
+'''
+---Script input---
 sm.pprint(mu_c.free_symbols)
 sm.pprint(m_T_c.free_symbols)
 sm.pprint(z_T_c.free_symbols)
@@ -14,6 +32,7 @@ sm.pprint(S_F_c.free_symbols)
 |
 V
 
+---Script output---
 {                                                                      c, λ,                               w                    } mu
 {                                                                            m_B, m_F, m_H, m_R                                 } m_T
 {                                                                            m_B, m_F, m_H, m_R, r_F, r_R,              z_B, z_H} z_T
@@ -28,16 +47,9 @@ V
 {                            I_Fyy,                                                              r_F                            } S_F
 
 
-
-{                                                                      c, λ,                               w                    } mu
-{                                                                            m_B, m_F, m_H, m_R                                 } m_T
-{                                                                            m_B, m_F, m_H, m_R, r_F, r_R,              z_B, z_H} z_T -> (r_R or z_B)
-{                                                                                                                               } I_Txx -> I_Bxx
-{                                                                                                                               } I_Txz -> I_Bxz
-{              I_Bzz, I_Fxx,                      I_Hzz, I_Rxx,              m_B, m_F, m_H,                w, x_B, x_H          } I_Tzz
-{                     I_Fxx,        I_Hxx, I_Hxz, I_Hzz,               c, λ,      m_F, m_H,      r_F,      w,      x_H,      z_H} I_All
-{                     I_Fxx,        I_Hxx, I_Hxz,                      c, λ,      m_F, m_H,      r_F,      w,      x_H,      z_H} I_Alx
-{                     I_Fxx,               I_Hxz, I_Hzz,               c, λ,      m_F, m_H,      r_F,      w,      x_H,      z_H} I_Alz
-{                                                                      c, λ, m_B, m_F, m_H,      r_F,      w, x_B, x_H,      z_H} S_A
-{                                                                                                                               } S_T -> I_Ryy
-{                                                                                                                               } S_F -> I_Fyy
+---chosen parameters---
+z_T -> (r_R or z_B)
+I_Txx -> I_Bxx
+I_Txz -> I_Bxz
+S_T -> I_Ryy
+S_F -> I_Fyy

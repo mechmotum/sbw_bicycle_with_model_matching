@@ -1,8 +1,25 @@
-phi_coef.free_symbols = {I_All_r, I_Alx, I_Alx_r, I_Alz_r, I_Txx, I_Txx_r, I_Txz, I_Txz_r, I_Tzz_r, S_A_r, g, m_T, m_T_r, μ, μᵣ, z_T, z_T_r}
-delta_coef.free_symbols = {I_All_r, I_Alx, I_Alx_r, I_Alz_r, I_Txx, I_Txx_r, I_Txz, I_Txz_r, I_Tzz_r, S_A, S_A_r, S_F_r, S_T, S_T_r, g, λ, λᵣ, m_T, m_T_r, μ, μᵣ, v, w, wᵣ, z_T, z_T_r}
-dphi_coef.free_symbols = {I_Alx, I_Alx_r, I_Txx, I_Txx_r, I_Txz, I_Txz_r, S_F_r, S_T_r, λᵣ, μ, μᵣ, v}
+'''
+___[ 00-variables_to_solve_for.txt ]___
+
+Given is the dependency of the equation on the composite parameters.
+If you solve for a composite parameter in on of the equations it will 
+be a function of the remaining composite parameters in that eqation. 
+e.g. [equation Tdelta_coef:] μᵣ = f(I_Alx_r, I_Txx_r, I_Txz_r).
+If you then not solve for I_Alx_r, I_Txx_r, I_Txz_r in the other 
+equations, they always remain the independent variable.
+If this can be repeated for all 6 equations, there is never a variable
+that is both independent and dependent. Thus there is no need for
+substitution.
+This is ofcourse under the assumption that a functions as 
+μᵣ = f(I_Alx_r, I_Txx_r, I_Txz_r) exists, given the nonlinearity of 
+phi_coef till Tdelta_coef
+'''
+
+phi_coef.free_symbols    = {I_All_r, I_Alx, I_Alx_r, I_Alz_r, I_Txx, I_Txx_r, I_Txz, I_Txz_r, I_Tzz_r, S_A_r, g, m_T, m_T_r, μ, μᵣ, z_T, z_T_r}
+delta_coef.free_symbols  = {I_All_r, I_Alx, I_Alx_r, I_Alz_r, I_Txx, I_Txx_r, I_Txz, I_Txz_r, I_Tzz_r, S_A, S_A_r, S_F_r, S_T, S_T_r, g, λ, λᵣ, m_T, m_T_r, μ, μᵣ, v, w, wᵣ, z_T, z_T_r}
+dphi_coef.free_symbols   = {I_Alx, I_Alx_r, I_Txx, I_Txx_r, I_Txz, I_Txz_r, S_F_r, S_T_r, λᵣ, μ, μᵣ, v}
 ddelta_coef.free_symbols = {I_All_r, I_Alx, I_Alx_r, I_Alz_r, I_Txx, I_Txx_r, I_Txz, I_Txz_r, I_Tzz_r, S_A_r, S_F, S_F_r, S_T, S_T_r, λ, λᵣ, m_T, m_T_r, μ, μᵣ, v, w, wᵣ, z_T, z_T_r}
-Tphi_coef.free_symbols = {I_All_r, I_Alx, I_Alx_r, I_Alz_r, I_Txx, I_Txx_r, I_Txz, I_Txz_r, I_Tzz_r, μ, μᵣ}
+Tphi_coef.free_symbols   = {I_All_r, I_Alx, I_Alx_r, I_Alz_r, I_Txx, I_Txx_r, I_Txz, I_Txz_r, I_Tzz_r, μ, μᵣ}
 Tdelta_coef.free_symbols = {I_Alx, I_Alx_r, I_Txx, I_Txx_r, I_Txz, I_Txz_r, μ, μᵣ}
 
 
@@ -14,34 +31,20 @@ Tdelta_coef.free_symbols = {I_Alx, I_Alx_r, I_Txx, I_Txx_r, I_Txz, I_Txz_r, μ, 
 {I_All_r, I_Alx_r, I_Alz_r, I_Txx_r, I_Txz_r, I_Tzz_r,                             μᵣ       } 7     Tphi_coef
 {         I_Alx_r,          I_Txx_r, I_Txz_r,                                      μᵣ       } 4     Tdelta_coef
 
+{I_All_r, I_Alz_r, I_Tzz_r, S_A_r,               m_T_r, z_T_r} 10    
+{I_All_r, I_Alz_r, I_Tzz_r, S_A_r, S_F_r, S_T_r, m_T_r, z_T_r} 12    
+{                                  S_F_r, S_T_r,             } 6     
+{I_All_r, I_Alz_r, I_Tzz_r, S_A_r, S_F_r, S_T_r, m_T_r, z_T_r} 12    
+{I_All_r, I_Alz_r, I_Tzz_r,                                  } 7     
+{                                                            } 4    mu_r 
+
+.
+.
+.
+
 { S_A_r, m_T_r, z_T_r} 10
 { S_A_r, m_T_r, z_T_r} 12
 {                    } 6    S_F_r
 { S_A_r, m_T_r, z_T_r} 12
 {                    } 7    I_Tzz_r
 {                    } 4    mu_r
-
-mu_r, S_F_r, I_Tzz_r
-
-{I_All_r, I_Alx_r, I_Alz_r, I_Txz_r, S_A_r,        m_T_r, μᵣ, z_T_r} S_A_r (4)
-{I_All_r, I_Alx_r, I_Alz_r, I_Txz_r, S_A_r, S_F_r, m_T_r, μᵣ, z_T_r} 
-{                                                                  } S_T_r (3)
-{I_All_r, I_Alx_r, I_Alz_r, I_Txz_r, S_A_r, S_F_r, m_T_r, μᵣ, z_T_r} 
-{                                                                  } I_Tzz_r (2)
-{                                                                  } I_Txx_r (1)
-
-
-
-free variables of the solutions
-{I_Alx_r,    S_F_r, S_T_r, λᵣ, μᵣ, wᵣ       }
-{                                           } I_Txx_r
-{I_Alx_r,                      μᵣ           } I_Txz_r
-{                   S_T_r, λᵣ,     wᵣ       } S_A_r
-{                                     m_T_r } z_T_r
-
-
-{I_Alx_r, S_A_r, S_F_r, λᵣ, μᵣ, wᵣ      }
-{                                       }
-{I_Alx_r,                   μᵣ          }
-{         S_A_r,        λᵣ,     wᵣ      }
-{                                  m_T_r}
