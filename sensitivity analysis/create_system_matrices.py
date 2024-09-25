@@ -1,3 +1,12 @@
+'''
+___[ create_system_matrices.py ]___
+This scripts containt the differt functions
+that will create the carvallo whipple bicycle
+model in state space from.
+(symbolic, numerical (in simpy), numerical (
+in numpy))
+'''
+
 import sympy as sm
 
 #===================================[Define symbols]====================================#
@@ -164,6 +173,13 @@ def get_composite2primal_dict():
 
 
 def create_primal_matrices(repl_mm_sol_primal):
+    '''
+    repl_mm_sol_primal: a dictionary containing the replacements for the 5 dependent variables
+                        must be applied on the reference model. If done the new reference model
+                        can be matched with a model matching controller. The solution comes from
+                        'ss_meijaard_equations_simplifaction.py' in the "model matching gain 
+                        calculation" folder
+    '''
     repl_plant2ref_primal = {
     w : w_r,
     c : c_r,
@@ -197,7 +213,7 @@ def create_primal_matrices(repl_mm_sol_primal):
     plant_mats = create_composite_matrices()
     ref_mats = {}
 
-    #Switch to primal parameters, and create reference matrices
+    #Switch to primal parameters, and create reference matrices adhering to the restrictions
     for key, value in plant_mats.items():
         plant_mats[key] = value.xreplace(repl_comp2primal_plant)
         ref_mats[key] = plant_mats[key].xreplace(repl_plant2ref_primal).xreplace(repl_mm_sol_primal)
@@ -206,6 +222,7 @@ def create_primal_matrices(repl_mm_sol_primal):
 
 
 def eval_plant_matrix(matrices_sym,repl_primal2num_plant,precision):
+    # Use a tmp variable to keep the matrix speed dependent
     matrices_eval = {}
     for key,value in matrices_sym.items():
         matrices_eval[key] = value.xreplace({v: tmp}).xreplace(repl_primal2num_plant).xreplace({tmp: v}).evalf(precision)
@@ -213,6 +230,9 @@ def eval_plant_matrix(matrices_sym,repl_primal2num_plant,precision):
 
 
 def eval_ref_matrix(matrices_sym,repl_primal2num_plant,repl_primal2num_ref,precision):
+    # Use a tmp variable to keep the matrix speed dependent
+    # "repl_primal2num_plant" is necessary as repl_mm_sol_primal introduces 
+    # primal plant parameters into the reference matrices
     matrices_eval = {}
     for key,value in matrices_sym.items():
         matrices_eval[key] = value.xreplace({v: tmp}).xreplace(repl_primal2num_plant)\
