@@ -1,3 +1,18 @@
+'''
+___[ kane_with_friction.py ]___
+This script creates an parametric state space model 
+of the Carvallo-Whipple bicycle model. Here this 
+bicycle model has friction in the steering column.
+This script is an adaptation of one of the test cases 
+of the sympy library. See:
+----
+https://github.com/sympy/sympy/tree/master/sympy/physics/mechanics/tests -> kane3
+https://docs.sympy.org/latest/modules/physics/mechanics/examples/bicycle_example.html
+----
+The only thing altered from that script is the 
+inclusion of friction in the steer.
+'''
+
 import dill
 from meijaard2kane3_conversion import meijaard2kane
 from sympy import pprint, lambdify

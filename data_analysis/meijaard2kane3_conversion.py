@@ -1,3 +1,11 @@
+'''
+___[maijaard2kane3_conversion.py]___
+Almost all scripts here are based on the variables
+of the meijaard papar. However, the kane3 script 
+uses different variables. This script creates a 
+conversion dictionary between these two.
+'''
+
 import sympy as sm
 from sympy.core.symbol import symbols
 from sympy.core.numbers import pi

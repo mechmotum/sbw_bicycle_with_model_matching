@@ -1,3 +1,8 @@
+'''
+___[ plot_overview_dist_response ]___
+This script plots an overview of the impulse responses
+for different speeds. Both for model matching ON and OFF
+'''
 from data_parsing import logfile2array
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,6 +21,7 @@ def plot_disturbance_reactions(logfiles,vars2extract):
         fig = plt.figure(figsize=(12,7), dpi=125)
         fig.suptitle("Impulse Response Autonomous Bicycle - Model matching Off",fontsize=24)
 
+        # Define the amount of plots in the figure and how they are rasterizeds
         rows = 2
         cols = int(np.ceil(len(log_data)/rows))
 
@@ -30,6 +36,7 @@ def plot_disturbance_reactions(logfiles,vars2extract):
             ax.set_title(title, fontsize=20)
             ax.tick_params(axis='y', labelsize=14)
             ax.tick_params(axis='x', labelsize=14)
+
             # Set up shared axis format, without knowing the previous axis
             if (i)%cols == 0:
                 ax.set_ylabel("Lean rate [rad/s]", fontsize=16)
@@ -40,27 +47,35 @@ def plot_disturbance_reactions(logfiles,vars2extract):
             else:
                 plt.setp(ax.get_xticklabels(), visible=False)
 
+            # Plot the responses
             for value in run.values():
+                # Plot measured response
                 for trial in trial_stamps:
                     y = value[trial[0]:trial[1]]
                     x = np.arange(len(y))*TIME_STEP
+                    
+                    # plot all signals positive at t=0
                     if y[0]<0:
                         y=-y
+
                     ax.plot(x,y)
                     ax.axvline(1)
                     ax.grid(visible=True, which='major')
+
+                # Plot theoretical response
                 time, response = theoretic_impulse_response(speed,plnt_type)
                 ax.plot(time, response,  linewidth=2, color='k', linestyle='--')
-        # fig.subplots_adjust(left=0.08, bottom=0.1, right=0.98, top=0.85, wspace=0.14, hspace=None) #100% screen zoom
-        # fig.subplots_adjust(left=0.07, bottom=0.095, right=0.98, top=0.865, wspace=None, hspace=None) #125% screen zoom
         plt.tight_layout()
         fig.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.14, hspace=None)
         plt.show()
-        # plt.savefig(f'figure{plnt_type}.pdf') #screen independent, almost dpi independent (more dpi change resistant) --> tuning parameters are figure size and font sizes
+        # plt.savefig(f'figure{plnt_type}.pdf') # use this when you want to save as pdf (screen independent, almost dpi independent (more dpi change resistant) --> tuning parameters are figure size and font sizes)
 
-PATH = "..\\teensy\\logs\\"
-TIME_STEP = 0.01
 
+#====================[START]====================#
+PATH = "..\\teensy\\logs\\" # Path to log files
+TIME_STEP = 0.01            # Time period between logged data points
+
+#---[Variables to extract from log files
 vars2extract = {
         # "lean_angle": [],
         "lean_rate": [],
@@ -68,6 +83,7 @@ vars2extract = {
         # "fork_rate": [],
     }
 
+#---[Log files containing the data from the experiments
 log_files = { 
     "plant":[
     ("eigen_normal_sil6.5n2_5.4kph.log",    1.5, [(4486,4775), (5420,5668), (6325,6499), (7349,7532), (8984,9214), (9750,9925), (10600,10845)], "1.5 m/s"),
@@ -93,4 +109,6 @@ log_files = {
 }
 
 
+
+#---[Main function]---#
 plot_disturbance_reactions(log_files,vars2extract)
