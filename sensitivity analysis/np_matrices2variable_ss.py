@@ -1,3 +1,13 @@
+'''
+___[ np_matrices2variable_ss.py ]___
+This file contains the variableStateSpaceSystem
+class used as a container for the speed dependent
+A and B matrix of the Carvallo Whipple model.
+Additionally it contains the functions to go from 
+a matrix in stored in the numpy format to this 
+class.
+'''
+
 import numpy as np
 import inspect
 
@@ -23,6 +33,11 @@ class VariableStateSpaceSystem:
         self.mat = {}
 
     def __str__(self):
+        '''
+        Function that creates a string object 
+        of all the calculated numerical matrices.
+        Usefull for debugging
+        '''
         txt = ""
         for key, value in self.mat.items():
             txt = txt + key + f": {value}\n"
