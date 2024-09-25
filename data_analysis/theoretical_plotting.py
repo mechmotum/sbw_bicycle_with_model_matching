@@ -1,3 +1,14 @@
+'''
+___[ theoretical_plotting.py ]___
+I wanted to investigate the different errors that 
+might explain the difference between theoretical 
+predicted eigenvalues and bode plot and the 
+experimentally identified. Therefore this script
+calculates the theoretical values taking into 
+account several errors that could explain the 
+difference. (e.g. error in the speed sensor)
+'''
+
 import numpy as np
 import inspect
 import dill
@@ -8,7 +19,8 @@ EPS = 1e-6
 TREADMILL2ENC_GAIN = 1.0661904761904761
 TREADMILL2ENC_BIAS = 0.12761904761904752
 
-#---[ Create plant and controller object
+#---[ Define plant and controller object
+# Parameter dependent state space system
 class VariableStateSpaceSystem:
     '''
     init:
@@ -20,8 +32,8 @@ class VariableStateSpaceSystem:
     Takes in a variable needed to calculate the 
     parametrized matrix, and uses the member dictionairy 
     mat_fun (initialized in init) to calculate the 
-    numarical matrix values.
-    NOTE: all matrices now have to be dependend on the 
+    numarical matrix values of the parametrized matrix.
+    NOTE: for now, all matrices have to be dependend on the 
     same variable. (in this case it is 
     speed)
     '''
@@ -30,6 +42,11 @@ class VariableStateSpaceSystem:
         self.mat = {}
 
     def __str__(self):
+        '''
+        Function that creates a string object 
+        of all the calculated numerical matrices.
+        Usefull for debugging
+        '''
         txt = ""
         for key, value in self.mat.items():
             txt = txt + key + f": {value}\n"
@@ -47,12 +64,33 @@ class VariableStateSpaceSystem:
         if "D" not in self.mat:
             self.mat["D"] = np.zeros((self.mat["C"].shape[0], self.mat["B"].shape[1]))       
 
+# Parameter dependent Controller
 class VariableController:
+    '''
+    init:
+    initialize using a dictionairy that is structure as
+    key = gain function name, value = function to evaluate the
+    parametrized gain matrix
+
+    calc_gain:
+    Takes in a variable needed to calculate the 
+    parametrized gain matrix, and uses the member dictionairy 
+    gain_fun (initialized in init) to calculate the 
+    numarical gain matrix values.
+    NOTE: For now, all matrices have to be dependend on the 
+    same variable. (in this case it is 
+    speed)
+    '''
     def __init__(self,fun: dict):
         self.gain_fun = fun
         self.gain = {}
 
     def __str__(self):
+        '''
+        Function that creates a string object 
+        of all the calculated numerical matrices.
+        Usefull for debugging
+        '''
         str = ""
         for key, value in self.gain.items():
             str = str + key + f": {value}\n"
@@ -65,8 +103,10 @@ class VariableController:
             else:
                 self.gain[key] = val()
 
+#---[Define sensor matrix
 def get_sensor_matrix_bike(enc_true2meas):
-    # Plant sensors
+    # Choose if you want to simulate en error in the steer encoder
+    # x_err = diag([1,enc_err,1,enc_err]) @ x
     if enc_true2meas:
         C_MATRIX_BIKE = np.array([[0,enc_true2meas,0,0],[0,0,1,0]])
     else:
@@ -75,6 +115,8 @@ def get_sensor_matrix_bike(enc_true2meas):
         return C_MATRIX_BIKE
     return sensor_matrix_bike
 
+#---[Define controller functions
+# Steer-Into-Lean controller
 def get_sil_gain_F_fun(sil_parameters):
     SIL_AVG_SPEED = sil_parameters['avg_speed']
     K_SIL_L = sil_parameters['L_gain']
@@ -110,8 +152,15 @@ def sil_gain_G_fun():
     '''
     return np.eye(2)
 
+# Model Matching and SIL control
+# Math behind combination:
+# (A_c + B_c@F_mm)*x + B_c@G_mm*u = A_r*x + B_r*u
+# (A_r + B_r@F_sil)*x + B_r@G_sil*u = (A_c + B_c@F_mm + B_c@G_mm@F_sil)x + B_c@G_mm@G_sil*u
+#                                   = (A_c + B_c@(F_mm + G_mm@F_sil))x + B_c@(G_mm@G_sil)*u
+#                                   = (A_c + B_c@F_mm_sil)*x + B_c@G_mm_sil*u
 def get_mm_sil_gain_F(mm_funs,sil_parameters,enc_true2meas=0):
     sil_F_fun = get_sil_gain_F_fun(sil_parameters)
+    # Choose if you want to simulate en error in the steer encoder -> x_err = diag([1,enc_err,1,enc_err]) @ x
     if enc_true2meas:
         def mm_gain_fun(speed):
             return (mm_funs["F"](speed) + mm_funs["G"]()@sil_F_fun(speed))@np.diag([1,enc_true2meas,1,enc_true2meas])
@@ -125,6 +174,8 @@ def get_mm_sil_gain_G(mm_funs):
         return (mm_funs["G"]()@sil_gain_G_fun())
     return mm_gain_fun
 
+
+#---[Choose correct plant and controllers depending on user choise
 def get_plant_n_ctrl(bike_plant_file, plant_type, sil_parameters, isAppliedMM=False, enc_true2meas=0):
     #Input sanitation
     if(plant_type != "plant" and plant_type != "ref"):
@@ -151,11 +202,17 @@ def get_plant_n_ctrl(bike_plant_file, plant_type, sil_parameters, isAppliedMM=Fa
 #---[ Get the theoretical speed-eigenvalue plot
 def get_eigen_vs_speed(bike_plant_file,plant_type,speedrange,sil_parameters, isAppliedMM=False,isWrongSpeed=False,enc_true2meas=0,cmd2trq_gain=1):
     '''
+    Get the theoretical speed eigenvalue plot that complies 
+    with the user's choise of Plant, Controller and Error type.
+
     bike_plant_file:    (String) File that contains the speed depended A,B,C and D matrix of the plant and reference bicycle
     plant_type:         (String) "plant" or "reference"
-    start:              lowest calculated speed [m/s]
-    stop:               highest calculated speed [m/s]
-    step:               stepsize [m/s]
+    speedrange:         Speed range of interest
+    sil_parameters:     Parameters of the SIL gains
+    isAppliedMM:        Modelmatching is on or off
+    isWrongSpeed:       The speed measuered by the sensor and the actual speed differ
+    enc_true2meas:      The conversion factor to go from the true angle to the measured angle 
+    cmd2trq_gain:       The conversion factor to go from the commanded torque to the actual exerted torque
     '''
     # initialize plant and controller
     plant, ctrl = get_plant_n_ctrl(bike_plant_file,plant_type,sil_parameters,isAppliedMM,enc_true2meas)
@@ -168,7 +225,8 @@ def get_eigen_vs_speed(bike_plant_file,plant_type,speedrange,sil_parameters, isA
             speed = speed*TREADMILL2ENC_GAIN - TREADMILL2ENC_BIAS
         ctrl.calc_gain(speed)
         # calculate eigenvalues
-        eigenvals[idx] = np.linalg.eigvals(plant.mat["A"] + plant.mat["B"]@ctrl.gain["F"]*cmd2trq_gain) # plant-> dx = Ax + Bu
+        # dx = Ax + Bu_trq ; u_trq = u_cmd*cmd2trq_gain ; u_cmd=Fx 
+        eigenvals[idx] = np.linalg.eigvals(plant.mat["A"] + plant.mat["B"]@ctrl.gain["F"]*cmd2trq_gain)
 
     # Reorganize results for plotting
     eigenvals = {
@@ -187,17 +245,24 @@ def filter_bad_coefs(coefs):
     Filter out the coeficients close to zero, as these might cause numerical errors
     see https://github.com/scipy/scipy/issues/2382
     '''
-    bla = False
-    l = []
+    isNotFirst = False
+    lst = []
     for c in coefs:
         if (abs(c)>EPS):
-            l.append(c)
-            bla = True
-        elif(bla):
-            l.append(0)
-    return l
+            lst.append(round(c, int(-np.log10(EPS)))) #Precision after some point caused large mismatch between mm+plant and ref while in their matrices had very small (<1E-8) differences.
+            isNotFirst = True
+        elif(isNotFirst):
+            lst.append(0)
+    return lst
 
 def calc_bode_mag(A,B,C,D,freq_range):
+    '''
+    Calculate all bode magnitudes for all input to output combis
+    Using the state space is not numerically stable. Therefore 
+    the state space form is first transformed to the transfer 
+    function form, and the coefficient close to zero are replaced 
+    with zero.
+    '''
     p = C.shape[0] #Number of inputs
     m = B.shape[1] #Number of outputs
     plant_bodes = np.empty((p, m, len(freq_range)))
@@ -206,24 +271,38 @@ def calc_bode_mag(A,B,C,D,freq_range):
                 num, den = sign.ss2tf(A, B[:,[nbr_in]], C[[nbr_out],:], D[[nbr_out],[nbr_in]])
                 num  = filter_bad_coefs(num[0])
                 den = filter_bad_coefs(den)
+
                 tmp, mag, tmp = sign.bode((num,den), w=freq_range) # w in rad/s, mag in dB
                 plant_bodes[nbr_in,nbr_out,:] = mag
     return plant_bodes
 
 def get_bode(bike_plant_file,plant_type,speed,freq_range,sil_parameters,isAppliedMM=False,isWrongSpeed=False,enc_true2meas=0,cmd2trq_gain=1):
     '''
-    start_frq,stop_frq are in rad/s
+    Get the theoretical bode plot that complies with the
+    user's choise of Plant, Controller and Error type.
+
+    bike_plant_file:    (String) File that contains the speed depended A,B,C and D matrix of the plant and reference bicycle
+    plant_type:         (String) "plant" or "reference"
+    speed:              Speed of the bicycle
+    freq_range:         Frequency range of interest
+    sil_parameters:     Parameters of the SIL gains  
+    isAppliedMM:        Modelmatching is on or off
+    isWrongSpeed:       The speed measuered by the sensor and the actual speed differ
+    enc_true2meas:      The conversion factor to go from the true angle to the measured angle 
+    cmd2trq_gain:       The conversion factor to go from the commanded torque to the actual exerted torque
     '''
      #--[Initialize plant and controller
     plant, ctrl = get_plant_n_ctrl(bike_plant_file,plant_type,sil_parameters,isAppliedMM,enc_true2meas)
     
     #--[Calculating bode magnitudes for all input to output combos
     # Initialize objects at correct speed
-    if isWrongSpeed:
-        speed = speed*1.0661904761904761 - 0.12761904761904752    
-    plant.calc_mtrx(speed)
+    plant.calc_mtrx(speed) # The plant is always at treadmill speed
+    if isWrongSpeed:       # But the controller is at encoder's measured speed
+        speed = speed*TREADMILL2ENC_GAIN - TREADMILL2ENC_BIAS
     ctrl.calc_gain(speed)
 
+    # dx = Ax + Bu_trq ; u_trq = u_cmd*cmd2trq_gain ; u_cmd=Fx + B*u_ext
+    # y  = Cx + Du_trq
     bode_mags = calc_bode_mag(
         plant.mat["A"] + plant.mat["B"]@ctrl.gain["F"]*cmd2trq_gain,
         plant.mat["B"]@ctrl.gain["G"]*cmd2trq_gain,

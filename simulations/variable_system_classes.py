@@ -12,7 +12,7 @@ from inspect import getfullargspec
 from numpy import eye, zeros
 
 ##----Define classes
-# Parameret dependent state space system
+# Parameter dependent state space system
 class VariableStateSpaceSystem:
     '''
     init:
