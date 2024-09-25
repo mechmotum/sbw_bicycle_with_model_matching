@@ -14,10 +14,10 @@ import inspect
 import dill
 import scipy.signal as sign
 
-# Turning near 0 poles and zeros to 0. For numerical accuracy
-EPS = 1e-6 
-TREADMILL2ENC_GAIN = 1.0661904761904761
-TREADMILL2ENC_BIAS = 0.12761904761904752
+
+EPS = 1e-6 # precision for turning near 0 poles and zeros to 0. For numerical accuracy 
+TREADMILL2ENC_GAIN = 1.0661904761904761  # Gain of linear relation between speed measured by sensor and speed indicated by treadmill
+TREADMILL2ENC_BIAS = 0.12761904761904752 # Bias of linear relation
 
 #---[ Define plant and controller object
 # Parameter dependent state space system
