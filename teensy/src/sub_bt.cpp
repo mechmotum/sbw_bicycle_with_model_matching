@@ -1,4 +1,15 @@
 /*
+Code for debuging the bluetooth connection.
+To use this code, replace the code in main.cpp with this,
+or figure out how to make this file the 'main'.
+---
+Bluetooth was discontinued due to its slow communication
+speed. therefore a wire was chosen instead. If high loop 
+frequency is not an issue, bluetooth is a good communication
+option 
+*/
+
+/*
 #include <Arduino.h>
 #include <SPI.h>
 #include <Wire.h>
@@ -13,13 +24,13 @@ void setup(){
   // few messages are lost. By first waiting untill there is a connection
   // before entering the loop, no messages are lost.
 
-  // MAIN: send a signal, wait for return message
+  // // If MAIN: send a signal, wait for return message
   // while(1){
   //   Serial1.write(1);
   //   if(Serial1.available()) break;
   // }
 
-  // SUB: Wait for an incomming message, if recieved send return message
+  // If SUB: Wait for an incomming message, if recieved send return message
   while(!Serial){} // Only start the pairing sequence once the sub Serial monitor is open
 
   while(1){

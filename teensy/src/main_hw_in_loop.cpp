@@ -1,3 +1,14 @@
+/*
+Working hardware in the loop communication integrated with actual teensy code.
+---
+The teensy code is NOT UP-TO-DATE. For the most up-to-date version see 'main.cpp'
+For this reason, no in depth documentation is done, see 'main.cpp' for documentation.
+This file solely consists as an example of how to integrate communication between 
+teensy and PC.
+*/
+
+
+
 // Note: include the "eigen.h" library first, otherewise there will be compile errors.
 #include "eigen.h" //https://github.com/bolderflight/eigen
 #include "simpleKalman.h"
@@ -8,7 +19,7 @@
 #include "SdFat.h"
 #include "RingBuf.h" //From sdFat library
 #include "mpu9250.h" //https://github.com/bolderflight/MPU9250
-/*TODO: include other measurement functions into the BikeMeasurements class, like the IMU*/
+// TODO: include other measurement functions into the BikeMeasurements class, like the IMU
 // TODO: make all measurement units into SI units
 
 /* LEFT FOR DOCUMENTATION PURPOSE ONLY [transfer to more appropriate location and remove]
