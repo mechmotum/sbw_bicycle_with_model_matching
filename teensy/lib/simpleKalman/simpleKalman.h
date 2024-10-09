@@ -32,7 +32,7 @@ class SimpleKalman{
                  Matrix<float,1,1>& R,
                  Matrix<float,2,2>& P_post);
 
-    void init();
+    void init(); // default initialization
     void init(const Matrix<float,2,1>& x0, const double t0);
 
     void predict_step(Matrix<float,1,1>& u, double dt);
