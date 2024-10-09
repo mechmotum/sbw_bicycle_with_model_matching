@@ -1,3 +1,9 @@
+/*
+___[ teensy_sim_serial ]___
+This library contains the functions for sending and receiving 
+variables from the Teensy to a PC and back over serial COM
+*/
+
 #ifndef TEENSY_SIM_SERIAL_
 #define TEENSY_SIM_SERIAL_
 
@@ -22,9 +28,10 @@ static_assert(sizeof(int32_t) == NUMPY_INT32_BYTES, "systems int32_t and numpy i
 static_assert(sizeof(float) == NUMPY_FLOAT32_BYTES, "systems float and numpy float32 have a different byte size");
 
 //---[Template Functions
+// Send variable
 template<typename T>
 T byte_rx(){
-  while(!Serial.available()){} //TODO: throw in a time out timer
+  while(!Serial.available()){} //TODO: throw in a 'time out' timer
   
   uint8_t bytes_rx[sizeof(T)];
   T input;
@@ -38,6 +45,7 @@ T byte_rx(){
   return input;
 }
 
+// Receive variable
 template<typename T>
 void byte_tx(T* output){
     uint8_t bytes_out[sizeof(T)];
@@ -49,13 +57,12 @@ void byte_tx(T* output){
     }
 }
 
-//----[Non template functions
-// float byte_rx_float32();
-// void byte_tx_float32(float* output);
-
 #endif //TEENSY_SIM_SERIAL_
 
-/* FOR DEBUGGING
+
+
+
+/* FOR DEBUGGING (REPLACE MAIN WITH THIS)
 #include <Arduino.h>
 #include "teensy_sim_serial.h"
 
