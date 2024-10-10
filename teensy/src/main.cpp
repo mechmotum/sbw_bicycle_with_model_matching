@@ -13,12 +13,13 @@
 #include "mpu9250.h" //https://github.com/bolderflight/MPU9250
 /*TODO: include other measurement functions into the BikeMeasurements class, like the IMU*/
 
-/* LEFT FOR DOCUMENTATION PURPOSE ONLY [transfer to more appropriate location and remove]
-a_force = 20; // Analog output pin of the force transducer
-a_torque = 21; // Analog output pin of the self made torque sensor (broken)
-a_fork = 40; // Analog output pin of the fork motor drive (not initialized on the motor driver)
-a_hand = 41; // Analog output pin of the handlebar motor drive
-hand_switch = 28; // Switch installed on the handlebars
+/* 
+LEFT FOR DOCUMENTATION PURPOSE ONLY [transfer to more appropriate location and remove]
+  a_force = 20; // Analog output pin of the force transducer
+  a_torque = 21; // Analog output pin of the self made torque sensor (broken)
+  a_fork = 40; // Analog output pin of the fork motor drive (not initialized on the motor driver)
+  a_hand = 41; // Analog output pin of the handlebar motor drive
+  hand_switch = 28; // Switch installed on the handlebars
 */
 
 // NOTE: More old but maybe still useful functions at the end of the file.
@@ -28,10 +29,10 @@ hand_switch = 28; // Switch installed on the handlebars
 #define USE_IMU 1
 #define USE_BT 0
 #define USE_SD 0
-#define USE_PEDAL_CADANCE 0
+#define USE_PEDAL_CADANCE 0 // Pedal cadance encoder is broken.
 #define SERIAL_DEBUG 1
-#define TRANSDUCER_ON_STEER 1
-#define TRANSDUCER_ON_SADLE 0
+#define TRANSDUCER_ON_STEER 1 // location of the force transducer (mutially exclusive with TRANSDUCER_ON_SADLE)
+#define TRANSDUCER_ON_SADLE 0 // location of the force transducer (mutially exclusive with TRANSDUCER_ON_STEER)
 
 
 
@@ -58,7 +59,7 @@ class BikeMeasurements{
     float m_pedal_cadance; // [rad/s]
     #endif
     
-    // Sanjurjo kalman filter variables
+    // Sanjurjo kalman filter variables (see lib > simpleKalman)
     float m_lean_angle_meas; // [rad]
     float m_omega_x_old;     // [rad/s]
 
@@ -153,16 +154,27 @@ class BikeMeasurements{
 
 
 class Trq_sensor_logic_filter{
+  /*
+  The torque sensor was corrupted with noise that
+  was not removable with an ad hoc fix on the 
+  electronics side. So I made a filter that ignores 
+  noise when no force is applied to the force
+  transducer.
+  If the signal is in a band close to zero, it is
+  ignored. But when the signal is passing through 
+  this band (e.g. sinosoids), it is left unaltered.
+  */
   private:
-    uint8_t in_bounds_cntr;
-    uint8_t out_bounds_cntr;
+    uint8_t in_bounds_cntr;   // Amount of loops inside band
+    uint8_t out_bounds_cntr;  // Amount of loops outside band
 
-    uint8_t in_bounds_cntr_limit;
-    uint8_t out_bounds_cntr_limit;
+    uint8_t in_bounds_cntr_limit;  // Amount of loops inside band before filtering is activeed
+    uint8_t out_bounds_cntr_limit; // Amount of loops outside band before filtering is deactivated
 
-    float bounds;
+    float bounds; // Bounds around zero for wich to filter the signal.
 
   public:
+    // Default
     Trq_sensor_logic_filter(){
       in_bounds_cntr = 0;
       out_bounds_cntr = 0;
@@ -173,6 +185,7 @@ class Trq_sensor_logic_filter{
       bounds = 0.5;
     };
 
+    // User initiated
     Trq_sensor_logic_filter(float bounds, uint8_t in_bounds_cntr_lim, uint8_t out_bounds_cntr_lim){
       in_bounds_cntr = 0;
       out_bounds_cntr = 0;
@@ -183,7 +196,7 @@ class Trq_sensor_logic_filter{
       bounds = bounds;
     };
 
-
+    // Filter function
     float filter_trq_sensor(float meas_force);
 };
 
@@ -197,7 +210,6 @@ void calc_mm_gains(float& k_phi, float& k_delta, float& k_dphi, float& k_ddelta,
 //--[Control Helper functions
 void calc_pd_errors(BikeMeasurements& bike, float& error, float& derror_dt);
 float relay_measured_hand_torque(float meas_force);
-void reset_force_bias(uint64_t current_itteration);
 void apply_friction_compensation(double& fork_command);
 
 //--[Calculation Helper functions
@@ -233,7 +245,7 @@ template <typename T> // copied from https://stackoverflow.com/questions/1903954
 int sgmd(T val) { return (T(0) < val) - (val < T(0));}
 
 template <typename T>
-int sgn(T val) { return (T(0) <= val) - (val < T(0));} //altered to give 1 at zero. (so no longer sigmund function) This was required for the implementation regarding of Sanjurjo
+int sgn(T val) { return (T(0) <= val) - (val < T(0));} //altered to give 1 at zero. (so no longer sigmund function) This was required for the implementation regarding Sanjurjo
 
 
 
@@ -270,16 +282,16 @@ const uint32_t WIRE_FREQ = 400000; // [Hz] Frequency set by bolderflight example
 #endif
 
 //---[Physical bicycle objects
-// Angular rate measurements
+// Angular rate measurements bias (due to installation errors)
 const float OMEGA_Y_BIAS = -0.02;
 const float OMEGA_Z_BIAS = -0.01;
 
-// PWM Setup
+// Configure PWM of teensy (used to improve resolution of the motor commands)
 const uint8_t PWM_RESOLUTION_BITS = 15;
 const float PWM_FREQUENCY = 4577.64;
 
 // Commanded torque
-const uint32_t HAND_PWM_MAX = 24812;
+const uint32_t HAND_PWM_MAX = 24812; // Max and min for safety of hardware and user.
 const uint32_t HAND_PWM_MIN = 7956;
 const uint32_t FORK_PWM_MAX = 24812;
 const uint32_t FORK_PWM_MIN = 7956;
@@ -290,44 +302,54 @@ const uint16_t INITIAL_STEER_PWM = 16384;
 const uint32_t ENCODER_CLK_FREQ = 225000; //clock frequency for the encoders SPI protocol
 const float HAND_ENC_BIAS = 153.65 * DEG_TO_RAD + 0.0203;
 const float FORK_ENC_BIAS = 100.65 * DEG_TO_RAD + 0.00357;
-const float HAND_ENC_MAX_VAL = 8192.0; //ticks go from 0 to 8191. At the 8192th tick encoder_tick/HAND_ENC_MAX_VAL = 1 --> 2*pi == 0
+const float HAND_ENC_MAX_VAL = 8192.0; //ticks go from 0 to 8191. At the 8192th: tick encoder_tick/HAND_ENC_MAX_VAL = 1 --> 2*pi == 0
 const float FORK_ENC_MAX_VAL = 8192.0;
 
-// Steer Angles
+// Steer Angles 
+/*NOTE: Set a limit to what is measured as the steer angle.
+This was done for PID control. The steer could move 
+further than the front wheel. To prevent the wheel
+from smashing into the frame, a software limit is imposed.*/
 const float SOFTWARE_LIMIT = 42.0 * DEG_TO_RAD;
 
 // Lateral force
 float FORCE2LEAN_TORQUE = 0.95; // Height of the force sensor attachment point, measured from the ground in meters. (wheels at 4bar)
-float FORCE2STEER_TORQUE = -0.32; // [m] Negative as the push is positive in the coordinate system, while pull is measured as positive. Arm on the handlebar. Line perpendicular to the line of application and the steer pin.
+float FORCE2STEER_TORQUE = -0.32; // [m] Negative due to coordinate system. Arm on the handlebar. Line perpendicular to the line of application and the steer pin.
 float TRANSDUCER_MEAS2FORCE = (1/29.689376936164084)*9.81; // [kg/-]*[N/kg]calibration has been done in [kg](independend) vs [-](dependend){no unit as it is a mapping from 0-3,3V to 0-1023}
-uint16_t FORCE_BIAS_AVGING_WINDOW = 500; //Transducer seems to have a different offset every new code start. So take a sample of FORCE_BIAS_AVGING_WINDOW long, to figure out the offset.
+uint16_t FORCE_BIAS_AVGING_WINDOW = 500; //Transducer seems to have a different offset every new code start. So take a sample lasting FORCE_BIAS_AVGING_WINDOW long, to figure out the offset.
 
 // Pedal and wheel encoders
-/*NOTE: A WHEEL_COUNTS_LENGTH of 500 gives an approximate 45 counts per calculation 
-for a bike going 1 m/s (counts per rev * speed/radius). It then also calculates the 
-average speed of the last 0.5 seconds. So it will have trouble with high frequency
-sinosoidal translations. We assume here that the speed is always in the forward 
-direction. Unfortunetely, with this size (500) the resolution is noticably lower 
-for lower speeds. In short: Lower WHEEL_COUNTS_LENGTH means faster respons to speed 
-change, but higher WHEEL_COUNTS_LENGTH means better resolution*/
-const uint16_t WHEEL_COUNTS_LENGTH = 500; 
+/*NOTE: In short, lower WHEEL_COUNTS_LENGTH means faster respons to speed change, 
+but higher WHEEL_COUNTS_LENGTH means better resolution
+A bike going 1 m/s has ~87 counts every second. (#counts/sec = counts per rev * speed/(2pi*radius))
+Thus, 0.0115 seconds per count. With a sampling time of 0.01 s (100Hz) this means roughly one count
+every 2nd loop. Therefore, the speed is either 0 m/s or ~1 m/s. Taking an average over a longer period 
+of time solves this problem. The longer the time, the more counts represent the speed of 1 m/s. And
+more counts means higher speed resolutsion.
+The chosen value of 500 loops still gives a noticable resolution drop at lower speeds, but 
+increasing it more makes the response to speed changes too slow.
+Furthermore, we assume here that the speed is always in the forward direction. 
+ */
+const uint16_t WHEEL_COUNTS_LENGTH = 500; // Number of loops used to calculate the average speed
 const uint8_t WHEEL_COUNTS_PER_REV = 192;
 const float WHEEL_RADIUS = 0.3498f; //[m]
 #if USE_PEDAL_CADANCE
-/*NOTE: there is currently no sensor to measure the encoder ticks*/
+/*NOTE: there is currently no sensor to measure the encoder ticks for the pedal*/
 const uint16_t PEDAL_COUNTS_LENGTH = 500;
 const uint8_t PEDAL_COUNTS_PER_REV = 192;
 #endif
 
 //---[Loop timing
-const uint16_t MIN_LOOP_LENGTH_MU = 10000; // target minimum loop length in microseconds. (Currently set at dt = 0.01sec as this corrosponsds with the current Kalman gains)
-const float MIN_LOOP_LENGTH_S = MIN_LOOP_LENGTH_MU*MICRO_TO_UNIT; //
+const uint16_t MIN_LOOP_LENGTH_MU = 10000; // target minimum loop length in microseconds. (Currently set at dt = 0.01sec as this corrosponsds with the current Kalman gains tuning)
+const float MIN_LOOP_LENGTH_S = MIN_LOOP_LENGTH_MU*MICRO_TO_UNIT;
 const float LOOP_TIME_SCALING = 1000.0F/(float)MIN_LOOP_LENGTH_MU; // The old code was written for startup time of 13 seconds having a loop time of 1 milisec. When changing the loop time, the number of itterations needed for 13 sec also has to scale appropriately
 const uint16_t CTRL_STARTUP_ITTERATIONS = 13000*LOOP_TIME_SCALING; // itterations in which the steer torques are slowly scaled to unity.
-uint64_t wait_itterations = CTRL_STARTUP_ITTERATIONS; //amount of itterations the code waits until measureing the bias on the force transducer. initially set to CTRL_STARTUP_ITTERATIONS, as the led messes up the sensor reading.
+uint64_t wait_itterations = CTRL_STARTUP_ITTERATIONS; //amount of itterations the code waits until measureing the bias on the force transducer. initially set to CTRL_STARTUP_ITTERATIONS, as the led on the steer influences the transducer sensor reading.
 
 //---[Fork friction compensation
-const float FRIC_COMPENSATION_BIAS = 0.2;
+// There is friction in fork when rotating (mostly wheel to ground) and 
+// the wheels only start moving when the torque is > FRIC_COMPENSATION_BIAS.
+const float FRIC_COMPENSATION_BIAS = 0.2; // Measured while the bicycle was coasting/driving
 
 //---[Kalman filtering
 const Eigen::Matrix<float,2,1> X0 {0,0}; //initial state vector
@@ -339,7 +361,7 @@ const float BUTTER_CUT_OFF = 5; //[Hz]
 const float BUTTER_NATURAL_FREQ = 2 * BUTTER_CUT_OFF/SAMPLING_FREQ;
 const uint8_t BUTTER_ORDER = 2;
 
-// roll angle measurement estimation
+// roll angle measurement estimation (See Sanjurjo 2019)
 float PHI_METHOD_WEIGHT = 0.05;
 
 //---[Controller Gains
@@ -361,7 +383,7 @@ const float KD_H = 0.012f * RAD_TO_DEG; // Handlebar
 const uint8_t K_SIL1 = 2; // [Ns^2/rad] gain for the steer into lean controller when below stable speed range
 const float K_SIL2 = 0.7; // [Ns/rad] gain for the steer into lean controller when above stable speed range
 const float V_AVERAGE = 6.5; // [m/s] value somewhere in the stable speed range. (take the average of min and max stable speed)
-const float FORK_TRQ_REDUCTION_RATIO = 0.3; //The fork is free to rotate -> no friction. So it will rotate much harder.
+const float FORK_TRQ_REDUCTION_RATIO = 0.3; //The fork is free to rotate -> less friction. So it will rotate much harder.
 
 // Model matching gains: The "_Vx" indicates that the coefficient
 //  is multiplied with speed to the power of x.
@@ -398,8 +420,8 @@ const uint8_t encdr_pin2_pedal = 22; //1 of 2 pins to read out the pedal encoder
 #endif
 
 //----------------------- Force transducer measurement --------------------------//
-float force_bias = 0;
-bool haveSampledBias = false;
+float force_bias = 0; // Force transducer measurement bias
+bool haveSampledBias = false; // boolean to indicate if the bias has been sampled
 
 //------------------------------ PD Control ----------------------------------//
 float error_prev = 0.0f; // [rad] Variable to store the previos mismatch between handlebar and fork
@@ -415,10 +437,10 @@ elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
 
 //------------------- Wheel Speed and Cadence Encoders -----------------------//
   Encoder wheel_counter(encdr_pin1_wheel, encdr_pin2_wheel); // Initialize Rear wheel speed encoder
-  int32_t wheel_counts[WHEEL_COUNTS_LENGTH] = {0};
+  int32_t wheel_counts[WHEEL_COUNTS_LENGTH] = {0}; // Array containing the wheel counts of the wheel_counts_index'th loop
   uint32_t wheel_counts_index = 0;
   int32_t end_of_array_storage = 0; //to store the value of the encoder at the end of the wheel_counts array before resetting.
-  uint32_t bike_speed_dt_sum_mu = 0;
+  uint32_t bike_speed_dt_sum_mu = 0; //total time between calculations of the speed. In micro seconds
   uint32_t bike_speed_dt_array[WHEEL_COUNTS_LENGTH] = {0};
 #if USE_PEDAL_CADANCE
   Encoder pedal_counter(encdr_pin1_pedal, encdr_pin2_pedal); // Initialize Pedal cadence encoder
@@ -430,7 +452,7 @@ elapsedMicros since_last_IMU_meas; // How long since last IMU measurement
 #if USE_IMU
   bfs::Mpu9250 IMU; // MPU9250 object
 #endif
-// Calibration matrix. Translate coordinates expressed IMU frame to the Body fixed frame
+// Calibration matrix. Translate coordinates expressed IMU frame to the Body fixed frame.
 Eigen::Matrix<float,3,3> B_ROT_IMU {{-0.10964618,  0.07170863, -0.9928662 },
                                     {-0.00522393, -1.00139095, -0.02117246},
                                     { 0.99607305, -0.03168316, -0.08985829}};
@@ -463,19 +485,12 @@ SimpleKalman gyro_kalman(F, B, H, Q, R, P_post);
 //------------------------------- Filtering -----------------------------------//
 //Butterworth
 auto butter_filt = butter<BUTTER_ORDER>(BUTTER_NATURAL_FREQ);
-//Highpass (first order, cutoff at 0.1Hz)
+//Highpass (first order, cutoff at 0.1Hz) a and b calculated with python
 AH::Array<float, 2> b_coefs {0.99968594, -0.99968594};
 AH::Array<float, 2> a_coefs {1.        , -0.99937188};
 auto high_pass_filt = IIRFilter<2,2,float>(b_coefs,a_coefs);
 
 Trq_sensor_logic_filter logic_filt{};
-
-//------------------------------ Loop timing ----------------------------------//
-// elapsedMicros looptime = 0;
-
-//------------------------- switching controllers -----------------------------//
-bool isSwitchControl = false;
-
 
 
 //============================== [Main Setup] ==================================//
@@ -489,7 +504,7 @@ void setup(){
 
   #if SERIAL_DEBUG
   Serial.begin(115200); // Communication with PC through micro-USB
-  /*NOTE: Wait with startup procedure untill one opens a serial monitor.
+  /*NOTE: It waits with startup procedure untill one opens a serial monitor.
   Since the power to the microcontroller and to the rest of the bicycle
   is now not synchronus anymore.
   > First start the motors, then open a serial monitor.
@@ -524,9 +539,9 @@ void setup(){
   digitalWrite(enable_motor_enc, HIGH); // Set HIGH to enable power to the encoders
   digitalWrite(enable_fork,      HIGH); // Set HIGH to enable motor
   digitalWrite(enable_hand,      HIGH); // Set HIGH to enable motor
-  digitalWrite(hand_led,         HIGH);
-  analogWrite(pwm_pin_fork,      INITIAL_FORK_PWM);
-  analogWrite(pwm_pin_hand,      INITIAL_STEER_PWM);
+  digitalWrite(hand_led,         HIGH); // Indicate the system is still in startup
+  analogWrite(pwm_pin_fork,      INITIAL_FORK_PWM); //give initial 'rest' command to the motors
+  analogWrite(pwm_pin_hand,      INITIAL_STEER_PWM); //give initial 'rest' command to the motors
 
 
   //------[Setup IMU
@@ -563,18 +578,9 @@ void loop(){
   
   
   if (since_last_loop >= MIN_LOOP_LENGTH_MU){ //K: Sort of have a max freq? (cause that is not garanteed in this way)
-    if(Serial.available()){ //check if user inputted a character in the serial
-      isSwitchControl = true; //if true, switch controller
-      Serial.read(); //such that you only go in here once
-    }
-    // #if SERIAL_DEBUG
-    // Serial.print(since_last_loop);
-    // Serial.print("\n");
-    // #endif
-    // looptime = 0;
     since_last_loop = since_last_loop - MIN_LOOP_LENGTH_MU; //'reset' counter
 
-    if (control_iteration_counter >= CTRL_STARTUP_ITTERATIONS) // Turn off LED when bike is ready (does effecet the transducer value)
+    if (control_iteration_counter >= CTRL_STARTUP_ITTERATIONS) // Turn off LED when bike is ready (does effect the transducer bias value)
       digitalWrite(hand_led, LOW);
     
     //------[initialize local variables
@@ -584,23 +590,34 @@ void loop(){
     double command_hand = 0;
 
     //------[measure bike states and inputs
+    //states
     sbw_bike.calculate_bike_speed();
     sbw_bike.calculate_roll_states();
     sbw_bike.measure_steer_angles();
-    sbw_bike.calculate_fork_rate(); //also calculates moving average of fork angle and sets it
+    sbw_bike.calculate_fork_rate();
     sbw_bike.calculate_accelarations();
-    sbw_bike.measure_hand_torque();
-    sbw_bike.measure_lat_perturbation();
 
-    //------[Perform steering control
-    if(!isSwitchControl){
-      calc_pd_errors(sbw_bike, error, derror_dt);
-      calc_pd_control(error, derror_dt, command_fork, command_hand); //add pd_control to the hand and fork torques
-    } else {
-      // calc_sil_control(sbw_bike, command_fork, command_hand);
-      // command_fork += logic_filt.filter_trq_sensor(sbw_bike.get_hand_torque());
-      calc_mm_sil_control(sbw_bike, command_fork, command_hand);
-    }
+    //inputs
+    // TODO: Do the filtering of the transducer measurement inside these two functions 
+    //       instead of every time one uses the measurement.
+    #if TRANSDUCER_ON_STEER
+    sbw_bike.measure_hand_torque();
+    #endif
+    #if TRANSDUCER_ON_SADLE
+    sbw_bike.measure_lat_perturbation();
+    #endif
+
+    //------[Choose controller
+    //[PD control]
+    calc_pd_errors(sbw_bike, error, derror_dt);
+    calc_pd_control(error, derror_dt, command_fork, command_hand);
+    //[SIL control]
+    // calc_sil_control(sbw_bike, command_fork, command_hand);
+    // command_fork += logic_filt.filter_trq_sensor(sbw_bike.get_hand_torque()); // Uncomment to make force transducer input effect fork torque
+    //[SIL+MM control]
+    // calc_mm_sil_control(sbw_bike, command_fork, command_hand); // currently coded for transducer on steer only. See comments inside function for more info.
+
+    //------[Apply torque
     // apply_friction_compensation(command_fork);
     actuate_steer_motors(command_fork, command_hand);
 
@@ -617,10 +634,6 @@ void loop(){
     #if USE_SD
     print_to_SD(sbw_bike,command_fork,command_hand);
     #endif
-    // #if SERIAL_DEBUG
-    // Serial.print(looptime);
-    // Serial.print("\n");
-    // #endif
   }
 }
 
@@ -641,19 +654,21 @@ void BikeMeasurements::measure_steer_angles(){
 
   //------[Translate encoder counts to angle in degree
   /* NOTE: The two encoders are mounted opposite to each other.
-  Therefore, CCW rotation of the handlebar encoder gives 360 to 310 deg,
-  whereas, CCW rotation of the fork encoder gives 0 to 55 degrees.
-  The rotational direction must be the same for both encoders, and
-  the encoders must give an output int the 0-180 degrees range. 
+  Therefore, CCW rotation of the handlebar encoder gives 360 to 360-X deg,
+  whereas, CCW rotation of the fork encoder gives 0 to 0+X degrees.
+  The rotational direction must be the same for both encoders, hence 
+  a minus sign on the fork angle.
+  Furthermore, the encoder range is now 0 till 360, but it should be
+  -180 till 180, as this is more convenient for control calculations.
   */
   // Handlebar
   m_hand_angle = ((float)enc_counts_hand / HAND_ENC_MAX_VAL) * 2*PI - HAND_ENC_BIAS;
   if (m_hand_angle > PI) 
-    m_hand_angle = m_hand_angle - 2*PI; // CCW handlebar rotation gives 360 deg-> 310 deg. Subtract 2 pi to get 0-180 deg CCW
+    m_hand_angle = m_hand_angle - 2*PI; // Subtract 2 pi to get (-180)-180 deg
   // Fork
   m_fork_angle = -(((float)enc_counts_fork / FORK_ENC_MAX_VAL) * 2*PI + FORK_ENC_BIAS); //Minus sign to get minus values from fork encoder.
   if (m_fork_angle < -PI) 
-    m_fork_angle = m_fork_angle + 2*PI; // CW fork rotation gives -360 deg-> -310 deg. Add 2 pi to get 0-180 deg CCW
+    m_fork_angle = m_fork_angle + 2*PI; // Add 2 pi to get  (-180)-180 deg
 
 
   //------[Compensate for difference in range of motion of handelbar and fork
@@ -662,21 +677,18 @@ void BikeMeasurements::measure_steer_angles(){
   the fork to the steer, software limits are set below. If you do not set
   this limits, the motor folds back.
   */
-  m_hand_angle = constrain(m_hand_angle, -SOFTWARE_LIMIT, SOFTWARE_LIMIT); //K: This may cause the oscillations
+  m_hand_angle = constrain(m_hand_angle, -SOFTWARE_LIMIT, SOFTWARE_LIMIT); //K: This may cause oscillations
 }
 
 
 //=========================== [Get handlebar torque] ===============================//
 void BikeMeasurements::measure_hand_torque(){
-  #if TRANSDUCER_ON_STEER
   int transducer_readout = analogRead(transducer_pin); //int as it is used in calculation later on, where it can get negative. 
   if(control_iteration_counter > wait_itterations){// Wait untill the led light is off
     if(haveSampledBias){ //check if already taken a measurement of the bias
       m_hand_torque = (transducer_readout-force_bias)*TRANSDUCER_MEAS2FORCE*FORCE2STEER_TORQUE;
-      // Serial.print(m_hand_torque,5);
-      // Serial.print(",");
-      m_hand_torque = butter_filt(m_hand_torque);
-      m_hand_torque = high_pass_filt(m_hand_torque);
+      m_hand_torque = butter_filt(m_hand_torque); // filter out noise
+      m_hand_torque = high_pass_filt(m_hand_torque); // filter out slow shift in bias value
     }
     else{ //perform bias measurement
       force_bias += transducer_readout;
@@ -684,24 +696,19 @@ void BikeMeasurements::measure_hand_torque(){
         force_bias /= (control_iteration_counter - wait_itterations);
         haveSampledBias = true;
       }
-      // Serial.print(",");
     }
-  }else{
-    // Serial.print(",");
   }
-  // Serial.print(transducer_readout);
-  // Serial.print(",");
-  #endif
 }
 
 
 //============================= [Get lean torque] ==================================//
 void BikeMeasurements::measure_lat_perturbation(){
-  #if TRANSDUCER_ON_SADLE
-  int lat_force_readout = analogRead(transducer_pin);
+  int lat_force_readout = analogRead(transducer_pin); //int as it is used in calculation later on, where it can get negative. 
   if(control_iteration_counter > wait_itterations){// Wait untill the led light is off
     if(haveSampledBias){ //check if already taken a measurement of the bias
       m_lean_torque = (lat_force_readout-force_bias)*TRANSDUCER_MEAS2FORCE*FORCE2LEAN_TORQUE;
+      m_lean_torque = butter_filt(m_lean_torque); // filter out noise
+      m_lean_torque = high_pass_filt(m_lean_torque); // filter out slow shift in bias value
     }
     else{ //perform bias measurement
       force_bias += lat_force_readout;
@@ -711,9 +718,6 @@ void BikeMeasurements::measure_lat_perturbation(){
       }
     }
   }
-  // Serial.print(lat_force_readout);
-  // Serial.print(",");
-  #endif
 }
 
 
@@ -761,14 +765,7 @@ void BikeMeasurements::calculate_roll_states(){
   m_lean_angle = gyro_kalman.phi(); // [rad]
 
   // store current roll rate for next itteration
-  m_omega_x_old = omega_vec(0,0); // [rad/s] You need u_k-1 to calculate x_k. There is one step difference
-
-  // Serial.print(omega_vec(0,0));
-  // Serial.print(",");
-  // Serial.print(omega_vec(1,0));
-  // Serial.print(",");
-  // Serial.print(omega_vec(2,0));
-  // Serial.print(",");
+  m_omega_x_old = omega_vec(0,0); // [rad/s] You need u_k-1 to calculate x_k. There is a one step difference
 }
 
 void BikeMeasurements::calc_lean_angle_meas(float omega_x, float omega_y, float omega_z){
@@ -800,18 +797,18 @@ void BikeMeasurements::calc_lean_angle_meas(float omega_x, float omega_y, float 
 
 //========================= [Calculate bicycle speed] ==========================//
 void BikeMeasurements::calculate_bike_speed(){
-  // TODO: bring the approprate global variables inside of the BikeMeasurement class
+  // TODO: bring the appropriate global variables inside of the BikeMeasurement class
 
-  /*K: NOTE Since the microcontroller operating frequency is much higher than the
+  /*K: NOTE Since the microcontroller operating frequency is can be higher than the
   frequency at which encoder ticks pass the reading head, the difference between
-  the tick count of the current and previous loop will most of the time be zero.
+  the tick count of the current and previous loop can be zero for non-zero speeds.
   To have a meaningfull value, the value of this loop and that of 
   WHEEL_COUNTS_LENGTH ago are compared.*/
   int32_t current_wheel_count = wheel_counter.read();
   int32_t previous_wheel_count = wheel_counts[wheel_counts_index];
   wheel_counts[wheel_counts_index] = current_wheel_count;
 
-  //Update time measurement
+  //Update time measurement (time passed between now and WHEEL_COUNTS_LENGTH #loops ago)
   update_dtime(m_dt_bike_speed_meas, since_last_bike_speed);
   bike_speed_dt_sum_mu -= bike_speed_dt_array[wheel_counts_index];
   bike_speed_dt_sum_mu += m_dt_bike_speed_meas;
@@ -845,6 +842,9 @@ void BikeMeasurements::calculate_bike_speed(){
 #if USE_PEDAL_CADANCE
 //============================ [Calculate cadance] =============================//
 void BikeMeasurements::calculate_pedal_cadance(){
+  // THIS IS OUTDATED, LOOK AT 'calculate_bike_speed' ABOVE ON HOW TO IMPLEMENT 
+  // AN ENCODER READING 
+
   /*K: NOTE Since the microcontroller operating frequency is much higher than the
   frequency at which encoder ticks pass the reading head, the difference between
   the tick count of the current and previous loop will most of the time be zero.
@@ -873,7 +873,7 @@ void BikeMeasurements::calculate_pedal_cadance(){
 
 void BikeMeasurements::calculate_accelarations(){
   Vector3f IMU_acc = {IMU.accel_x_mps2(),IMU.accel_y_mps2(),IMU.accel_z_mps2()};
-  Vector3f bike_acc = B_ROT_IMU*IMU_acc;
+  Vector3f bike_acc = B_ROT_IMU*IMU_acc; // From IMU frame to Bicycle body fixed frame
   m_accel_x = -bike_acc(0);
   m_accel_y = -bike_acc(1);
   
@@ -882,16 +882,15 @@ void BikeMeasurements::calculate_accelarations(){
 //=======================-========= [IMU setup] ================================//
 #if USE_IMU
 void imu_setup(){
+  // NOTE: The IMU uses I2C as this gave the best connection
   // Start the I2C bus
   Wire.begin();
   Wire.setClock(WIRE_FREQ);
-  // I2C bus,  0x68 address
-  IMU.Config(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM);
-  // TODO: the mpu9250 class has a built in digital low pass filter. 
-  // default is at 184Hz. look into it if it needs to be lower.
+
+  // Initialize and configure IMU
+  IMU.Config(&Wire, bfs::Mpu9250::I2C_ADDR_PRIM); // I2C bus,  0x68 address
   IMU.ConfigAccelRange(bfs::Mpu9250::ACCEL_RANGE_4G); // +- 4g
   IMU.ConfigGyroRange(bfs::Mpu9250::GYRO_RANGE_250DPS); // +- 250 deg/s
-  // Initialize and configure IMU
   if(!IMU.Begin()){
     #if SERIAL_DEBUG
     Serial.println("Error initializing communication with IMU");
@@ -962,6 +961,13 @@ void apply_friction_compensation(double& fork_command){
   static uint8_t neg_cntr = 0;
   static int8_t force_dir = 0;
 
+  /*NOTE: In the most simple form the friction compensation equals 
+  sign(fork angle)*FRIC_COMPENSATION_BIAS. However, when driving
+  forward the front fork will often momentarily cross the zero angle.
+  Direct aplication of the friction compensation will then cause jerks 
+  and makes the system unstable. Therefor a small delay is incorperated
+  such that the friction compensation only switches sides, when there 
+  is a deliberate change of sign.*/
   if(sgmd(fork_command) >= 0){
     if(pos_cntr > 5){
       force_dir = 1;
@@ -1006,29 +1012,6 @@ float Trq_sensor_logic_filter::filter_trq_sensor(float meas_force){
   return force_relayed;
 }
 
-// float relay_measured_hand_torque(float meas_force){
-//   float force_relayed = 0;
-//   static uint8_t in_bounds_cntr = 0;
-//   static uint8_t out_bounds_cntr = 5; //start out of bounds
-
-//   if(-0.5<meas_force && meas_force<0.5){      // If in bounds
-//     if(in_bounds_cntr >= 50){                 //   for at least 50 loop cycles
-//       out_bounds_cntr = 0;                    //     then ignore the measured hand torque --> most likely noise
-//     }else{
-//       in_bounds_cntr++;
-//       force_relayed = meas_force;             // else, relay the measured torque --> most likely a passing through bounds
-//     }
-//   }else{                                      // If out of bounds
-//     if(out_bounds_cntr >= 5){                 //   for longer than 5 cycles (aka not a spike of noise that became out of bounds)
-//       force_relayed = meas_force;             //      relay the measured torque
-//       in_bounds_cntr = 0;
-//     }else{
-//       out_bounds_cntr++;                      // else, ignore measured hand torque --> most likely still noise.
-//     }
-//   }
-//   return force_relayed;
-// }
-
 
 //=========================== [Calculate Sil control] ==========================//
 void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& command_hand){
@@ -1040,9 +1023,11 @@ void calc_sil_control(BikeMeasurements& bike, double& command_fork, double& comm
     sil_command = K_SIL2 * (bike.get_bike_speed() - V_AVERAGE)*bike.get_lean_angle();
 
   command_fork += sil_command; //Different signs as the motor shafts are facing opposite directions, but are controlled the same.
-  // command_hand -= sil_command * FORK_TRQ_REDUCTION_RATIO; 
+  command_hand -= sil_command * FORK_TRQ_REDUCTION_RATIO; 
 
+  #if SERIAL_DEBUG
   Serial.print(sil_command,5);
+  #endif
   return;
 }
 
@@ -1059,8 +1044,18 @@ void calc_mm_sil_control(BikeMeasurements& bike, double& command_fork, double& c
   double sil_command;
   calc_mm_gains(k_phi, k_delta, k_dphi, k_ddelta, k_tphi, k_tdelta, bike.get_bike_speed());
 
+  //TODO: Currently we assume the Force transducer in on the handlebar, so we filter
+  // the hand torque (see line below). However, the filter from the force transducer 
+  // itself should be filtered irrespactive if it becomes the hand or lean torque.
   float hand_torque = logic_filt.filter_trq_sensor(bike.get_hand_torque());
   
+  // Math behind it: (here _c = controlled, and _r = reference)
+  // dx_c = A_c*x + B_c*u_c && u_c = F_mm*x + G_mm*u_r -->
+  // (A_c + B_c*F_mm)*x + B_c*G_mm*u_r = A_r*x + B_r*u_r
+  // (A_r + B_r*F_sil)*x + B_r*G_sil*u_r = (A_c + B_c*F_mm + B_c*G_mm*F_sil)x + B_c*G_mm*G_sil*u_r
+  //                                     = (A_c + B_c*(F_mm + G_mm*F_sil))x + B_c*(G_mm*G_sil)*u_r
+  //                                     = (A_c + B_c*F_mm_sil)*x + B_c*G_mm_sil*u_r
+  // Working this out on an element level gives:
   if (bike.get_bike_speed() < V_AVERAGE)
   {
     sil_command = K_SIL1 * (V_AVERAGE - bike.get_bike_speed())*bike.get_lean_rate();
@@ -1092,8 +1087,9 @@ void calc_mm_sil_control(BikeMeasurements& bike, double& command_fork, double& c
     }
   }
 
-  // command_hand = -sil_command * FORK_TRQ_REDUCTION_RATIO; //Different signs as the motor shafts are facing opposite directions, but are controlled the same.
+  #if SERIAL_DEBUG
   Serial.print(sil_command,5);
+  #endif
   return;
 }
 
@@ -1123,11 +1119,11 @@ void actuate_steer_motors(double command_fork, double command_hand){
   -10*842.795 + 16384 < commanded torque < 10*842.795 + 16384
   `              7956 < commanded torque < 24812                            */
   //------[Calculate the PWM command
-  uint64_t pwm_command_fork = (command_fork * -842.795 + 16384); //K: Sends signal in 0-3.3V range out, which then corresonds to some (unkonwn by me) range of current/torque
+  uint64_t pwm_command_fork = (command_fork * -842.795 + 16384); //K: Sends signal in 0-3.3V range out, which then corresonds to some range (unkonwn to me) of current/torque
   uint64_t pwm_command_hand = (command_hand * -842.795 + 16384); //  This video (https://www.youtube.com/watch?v=-TC_ccQnk-Y&list=PLmklAQtFT_ZJzWOa9O6507qA0NiSU8hzN) shows that one can set the ratio between input voltage to output current on the motor driver.
   
   //Constrain max torque
-  pwm_command_fork = constrain(pwm_command_fork, FORK_PWM_MIN, FORK_PWM_MAX); //Just realised it would have been easier to constrain the command, but now this is already in place
+  pwm_command_fork = constrain(pwm_command_fork, FORK_PWM_MIN, FORK_PWM_MAX);
   pwm_command_hand = constrain(pwm_command_hand, HAND_PWM_MIN, HAND_PWM_MAX);
   
   //------[Send motor command
@@ -1199,11 +1195,6 @@ void print_to_bt(BikeMeasurements& bike, double command_fork, double command_han
 //========================== [initialize Serial] ==========================//
 void serial_setup(){
   //Print header for log file
-  // Serial.print("omega_x,");
-  // Serial.print("omega_y,");
-  // Serial.print("omega_z,");
-  // Serial.print("raw_hand_torque,");
-  // Serial.print("transducer_byte,");
   Serial.print("sil_command,");
   Serial.print("speed,");
   Serial.print("lean_angle,");
@@ -1223,7 +1214,7 @@ void serial_setup(){
 
 //=========================== [Print to serial] ===========================//
 void print_to_serial(BikeMeasurements& bike, double command_fork, double command_hand){
-  // Serial.print(sil_command);
+  // 'sil_command' (is printed when calculating the controller command);
   Serial.print(",");
   Serial.print(bike.get_bike_speed(),5);
   Serial.print(",");
@@ -1312,6 +1303,9 @@ void open_file() {
 
 //============================= [Print to SD] =============================//
 void print_to_SD(BikeMeasurements bike, float command_fork, float command_hand){
+  // NOTE: Currently saving to the SD card causes to much lag to work propperly. 
+  // To implement SD saving properly, this needs to be addressed first.
+
   size_t n = rb.bytesUsed();
   
   elapsedMicros dt_SD;
@@ -1446,7 +1440,7 @@ void update_dtime(uint32_t& dtime, elapsedMicros& timer){
 //================= [Calculate Derivative Backward Euler] =================//
 float calc_bckwrd_derivative(float val_cur, float& val_prev, uint32_t dt){
   //TODO: Make sure the iput 'dt' is always in microseconds
-  /* Calculate the derivative with backward Euler. The previous value is updated 
+  /* Calculate the derivative. The previous value is updated 
   to the current after that values derivative is calulated. WARNING: This should 
   be the only place where the value of 'previous' is altered.
   */
