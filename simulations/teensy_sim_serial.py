@@ -123,6 +123,11 @@ class TeensySimSerial:
 # https://numpy.org/doc/stable/reference/generated/numpy.frombuffer.html
 # https://stackoverflow.com/questions/8216088/how-to-check-the-size-of-a-float-in-python
 
+# https://stackoverflow.com/questions/44056846/how-to-read-and-write-from-a-com-port-using-pyserial
+# https://pyserial.readthedocs.io/en/latest/tools.html
+# https://www.youtube.com/watch?v=AHr94RtMj1A
+# https://www.youtube.com/watch?v=fIlklRIuXoY
+# https://www.youtube.com/watch?v=iKGYbMD3NT8&list=PLb1SYTph-GZJb1CFM7ioVY9XJYlPVUBQy
 
 ##-----------------------------DEBUG HELP-----------------------------##
 # time.sleep(1)
