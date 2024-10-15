@@ -7,6 +7,10 @@ of simplicity and speed.
 
 Altough this class can serve as a basis for a general Kalman filter,
 the use of a well reviewed library is recommended instead.
+
+For more information on why we use a kalman like filter for angle 
+estimation see this discussion:
+https://stackoverflow.com/questions/14210206/gyroscope-drift-on-mobile-phones
 */
 
 /*
