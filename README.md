@@ -1,38 +1,29 @@
-# TU Delft Steer-by-Wire bicycle
-A GitHub repository for the Bicycle Lab's Steer-by-Wire bicycle.
+# TU Delft Steer-by-Wire Bicycle
+![Picture of the steer-by-wire bicycle](/steer_by_wire_bicycle)
+A GitHub repository for the Model matching control research performed on the Bicycle Lab's Steer-by-Wire bicycle.
+Which lead to the thesis "Model Matching Control Applied to Bicycles".
+In this thesis the goal is to use model matching control to virtually alter the bicycle physical parameters.
+The research showed this is possible in specific cases.
+This repository contains all the code necessary to perform the experiments and analyses performed during the thesis.
 
-Building on Georgios Dialynas' work: 
-- Original repository: [gdialynas/Steer-by-wire-bicycle](https://github.com/gdialynas/Steer-by-wire-bicycle).
+## Acknoledgements
+For the steer-by-wire system this code builds on Georgios Dialynas's and Simonas Drauksas's work: 
+- Original repository: [gdialynas/Steer-by-wire-bicycle](https://github.com/gdialynas/Steer-by-wire-bicycle), and [gdialynas/Steer-by-wire-bicycle](https://github.com/mechmotum/TUDelft-SbW-Bicycle)
 - Paper: [Dialynas, Georgios & Schwab, Arend & Happee, Riender. (2018). Design and implementation of a steer-by-wire bicycle](https://www.researchgate.net/publication/328808185_Design_and_implementation_of_a_steer-by-wire_bicycle).
 
 ## File structure
-`bluetooth_teensy/` - A Teensy 4.1 together with an HC-05 Bluetooth module is used as a Bluetooth interface to Simulink. This folder hosts the code for the Teensy. Written in C++ using PlatformIO.
+`data_analysis/` - Map containing several scripts analysis the logged data of the model matching experiments.
 
-`docs/` - Hosts the documentation for the bicycle, hardware and software.
+`docs/` - Documentation on the steer-by-wire bicycle system.
 
-`inventory/` - Hosts the inventory of the spare parts for the hardware.
+`imu_calibration` - Script that calculates the rotation matrix between the body fixed frame and the IMU frame.
 
-`libsurvive-udp/` - Hosts the files to enable HTC Vive Tracker communication through UDP.
+`inventory/` - (Outdated) inventory of the electrical and mechanical spare parts. Copied over from Simonas's github.
 
-`neokey/` - A NeoKey Trinkey is used to control the trial's start and end. Code for the NeoKey is hosted here. Written in CircuitPython.
+`model matching gain calculation/` - Map Containing the scripts for the model matching controller design.
 
-`simulink/` - Hosts the MATLAB scripts and Simulink model for the MPC controller.
+`sensitivity analysis/` - Map containing the scripts for the model matching controller sensitivity analysis.
 
-`teensy/` - Contains the Teensy code that acts as the brain of the bicycle. Written in C++ using PlatformIO.
+`simulations/` - Map containing scripts for simulating the steer-by-wire bicycle and controller, and several theoretical analyses.
 
-`unity/SbW-game/` - Contains the visualisation of the reference line that needs to be tracked. Developed in Unity.
-
-`unity/SbW-game-built/` - Contains the binaries built from `unity/SbW-game/`. Built for Windows 64-bit.
-
-## Block diagram of the bicycle
-
-![Block diagram](/block_diagram.png)
-
-- $\theta$ is the handlebar angle
-- $\delta$ is the fork angle
-- $e$ is the angular error
-- $T_h$ is the human torque
-- $T_g$ is the ground reaction torque
-- $y$ is the lateral position of the rear wheel
-- $\psi$ is the yaw angle
-- $\varphi$ is the roll angle
+`teensy/` - Map containing the scripts that are run by the teensy controller.
