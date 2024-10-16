@@ -9,6 +9,8 @@ and fork angles match up.
 
 `src/` - This folder contains the main code base. Currently, everything is contained in the `main.cpp` file.
 
+`log/` -  Conaining the log files from several experiments. (Except for the log files used in the scripts them selves (e.g. `log/bodetest-4m_per_s/`, `log/eigen_[XXX]_sil6.5n2_[XXX]kph.log`, etc) These should actually not be on the github, so you can delete them. I did not have the time to figure out which files are still used.)
+
 `.gitignore` - This file excludes the `.pio` folder (used for temporary compilation files) and `.vscode` folder (used for my VSCode configuration).
 
 `platformio.ini` - This is a PlatformIO project configuration file. Currently settings are to use the Arduino framework for the Teensy 4.1 board.

@@ -22,6 +22,8 @@ For the steer-by-wire system this code builds on Georgios Dialynas's and Simonas
 
 `model matching gain calculation/` - Map Containing the scripts for the model matching controller design.
 
+`old_code` - Map containing the old code on the teensy written by Georgios Dialynas. It contains some comments that were useful for figuring out the main code.
+
 `sensitivity analysis/` - Map containing the scripts for the model matching controller sensitivity analysis.
 
 `simulations/` - Map containing scripts for simulating the steer-by-wire bicycle and controller, and several theoretical analyses.
