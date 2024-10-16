@@ -1,5 +1,5 @@
 # TU Delft Steer-by-Wire Bicycle
-![Picture of the steer-by-wire bicycle](/steer_by_wire_bicycle)
+![Picture of the steer-by-wire bicycle](/steer_by_wire_bicycle.jpg)
 A GitHub repository for the Model matching control research performed on the Bicycle Lab's Steer-by-Wire bicycle.
 Which lead to the thesis "Model Matching Control Applied to Bicycles".
 In this thesis the goal is to use model matching control to virtually alter the bicycle physical parameters.
