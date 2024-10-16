@@ -9,7 +9,7 @@ and fork angles match up.
 
 `src/` - This folder contains the main code base. Currently, everything is contained in the `main.cpp` file.
 
-`log/` -  Conaining the log files from several experiments. (Except for the log files used in the scripts them selves (e.g. `log/bodetest-4m_per_s/`, `log/eigen_[XXX]_sil6.5n2_[XXX]kph.log`, etc) These should actually not be on the github, so you can delete them. I did not have the time to figure out which files are still used.)
+`logs/` -  Conaining the log files from several experiments. (Except for the log files used in the scripts them selves (e.g. `logs/bodetest-4m_per_s/`, `logs/eigen_[XXX]_sil6.5n2_[XXX]kph.log`, etc) These should actually not be on the github, so you can delete them. I did not have the time to figure out which files are still used.)
 
 `.gitignore` - This file excludes the `.pio` folder (used for temporary compilation files) and `.vscode` folder (used for my VSCode configuration).
 
