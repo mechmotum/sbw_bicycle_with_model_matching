@@ -1,0 +1,55 @@
+\section{Things That Need to Be Fixed}
+\subsection{Electrical Fuse} \label{sec:loose_fuse}
+There are multiple electrical fuses protecting various parts from electrical overload. The fuse going to the PCBs in the electronics box does \textbf{not} have a fuse holder. As a result, vibrations can cause a disconnection of the wires at this fuse. As a quick fix, I used a tight fitting crimp connector and sealed it with tape. (This is the tapped cable labelled FUSE inside the white tube near the battery). For now this quick fix is stable enough. But in the future, a fuse holder should be implemented to prevent a cable disconnection that will lead to crashes.
+
+If the fuse is disconnected, the sensors that are powered by the extension or power PCB do not receive power. This is most visible by the front fork and handlebar angles being fixed around 0.7 and 1.4. In PD mode, the handlebar and front fork will be in opposite directions, and a large torque prevents them from moving. Pushing on both sides of the fuse makes the connection more snug and solves the issue. But this is a quick fix. A fuse holder should be installed.
+
+\subsection{Handlebar LED influence}
+For some reason the status of the LED effects the signal of the force transducer.
+Be aware of this.
+
+\subsection{Steer and Fork Encoder Calibration} \label{sec:fork_encoder}
+Currently the fork encoder is not properly installed. Installation is extremely difficult due to the mechanical design. The design forces the user to set the relative position between the encoder read-out chip and the magnet by hand. This makes it difficult to be within specs for both concentricity and distance between the read-out chip and magnet. (See the documentation of the encoder on the positional requirements.)
+
+A new design for the attachment of the encoder and magnet should be implemented. For inspiration, look at the attachment method for the steer encoder, as here the design is done such that the relative positino between the chip and magnet is fixed, while meeting the specs.
+
+\subsection{Encoder for Cadence}
+As the attachment point of one of the relative encoders is broken, the bicycle currently can not read out the cadance.
+Either a new encoder is bought and installed, the attachment point is repaired, or the encoder is attached in a different way.
+
+\subsection{Speed Sensor Calibration}
+There is a difference between the speed calculated by the relative encoder, and the speed indicated by the treadmill.
+I do not know which of these speeds are correct.
+The speed sensor should be calibrated against a true speed measure.
+
+\subsection{Motor Torque vs Real Torque Calibration}
+There is a difference between the fork torque commanded in the code, and the fork torque exerted by the motor.
+The relation between them should be found and corrected for. Same goes for the steer motor.
+
+\subsection{Location of IMU}
+Ideally the relative orientation of the IMU and bicycle frame remain constant.
+However, the IMU is currently placed in the electronic box, which is attached to the luggage carrier.
+The fixiation of the luggage carrier is pretty wonky, meaning that it can shift orientation while riding.
+Either place the IMU on another location (not recommended due to long cables that will catch a lot of noise) or replace/fix the faulty luggage carrier.
+
+\subsection{Noise on the Ground (Force Transducer)} \label{sec:noise_on_ground}
+The signal used to measure the force put on the force transducer is extremely noisy.
+The signal originates from the force transducer and goes through an instrumentation amplifier before read out by the teensy.
+I tried to filter the signal coming from the INA125, by placing a low pass filter between the output signal of the INA125 and the analog input pin of the teensy.
+For the ground I used the ground of the teensy.
+However, when reading out the teensy's analog pin, there was no noticeable difference between the raw and filtered analog signal.
+This means the noise was not on the output of the INA125, but on the ground.
+
+I investigated the origin of this noise, but could not pinpoint the exact bug.
+Inspection of the noise suggests that it comes from the the \href{https://www.ti.com/product/LM2576}{LM2576s step down regulator} connected to the big inductor on the power PCB. 
+The switching frequency of the step-down regulator coincides with the frequency of the noise.
+Covering the regulator and inductor with your hands shows a noticeable decrease in the noise on a oscilloscope.
+Most likely there is a ground loop in the system, or other loops that catch the electromagnetic field coming from this duo.
+
+I braided the wires comming from the transducer and tried to have them shielded as long as possible. 
+I also removed the cables from the broken steer torque sensor. 
+These actions seemed to reduce the noise.
+
+I did not solve the issue, so I would advice you to investigate this more if necessary.
+Ask yourself first, do I care about the noise, before trying to remove it.
+Quicker alternatives are using a different force transducer, making an isolated instrumental amplifier circuit, or using digital filtering.

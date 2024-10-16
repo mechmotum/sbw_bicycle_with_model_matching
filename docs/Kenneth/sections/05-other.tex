@@ -1,0 +1,44 @@
+\section{Other Usefull Information}
+\subsection{Clean-Up of the Electric Box}
+I removed a grey ground wire from J13. 
+The wire connected two grounds to each other that were already connect. This can cause ground loops.
+
+The ground wire in the data cable of the speed encoder was broken at the PCB connector side.
+Therefore I implemented a new connector.
+
+Furthermore there was a LM0296 DC-DC converter taped to the side.
+It was not connected to anything, so I removed and put it in the general electronics storage.
+
+\subsection{Wedge in the Force Transducer attachment}
+The force transducer was originally fastened to the saddle post via a loose connection. Back then, this was not a problem as the force transducer was only used for pulling. But to make pushing possible, a wooden wedge is jammed in the fastener to fix the fastener's location. Now pushing is possible as well. (Eventually lean torque was not measured, so the force transducer was never used at the saddle post location.)
+
+\subsection{Platform IO}
+The code for the microcontroller can be uploaded using the Arduino IDE.
+However, I personally prefer to use Platform IO, an IDE that allows to program for all kinds of microcontrollers.
+Here are links on how to install Platform IO: \href{https://www.youtube.com/watch?v=PYSy_PLjytQ}{Small overview of the platform}, \href{https://docs.platformio.org/en/latest/integration/ide/vscode.html}{Installation and Quick Start}.
+Platform IO is built on top of \href{https://code.visualstudio.com}{Visual Studio Code}, so you need to use that as well.
+Final note: Make sure you place your .platformio folder in your preferred location during installation.
+Moving it afterwards proved to cause issues.
+
+\subsection{Platform IO's serial monitor}
+By default the serial monitor of platform IO sends whatever you type directly to the board. 
+You are directly typing into the board's UART and there is no separate place where you can first type a line and then hit send like with the arduino IDE.
+To create this separate space use the following command in the \texttt{platform.ini} file: \texttt{monitor\_filters = send\_on\_enter}.
+Also type \texttt{monitor\_echo = true} to also see what you are typing.
+For more documentation see \href{https://docs.platformio.org/en/latest/core/userguide/device/cmd_monitor.html}{the pIO documentation}, and \href{> https://community.platformio.org/t/is-there-anyway-to-send-manually-typing-messages-to-arduino-through-serial-port-in-platformio/15326}{this} and \href{> https://community.platformio.org/t/write-to-serial-monitor/16321}{this} thread.
+
+Saving from serial monitor to file can be done via:
+\begin{itemize}
+    \item Via pIO itself by including \texttt{monitor\_filters = log2file} into your \texttt{platform.ini} file, see \href{https://docs.platformio.org/en/latest/core/userguide/device/cmd_monitor.html#filters}{the documentation}.
+    \item Or via the pIO command terminal. This is more versatile with naming the file. But has to be done by hand, see \href{https://community.platformio.org/t/managing-serial-port-output-and-saving-log-file/7771}{the documentation}.
+    \item The best option would be to write your own python code with pySerial, but this takes time.
+\end{itemize}
+From my experience, the first option is good enough.
+
+\subsection{serial monitor communication}
+Here are some useful links about serial communication between the teensy and python (running on the computer):
+\href{https://stackoverflow.com/questions/44056846/how-to-read-and-write-from-a-com-port-using-pyserial}{Stack overflow example},
+\href{https://pyserial.readthedocs.io/en/latest/pyserial.html}{pyserial documentation},
+\href{https://www.youtube.com/watch?v=AHr94RtMj1A}{Video tutorial 1},
+\href{https://www.youtube.com/watch?v=fIlklRIuXoY}{Video tutorial 2},
+\href{https://www.youtube.com/watch?v=iKGYbMD3NT8&list=PLb1SYTph-GZJb1CFM7ioVY9XJYlPVUBQy}{Video tutorial 3}.
